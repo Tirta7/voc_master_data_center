@@ -46,10 +46,10 @@ export function RegisterModal({
   if (!isMounted || !showRegisterModal) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[1000000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
+        className="fixed inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300"
         onClick={() => {
           setShowRegisterModal(false);
           resetRegisterForm();
@@ -57,11 +57,12 @@ export function RegisterModal({
       />
 
       {/* Modal Container - Responsive Layout */}
-      <div className="relative w-full max-w-[1400px] max-h-[95vh] bg-[#F8FAFC] rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white mx-2 sm:mx-4">
+      <div className="relative bg-[#F8FAFC] rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-[1400px] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[95vh] flex flex-col">
 
         {/* Header - Adaptive padding */}
-        <div className="px-6 sm:px-10 py-4 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-100">
-          <div className="flex items-center gap-3">
+        <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white shrink-0">
+          <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="w-1.5 h-8 bg-indigo-600 rounded-full hidden sm:block" />
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight">User Management</h2>
@@ -89,7 +90,7 @@ export function RegisterModal({
         <form
           id="employee-form"
           onSubmit={handleRegister}
-          className="flex-1 overflow-y-auto p-4 sm:p-10 bg-[#F8FAFC] custom-scrollbar"
+          className="flex-1 overflow-y-auto no-scrollbar p-6 sm:p-10 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-10 bg-[#F8FAFC]"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
 

@@ -51,7 +51,7 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
     const activeItems = (orderItems || []).filter(i => i.status?.toUpperCase() !== 'CANCELLED');
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300"
@@ -59,24 +59,28 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
             />
 
             {/* Modal Content */}
-            <div className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in duration-300">
+            <div className="relative w-full max-w-lg bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in duration-300">
                 {/* Header */}
-                <div className="px-8 py-6 border-b border-slate-50 flex justify-between items-start bg-white sticky top-0 z-10">
-                    <div>
-                        <div className="flex items-center gap-2.5 mb-1">
-                            <div className="p-2 bg-indigo-50 rounded-xl">
-                                <Utensils className="w-5 h-5 text-indigo-600" />
+                <div className="pt-4 pb-6 px-6 sm:px-8 border-b border-slate-50 flex flex-col bg-white sticky top-0 z-10">
+                    {/* iOS Drag Handle */}
+                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="p-2 bg-indigo-50 rounded-xl">
+                                    <Utensils className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Daftar Pesanan</h3>
                             </div>
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Daftar Pesanan</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-0.5">{tableName}</p>
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-0.5">{tableName}</p>
+                        <button
+                            onClick={onClose}
+                            className="p-2 hover:bg-slate-50 text-slate-300 hover:text-slate-600 rounded-2xl transition-all active:scale-90"
+                        >
+                            <X className="w-7 h-7" />
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-slate-50 text-slate-300 hover:text-slate-600 rounded-2xl transition-all active:scale-90"
-                    >
-                        <X className="w-7 h-7" />
-                    </button>
                 </div>
 
                 {/* Body */}
@@ -341,7 +345,7 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="p-8 bg-slate-50 border-t border-slate-100 flex flex-col gap-4">
+                <div className="p-6 sm:p-8 bg-slate-50 border-t border-slate-100 flex flex-col gap-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-8">
                     {selectedItemIds.length > 0 && (
                         <div className="flex items-center justify-between px-2">
                             <div className="flex items-center gap-2">

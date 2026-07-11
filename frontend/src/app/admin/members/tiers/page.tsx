@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
     Award, Plus, Trash2, Edit2, Shield,
@@ -79,6 +80,17 @@ export default function TierManagementPage() {
     const [hasBonusTopup, setHasBonusTopup] = useState(false);
 
     useEffect(() => { fetchTiers(); fetchCategories(); }, []);
+
+    useEffect(() => {
+        if (showModal && typeof document !== 'undefined') {
+            document.body.style.overflow = 'hidden';
+        } else if (typeof document !== 'undefined') {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            if (typeof document !== 'undefined') document.body.style.overflow = '';
+        };
+    }, [showModal]);
 
     const fetchCategories = async () => {
         try { const res = await axios.get(`/cafe/categories`); setCategories(res.data); } catch { }
@@ -228,17 +240,20 @@ export default function TierManagementPage() {
             </div>
 
             {/* ── Modal ── */}
-            {showModal && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowModal(false)} />
-                    <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-3xl max-h-[92vh] flex flex-col shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
+            {showModal && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3.5rem] w-full max-w-3xl max-h-[85vh] sm:max-h-[90vh] flex flex-col shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                         {/* Modal Header */}
-                        <div className="p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-                            <div>
-                                <h2 className="text-xl font-black text-slate-900">{editingTier ? 'Edit Tier' : 'Buat Tier Baru'}</h2>
-                                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-0.5">Sistem Loyalitas & Gamifikasi</p>
+                        <div className="p-6 pt-4 pb-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 bg-white z-10 relative">
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
+                            <div className="flex justify-between items-center w-full">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900">{editingTier ? 'Edit Tier' : 'Buat Tier Baru'}</h2>
+                                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-0.5">Sistem Loyalitas & Gamifikasi</p>
+                                </div>
+                                <button onClick={() => setShowModal(false)} className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-all shrink-0"><CloseIcon className="w-5 h-5" /></button>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-all"><CloseIcon className="w-4 h-4" /></button>
                         </div>
 
                         {/* Section Nav */}
@@ -497,14 +512,17 @@ export default function TierManagementPage() {
                         </form>
 
                         {/* Modal Footer */}
-                        <div className="p-5 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-slate-50/50">
-                            <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl hover:border-slate-300 transition-all">BATAL</button>
-                            <button form="tier-form" type="submit" className="flex-2 bg-gradient-to-br from-indigo-600 to-purple-600 text-white py-3.5 px-8 rounded-2xl font-black text-[10px] shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2">
-                                <Save className="w-4 h-4" /> SIMPAN TIER
+                        <div className="p-6 border-t border-slate-100 flex gap-4 flex-shrink-0 bg-slate-50/50 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-6 relative z-10">
+                            <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 bg-white text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest border border-slate-200 rounded-2xl hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm">
+                                Batal
+                            </button>
+                            <button form="tier-form" type="submit" className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-600 text-white py-4 px-8 rounded-2xl font-black text-[10px] sm:text-xs shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">
+                                <Save className="w-4 h-4 sm:w-5 sm:h-5" /> Simpan Tier
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

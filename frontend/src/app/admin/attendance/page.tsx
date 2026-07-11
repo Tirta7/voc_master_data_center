@@ -935,13 +935,13 @@ export default function AttendancePage() {
 
             {/* ══════════════════════════ MODAL: RFID & PIN ══════════════════════════ */}
             {isPinModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => {
+                <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => {
                         setIsPinModalOpen(false);
                         axios.post('/attendance/public/prompt', { mode: 'RESET' }).catch(() => { });
                     }} />
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 relative">
-                        <div className="p-8 text-center space-y-8">
+                    <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 relative max-h-[90vh] flex flex-col">
+                        <div className="p-8 text-center space-y-8 overflow-y-auto no-scrollbar pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8 flex-1">
                             <div className="flex justify-center">
                                 <div className="relative">
                                     {isScanningRFID && (
@@ -997,12 +997,14 @@ export default function AttendancePage() {
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className={`grid gap-4 ${isScanningRFID ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                 <button onClick={() => {
                                     setIsPinModalOpen(false);
                                     setPin('');
                                     axios.post('/attendance/public/prompt', { mode: 'RESET' }).catch(() => { });
-                                }} className="py-4 rounded-2xl font-black text-[10px] text-slate-400 uppercase hover:bg-slate-50 tracking-widest">Batal</button>
+                                }} className="py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 shadow-sm">
+                                    Batal
+                                </button>
                                 {!isScanningRFID && (
                                     <button onClick={() => handlePinSubmit()} disabled={pin.length < 4 || isSubmitting} className={`py-4 rounded-2xl font-black text-[10px] uppercase text-white shadow-lg disabled:opacity-50 tracking-widest ${pinAction === 'IN' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-slate-900 shadow-slate-200'}`}>
                                         {isSubmitting ? 'PROSES...' : 'KONFIRMASI'}

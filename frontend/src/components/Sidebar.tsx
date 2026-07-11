@@ -74,6 +74,13 @@ export default function Sidebar() {
     } = useRealtimeData();
     const { t } = useLanguage();
 
+    // Auto-collapse sidebar on specific full-screen pages
+    React.useEffect(() => {
+        if (pathname === '/kds' || pathname === '/bartender' || pathname === '/kitchen-bar') {
+            setIsOpen(false);
+        }
+    }, [pathname, setIsOpen]);
+
     // Build dynamic menu groups using translations
     const menuGroups = [
         {

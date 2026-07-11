@@ -158,22 +158,25 @@ export function SuppliersView() {
             </div>
 
             {showModal && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-700" onClick={() => setShowModal(false)} />
-                    <div className="relative bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col max-h-[90vh]">
-                        <div className="p-8 lg:p-10 border-b border-slate-50 flex justify-between items-center bg-white shrink-0">
-                            <div>
-                                <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
-                                    {editingSupplier ? 'Update Database Supplier' : 'Registrasi Supplier Baru'}
-                                </h3>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lengkapi profil vendor untuk database inventaris</p>
+                <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-0 sm:p-6">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-2xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 flex flex-col max-h-[85vh] sm:max-h-[90vh]">
+                        <div className="pt-4 pb-4 sm:p-8 lg:p-10 px-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white shrink-0">
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
+                            <div className="flex justify-between items-center w-full">
+                                <div>
+                                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
+                                        {editingSupplier ? 'Update Database Supplier' : 'Registrasi Supplier Baru'}
+                                    </h3>
+                                    <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lengkapi profil vendor untuk database inventaris</p>
+                                </div>
+                                <button onClick={() => setShowModal(false)} className="p-2.5 sm:p-3 bg-slate-50 text-slate-400 rounded-xl sm:rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all border border-transparent hover:border-rose-100 group shrink-0 ml-2">
+                                    <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                                </button>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="p-3 bg-slate-50 text-slate-300 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all border border-transparent hover:border-rose-100">
-                                <X size={20} />
-                            </button>
                         </div>
 
-                        <form id="supplier-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-10 space-y-8 bg-slate-50/30">
+                        <form id="supplier-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto no-scrollbar p-6 sm:p-8 lg:p-10 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-10 space-y-8 bg-slate-50/30">
                             {/* Section: Identitas Utama */}
                             <div className="p-7 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
                                 <label className="flex items-center gap-2 text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-2 ml-1">

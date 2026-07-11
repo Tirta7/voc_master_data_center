@@ -35,13 +35,14 @@ export function ViolationModal({
   if (!showViolationModal) return null;
 
   return (
-    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       <div
-        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md"
+        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300"
         onClick={() => setShowViolationModal(false)}
       />
-      <div className="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl z-10 overflow-hidden animate-in zoom-in-95 duration-300">
-        <div className="p-8 border-b border-slate-100 bg-slate-50/50">
+      <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] z-10 overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] flex flex-col">
+        <div className="pt-4 pb-4 sm:p-8 px-6 sm:px-8 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
           <div className="flex gap-2 mb-6 bg-slate-100/50 p-1 rounded-2xl">
             <button
               onClick={() => { setIsCorrection(false); setManualViolation({ ...manualViolation, penaltyAmount: Math.abs(manualViolation.penaltyAmount || 0) }); }}
@@ -76,7 +77,7 @@ export function ViolationModal({
             }
             // Pass the overridden payload directly to avoid React state closure delays
             handleLogViolation(e, finalViolation);
-        }} className="p-8 space-y-6">
+        }} className="flex-1 overflow-y-auto no-scrollbar p-6 sm:p-8 space-y-6 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8">
           {!isCorrection && (
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">

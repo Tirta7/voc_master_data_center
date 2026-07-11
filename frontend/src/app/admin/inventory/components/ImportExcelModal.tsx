@@ -91,25 +91,28 @@ export function ImportExcelModal({ isOpen, onClose, onSuccess }: ImportExcelModa
     };
 
     return (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={handleReset} />
-            <div className="relative bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-emerald-50/50">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-                            <FileSpreadsheet className="w-6 h-6" />
+        <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={handleReset}>
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" />
+            <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 flex flex-col max-h-[85vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="pt-4 pb-4 sm:py-8 px-6 sm:px-8 border-b border-slate-50 flex flex-col bg-emerald-50/50 shrink-0">
+                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-200 shrink-0">
+                                <FileSpreadsheet className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Import Data</h3>
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Excel Spreadsheet (.xlsx)</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Import Data</h3>
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Excel Spreadsheet (.xlsx)</p>
-                        </div>
+                        <button onClick={handleReset} className="p-2 hover:bg-white rounded-full transition-colors shrink-0">
+                            <X className="w-5 h-5 text-slate-400" />
+                        </button>
                     </div>
-                    <button onClick={handleReset} className="p-2 hover:bg-white rounded-full transition-colors">
-                        <X className="w-5 h-5 text-slate-400" />
-                    </button>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-6 sm:p-8 space-y-6 overflow-y-auto no-scrollbar pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-8">
                     {!result ? (
                         <>
                             <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">

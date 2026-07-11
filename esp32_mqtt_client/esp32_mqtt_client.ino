@@ -49,6 +49,9 @@
 #include <esp_task_wdt.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <ESPmDNS.h>    // 🌐 mDNS — Akses via http://voc-panel-XXXX.local
+#include <ElegantOTA.h> // 🔄 Web OTA — Upload firmware via browser
+#include <WebSerial.h>  // 📋 Log Monitor real-time via browser
 
 // ─── ESP-NOW PACKET ──────────────────────────────────────────────
 typedef struct __attribute__((packed)) {
@@ -123,6 +126,10 @@ unsigned long lastStatusUpdate = 0;
 unsigned long lastHeartbeat = 0;
 unsigned long lastWifiCheck = 0;
 unsigned long portalTriggerStart = 0; // 🛡️ Tracker untuk tombol BOOT
+
+// 🌐 mDNS & Web Services
+String mdnsHostname = "";        // Nama mDNS unik (contoh: voc-panel-f770)
+bool webServicesStarted = false; // Flag agar init hanya sekali saat WiFi connect
 
 const unsigned long STATUS_INTERVAL = 30000;    // Telemetry tiap 30s
 const unsigned long HEARTBEAT_INTERVAL = 60000; // Heartbeat tiap 60s
@@ -345,8 +352,12 @@ void handleRoot() {
        ">LOW (Common)</option><option value='0' " +
        String(!pcf_active_low ? "selected" : "") +
        ">HIGH</option></select></div>";
-  h += "<button type='submit'>APPLY "
-       "SETTINGS</button></form></div></body></html>";
+  h += "<button type='submit'>APPLY SETTINGS</button></form>";
+  h += "<a href='/dashboard' style='display:block;text-align:center;margin-top:20px;padding:12px;"
+       "background:rgba(16,185,129,0.1);border:1px solid #10b981;border-radius:14px;color:#10b981;"
+       "font-weight:700;text-decoration:none;font-size:14px;'>"
+       "⚡ Buka Dashboard Darurat &rarr;</a>";
+  h += "</div></body></html>";
   server.send(200, "text/html", h);
 }
 
@@ -766,6 +777,295 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// WEBSERIAL — Callback Penerima Perintah dari Browser
+// ─────────────────────────────────────────────────────────────
+
+void webSerialRecvMsg(uint8_t *data, size_t len) {
+  String cmd = "";
+  for (size_t i = 0; i < len; i++) cmd += (char)data[i];
+  cmd.trim();
+  Serial.printf("[WebSerial CMD] %s\n", cmd.c_str());
+  if (cmd.equalsIgnoreCase("status")) {
+    publishStatus();
+    WebSerial.println("[OK] Status MQTT telah dipublish.");
+  } else if (cmd.equalsIgnoreCase("reboot")) {
+    WebSerial.println("[OK] Rebooting dalam 2 detik...");
+    delay(2000);
+    ESP.restart();
+  } else if (cmd.equalsIgnoreCase("help")) {
+    WebSerial.println("╔══════════════════════════════╗");
+    WebSerial.println("║   VOC ESP32 WebSerial CLI    ║");
+    WebSerial.println("╠══════════════════════════════╣");
+    WebSerial.println("║ status  → Publish MQTT status║");
+    WebSerial.println("║ reboot  → Restart ESP32      ║");
+    WebSerial.println("║ help    → Tampilkan bantuan  ║");
+    WebSerial.println("╚══════════════════════════════╝");
+  } else {
+    WebSerial.println("[ERR] Perintah tidak dikenal. Ketik 'help'.");
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// REST API — GET /api/status
+// ─────────────────────────────────────────────────────────────
+
+void handleApiStatus() {
+  DynamicJsonDocument resp(4096);
+  resp["mac"]          = deviceMac;
+  resp["hostname"]     = mdnsHostname;
+  resp["ip"]           = WiFi.localIP().toString();
+  resp["rssi"]         = WiFi.RSSI();
+  resp["uptime"]       = millis() / 1000;
+  resp["freeHeap"]     = ESP.getFreeHeap();
+  resp["mqttConnected"]= client.connected();
+  resp["mode"]         = modeOtomatis ? "AUTO" : "MANUAL";
+  resp["hwType"]       = "PCF8575";
+  resp["numRelays"]    = num_relays;
+
+  JsonArray relays = resp.createNestedArray("relays");
+  for (int i = 0; i < num_relays; i++) {
+    JsonObject r = relays.createNestedObject();
+    r["pin"]      = i;
+    r["meja"]     = i + 1;
+    r["state"]    = relayState[i];
+    r["timerSec"] = tableTimer[i];
+    r["timerMin"] = tableTimer[i] / 60;
+  }
+
+  String buf;
+  serializeJson(resp, buf);
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", buf);
+  Serial.println("[REST API] GET /api/status → 200 OK");
+}
+
+// ─────────────────────────────────────────────────────────────
+// REST API — GET /api/relay?meja=1&status=ON
+// ─────────────────────────────────────────────────────────────
+
+void handleApiRelay() {
+  if (!server.hasArg("meja") || !server.hasArg("status")) {
+    server.send(400, "application/json",
+                "{\"error\":\"Parameter 'meja' dan 'status' wajib ada. "
+                "Contoh: /api/relay?meja=1&status=ON\"}");
+    return;
+  }
+
+  int mesaNum  = server.arg("meja").toInt();
+  int pinIndex = mesaNum - 1;
+  bool activate = server.arg("status").equalsIgnoreCase("ON");
+
+  if (pinIndex < 0 || pinIndex >= num_relays) {
+    server.send(400, "application/json", "{\"error\":\"Nomor meja tidak valid\"}");
+    return;
+  }
+
+  unsigned long now = millis();
+  relayState[pinIndex]  = activate;
+  relayTarget[pinIndex] = activate;
+  if (!activate) tableTimer[pinIndex] = 0;
+  pcfWrite(pinIndex, activate);
+  storageDirty   = true;
+  lastStateChange = now;
+  startBuzzer(activate ? 300 : 200);
+  publishStatus();
+
+  String response = "{\"success\":true,\"meja\":" + String(mesaNum) +
+                    ",\"status\":\"" + (activate ? "ON" : "OFF") +
+                    "\",\"pin\":" + String(pinIndex) + "}";
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", response);
+
+  Serial.printf("[REST API] Meja %d → %s\n", mesaNum, activate ? "ON" : "OFF");
+  WebSerial.print("[REST API] Meja ");
+  WebSerial.print(String(mesaNum));
+  WebSerial.println(activate ? " → ON" : " → OFF");
+}
+
+// ─────────────────────────────────────────────────────────────
+// DASHBOARD DARURAT — GET /dashboard
+// ─────────────────────────────────────────────────────────────
+
+void handleDashboard() {
+  String h = "<!DOCTYPE html><html lang='id'><head>"
+    "<meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<title>VOC Emergency Dashboard</title>"
+    "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap' rel='stylesheet'>"
+    "<style>"
+    "*{box-sizing:border-box;margin:0;padding:0}"
+    "body{font-family:'Outfit',sans-serif;background:radial-gradient(circle at 10% 10%,#1e1b4b 0%,#020617 60%);color:#f8fafc;min-height:100vh;padding:16px}"
+    ".hdr{background:rgba(15,23,42,0.85);border:1px solid rgba(255,255,255,0.08);border-radius:20px;"
+    "padding:16px 20px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;"
+    "backdrop-filter:blur(20px)}"
+    ".logo{font-size:20px;font-weight:800;color:#3b82f6;display:flex;align-items:center;gap:8px}"
+    ".sub{font-size:11px;color:#475569;margin-top:3px;letter-spacing:.5px}"
+    ".info{display:flex;gap:6px;flex-wrap:wrap}"
+    ".badge{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);"
+    "background:rgba(255,255,255,0.04);color:#94a3b8}"
+    ".ok{border-color:#10b981!important;color:#10b981!important}"
+    ".err{border-color:#ef4444!important;color:#ef4444!important}"
+    ".sb{text-align:right;font-size:11px;color:#334155;margin-bottom:10px;padding-right:4px}"
+    ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px}"
+    ".card{background:rgba(15,23,42,0.75);border:1px solid rgba(255,255,255,0.06);border-radius:18px;"
+    "padding:18px 12px;text-align:center;transition:border-color .3s,background .3s;"
+    "backdrop-filter:blur(10px)}"
+    ".card.on{border-color:rgba(16,185,129,0.6);background:rgba(16,185,129,0.08)}"
+    ".dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-bottom:10px;transition:.3s}"
+    ".card.on .dot{background:#10b981;box-shadow:0 0 12px #10b981}"
+    ".card.off .dot{background:#334155}"
+    ".lbl{font-size:10px;color:#475569;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}"
+    ".num{font-size:30px;font-weight:800;line-height:1;color:#f1f5f9}"
+    ".tmr{font-size:11px;color:#64748b;margin:6px 0 14px;min-height:14px}"
+    ".tmr.urgent{color:#f59e0b;font-weight:600}"
+    ".btn{width:100%;border:none;border-radius:12px;padding:10px 0;font-size:12px;font-weight:700;"
+    "cursor:pointer;transition:.15s;font-family:'Outfit',sans-serif;letter-spacing:.3px}"
+    ".btn-on{background:linear-gradient(135deg,#10b981,#059669);color:#fff}"
+    ".btn-off{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}"
+    ".btn:disabled{opacity:.4;cursor:not-allowed}"
+    ".btn:active:not(:disabled){transform:scale(.94)}"
+    ".nav{display:flex;justify-content:center;gap:20px;flex-wrap:wrap}"
+    ".nav a{font-size:12px;color:#3b82f6;text-decoration:none;padding:8px 16px;"
+    "border:1px solid rgba(59,130,246,0.3);border-radius:10px;background:rgba(59,130,246,0.05)}"
+    ".nav a:hover{background:rgba(59,130,246,0.15)}"
+    "</style></head><body>"
+    "<div class='hdr'>"
+    "<div><div class='logo'>&#9889; VOC Emergency Panel</div>"
+    "<div class='sub'>DASHBOARD DARURAT &mdash; " + deviceMac + "</div></div>"
+    "<div class='info' id='info'><span class='badge'>Memuat...</span></div>"
+    "</div>"
+    "<div class='sb' id='sb'>&#8635; Memuat data relay...</div>"
+    "<div class='grid' id='grid'>";
+
+  // Server-side render: tampilkan state relay saat ini
+  for (int i = 0; i < num_relays; i++) {
+    int meja     = i + 1;
+    bool on      = relayState[i];
+    uint32_t sec = tableTimer[i];
+
+    String timerStr = "&nbsp;";
+    if (on && sec > 0) {
+      timerStr = String(sec / 60) + "m " + String(sec % 60) + "s sisa";
+    } else if (on) {
+      timerStr = "Bebas (No Timer)";
+    }
+
+    h += "<div class='card " + String(on ? "on" : "off") + "' id='c" + String(meja) + "'>";
+    h += "<span class='dot'></span>";
+    h += "<div class='lbl'>MEJA</div>";
+    h += "<div class='num'>" + String(meja) + "</div>";
+    h += "<div class='tmr' id='t" + String(meja) + "'>" + timerStr + "</div>";
+    h += "<button class='btn " + String(on ? "btn-off" : "btn-on") + "' id='b" + String(meja) + "'";
+    h += " onclick='tgl(" + String(meja) + "," + String(on ? "1" : "0") + ")'>"
+         + String(on ? "&#9646; MATIKAN" : "&#9654; NYALAKAN") + "</button>";
+    h += "</div>";
+  }
+
+  h += "</div>"
+    "<div class='nav'>"
+    "<a href='/'>&#9881; Konfigurasi</a>"
+    "<a href='/webserial'>&#128203; Log Monitor</a>"
+    "<a href='/update'>&#128260; OTA Update</a>"
+    "</div>"
+    "<script>"
+    "function fmt(s){if(s<=0)return'Bebas';var m=Math.floor(s/60);return m+'m '+(s%60)+'s sisa';}"
+    "function tgl(m,on){"
+    "var b=document.getElementById('b'+m);"
+    "b.disabled=true;b.textContent='...';"
+    "fetch('/api/relay?meja='+m+'&status='+(on?'OFF':'ON'))"
+    ".then(r=>r.json()).then(d=>{if(d.success)refresh();else b.disabled=false;})"
+    ".catch(()=>b.disabled=false);}"
+    "function refresh(){"
+    "fetch('/api/status').then(r=>r.json()).then(function(d){"
+    "document.getElementById('sb').innerHTML='&#10003; Update: '+new Date().toLocaleTimeString();"
+    "var info=document.getElementById('info');"
+    "info.innerHTML='<span class=\'badge\'>IP: '+d.ip+'</span>'"
+    "+'<span class=\'badge\'>'+d.rssi+'dBm</span>'"
+    "+'<span class=\'badge '+( d.mqttConnected?'ok':'err')+'\'>'"
+    "+(d.mqttConnected?'&#127802; MQTT OK':'&#128308; MQTT Putus')+'</span>';"
+    "d.relays.forEach(function(r){"
+    "var m=r.meja,on=r.state;"
+    "var card=document.getElementById('c'+m);"
+    "var btn=document.getElementById('b'+m);"
+    "var tmr=document.getElementById('t'+m);"
+    "if(!card)return;"
+    "card.className='card '+(on?'on':'off');"
+    "btn.className='btn '+(on?'btn-off':'btn-on');"
+    "btn.disabled=false;"
+    "btn.setAttribute('onclick','tgl('+m+','+(on?1:0)+')');"
+    "btn.innerHTML=on?'&#9646; MATIKAN':'&#9654; NYALAKAN';"
+    "tmr.innerHTML=on?fmt(r.timerSec):'&nbsp;';"
+    "});"
+    "}).catch(function(e){"
+    "document.getElementById('sb').innerHTML='&#10060; Error: '+e;});}"
+    "setInterval(refresh,5000);"
+    "</script></body></html>";
+
+  server.send(200, "text/html", h);
+}
+
+// ─────────────────────────────────────────────────────────────
+// mDNS + WEB SERVICES — Init saat WiFi pertama kali terhubung
+// ─────────────────────────────────────────────────────────────
+
+void startWebServices() {
+  if (webServicesStarted) return;
+
+  // Hostname unik dari 4 digit terakhir MAC
+  String lastFour = deviceMac.substring(deviceMac.length() - 4);
+  lastFour.toLowerCase();
+  mdnsHostname = "voc-panel-" + lastFour;
+
+  // — Start mDNS —
+  if (MDNS.begin(mdnsHostname.c_str())) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("\n╔══════════════════════════════════════════════╗");
+    Serial.println(  "║      mDNS + WEB SERVICES ACTIVE ✅            ║");
+    Serial.println(  "╠══════════════════════════════════════════════╣");
+    Serial.printf(   "║  🏷️  Hostname : %-28s║\n", (mdnsHostname + ".local").c_str());
+    Serial.printf(   "║  🌐 Portal   : http://%-22s║\n", (mdnsHostname + ".local").c_str());
+    Serial.printf(   "║  🔄 OTA      : http://%-22s║\n", (mdnsHostname + ".local/update").c_str());
+    Serial.printf(   "║  📋 Log      : http://%-22s║\n", (mdnsHostname + ".local/webserial").c_str());
+    Serial.printf(   "║  🔌 API      : http://%-22s║\n", (mdnsHostname + ".local/api/status").c_str());
+    Serial.println(  "╚══════════════════════════════════════════════╝\n");
+  } else {
+    Serial.println("[mDNS] ⚠️ GAGAL start mDNS. Gunakan IP: " + WiFi.localIP().toString());
+    mdnsHostname = WiFi.localIP().toString(); // Fallback ke IP
+  }
+
+  // — Register Web Routes —
+  server.on("/",             handleRoot);
+  server.on("/scan",         handleScan);
+  server.on("/save",  HTTP_POST, handleSave);
+  server.on("/api/status",   HTTP_GET, handleApiStatus);
+  server.on("/api/relay",    HTTP_GET, handleApiRelay);
+  server.on("/dashboard",    HTTP_GET, handleDashboard); // ⚡ Dashboard Darurat
+  server.onNotFound([]() {
+    server.sendHeader("Location", "/", true);
+    server.send(302, "text/plain", "");
+  });
+
+  // — ElegantOTA (route: /update) —
+  ElegantOTA.begin(&server);
+
+  // — WebSerial (route: /webserial) —
+  WebSerial.begin(&server);
+  WebSerial.msgCallback(webSerialRecvMsg);
+
+  server.begin();
+  webServicesStarted = true;
+
+  // Sambutan di WebSerial saat user pertama kali buka halaman
+  WebSerial.println("╔══════════════════════════════════════╗");
+  WebSerial.println("║     VOC ESP32 — WebSerial Monitor    ║");
+  WebSerial.println("╠══════════════════════════════════════╣");
+  WebSerial.print(  "║  MAC    : "); WebSerial.println(deviceMac);
+  WebSerial.print(  "║  IP     : "); WebSerial.println(WiFi.localIP().toString());
+  WebSerial.print(  "║  Relays : "); WebSerial.println(String(num_relays));
+  WebSerial.println("║  Ketik 'help' untuk daftar perintah  ║");
+  WebSerial.println("╚══════════════════════════════════════╝");
+}
+
+// ─────────────────────────────────────────────────────────────
 // SETUP
 // ─────────────────────────────────────────────────────────────
 
@@ -903,6 +1203,7 @@ void setup() {
       Serial.printf("[WiFi] Connected! IP: %s\n",
                     WiFi.localIP().toString().c_str());
       startDoubleBuzzer();
+      startWebServices(); // 🌐 Init mDNS + Web OTA + WebSerial + REST API
     } else {
       Serial.println("[WiFi] Connection failed. Will retry in loop().");
     }
@@ -965,6 +1266,14 @@ void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     handleMqttConnection();
     client.loop();
+
+    // 🌐 Web Services (mDNS + Portal + OTA + WebSerial + REST API)
+    if (webServicesStarted) {
+      server.handleClient();
+      ElegantOTA.loop();
+    } else {
+      startWebServices(); // 🌐 Retry init saat WiFi reconnect setelah putus
+    }
 
     // 🚀 LED INDICATOR (v18.7):
     // Solid ON = All Systems OK (WiFi + MQTT)

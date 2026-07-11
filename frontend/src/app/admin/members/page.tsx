@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
     Users,
@@ -208,6 +209,17 @@ export default function MembershipPage() {
     };
 
     // ── Real-time Subscriptions (Hybrid: MQTT + WebSockets) ──────────────────
+    useEffect(() => {
+        if ((showAddModal || showTopupModal) && typeof document !== 'undefined') {
+            document.body.style.overflow = 'hidden';
+        } else if (typeof document !== 'undefined') {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            if (typeof document !== 'undefined') document.body.style.overflow = '';
+        };
+    }, [showAddModal, showTopupModal]);
+
     useEffect(() => {
         const unsubs: (() => void)[] = [];
 
@@ -871,20 +883,21 @@ export default function MembershipPage() {
             </div>
 
             {/* ── Membership Modals (Refined with high z-index and full-screen blur) ── */}
-            {showAddModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
-                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+            {showAddModal && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
+                    <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
 
                         {/* Gradient Header */}
-                        <div className={`p-6 text-white bg-gradient-to-br ${selectedMember ? 'from-slate-700 to-indigo-800' : 'from-indigo-600 to-purple-700'} flex-shrink-0 relative overflow-hidden`}>
+                        <div className={`p-6 pt-4 pb-4 sm:p-8 sm:pt-6 sm:pb-6 text-white bg-gradient-to-br ${selectedMember ? 'from-slate-700 to-indigo-800' : 'from-indigo-600 to-purple-700'} flex-shrink-0 relative overflow-hidden flex flex-col sm:flex-row items-center sm:items-start`}>
                             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10" />
-                            <div className="relative flex items-center justify-between">
+                            <div className="w-12 h-1.5 bg-white/30 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                            <div className="relative flex items-center justify-between w-full">
                                 <div>
                                     <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.3em]">{selectedMember ? 'Edit Member' : 'Pendaftaran Baru'}</p>
                                     <h2 className="text-xl font-black mt-0.5">{selectedMember ? selectedMember.name : 'Member Baru'}</h2>
                                 </div>
-                                <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all">
+                                <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all shrink-0">
                                     <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                                 </button>
                             </div>
@@ -982,17 +995,19 @@ export default function MembershipPage() {
                         </div>
 
                         {/* Footer Buttons */}
-                        <div className="p-5 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-slate-50/50">
+                        <div className="p-6 border-t border-slate-100 flex gap-4 flex-shrink-0 bg-slate-50/50 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-6 relative z-10">
                             <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }}
                                 disabled={isSubmitting}
-                                className="flex-1 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl hover:border-slate-300 transition-all disabled:opacity-50">
-                                BATAL
+                                className="flex-1 py-4 bg-white text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest border border-slate-200 rounded-2xl hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                Batal
                             </button>
                             <button form="member-form" type="submit"
                                 disabled={isSubmitting}
-                                className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-3.5 px-8 rounded-2xl font-black text-[10px] shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-80">
-                                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                {isSubmitting ? 'MENYIMPAN...' : 'SIMPAN DATA'}
+                                className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-4 px-8 rounded-2xl font-black text-[10px] sm:text-xs shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-80"
+                            >
+                                {isSubmitting ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Save className="w-4 h-4 sm:w-5 sm:h-5" />}
+                                {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
                             </button>
                         </div>
                         {isSubmitting && (
@@ -1004,7 +1019,8 @@ export default function MembershipPage() {
                             </div>
                         )}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {showTopupModal && (topupStep !== 'IDLE') && (

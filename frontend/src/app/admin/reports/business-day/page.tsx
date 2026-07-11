@@ -383,7 +383,7 @@ export default function BusinessDayDashboard() {
     }
 
     return (
-        <div className="flex flex-col lg:flex-row h-screen bg-slate-100 overflow-hidden font-sans">
+        <div className="fixed inset-0 flex flex-col lg:flex-row bg-slate-100 overflow-hidden font-sans">
             <style jsx global>{`
                 @media print {
                     @page { size: A4; margin: 1cm; }
@@ -416,13 +416,13 @@ export default function BusinessDayDashboard() {
             `}</style>
 
             {/* Mobile Header */}
-            <header className="lg:hidden bg-white border-b border-slate-200 px-4 pt-14 pb-3 flex items-center justify-between no-print z-[60] sticky top-0 shadow-sm">
-                <div className="w-10"></div> {/* Spacer for the floating global sidebar menu */}
+            <header className="lg:hidden bg-white border-b border-slate-200 px-4 pt-[calc(1rem+env(safe-area-inset-top,20px))] pb-4 flex items-center justify-between no-print z-[60] shrink-0 shadow-sm relative">
+                <div className="w-10 shrink-0"></div> {/* Spacer for the floating global sidebar menu */}
                 <button onClick={() => setShowSidebar(true)} className="flex-1 text-center flex flex-col items-center justify-center active:scale-95 transition-all group">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 group-hover:text-indigo-500 transition-colors"><Calendar className="w-3 h-3"/> Reports</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1 group-hover:text-indigo-500 transition-colors"><Calendar className="w-3 h-3"/> Reports</p>
                     <p className="text-sm font-black text-indigo-600 tracking-tight flex items-center justify-center gap-1 bg-indigo-50 px-3 py-1 rounded-full mt-1 border border-indigo-100 shadow-sm">{selectedDay?.date || 'Pilih Hari'}</p>
                 </button>
-                <button onClick={handleExportPDF} className="p-2 hover:bg-indigo-100 rounded-xl bg-slate-50 border border-slate-200 text-indigo-600 shadow-sm">
+                <button onClick={handleExportPDF} className="p-2 hover:bg-indigo-100 rounded-xl bg-slate-50 border border-slate-200 text-indigo-600 shadow-sm shrink-0">
                     <Download className="w-5 h-5" />
                 </button>
             </header>
@@ -1893,22 +1893,25 @@ export default function BusinessDayDashboard() {
 
             {/* Stock Report Modal */}
             {showStockModal && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowStockModal(false)} />
-                    <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300">
-                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-black tracking-tight flex items-center gap-3">
-                                    <PackageSearch className="w-6 h-6 text-amber-500" />
-                                    Laporan Stok Shift
-                                </h3>
-                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mt-1">Oleh: {modalUser}</p>
+                <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowStockModal(false)} />
+                    <div className="relative bg-white w-full max-w-xl rounded-t-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                        <div className="p-6 sm:p-8 pt-4 pb-4 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0">
+                            <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
+                            <div className="flex justify-between items-center w-full">
+                                <div>
+                                    <h3 className="text-lg sm:text-xl font-black tracking-tight flex items-center gap-3">
+                                        <PackageSearch className="w-5 sm:w-6 h-5 sm:h-6 text-amber-500" />
+                                        Laporan Stok Shift
+                                    </h3>
+                                    <p className="text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-slate-400 mt-1">Oleh: {modalUser}</p>
+                                </div>
+                                <button onClick={() => setShowStockModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all shrink-0">
+                                    <X className="w-5 sm:w-6 h-5 sm:h-6" />
+                                </button>
                             </div>
-                            <button onClick={() => setShowStockModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
-                                <X className="w-6 h-6" />
-                            </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto overflow-x-auto p-8 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto overflow-x-auto p-6 sm:p-8 custom-scrollbar">
                             <table className="w-full text-left min-w-[500px]">
                                 <thead>
                                     <tr className="border-b-2 border-slate-100">
@@ -1967,10 +1970,10 @@ export default function BusinessDayDashboard() {
                                 )}
                             </table>
                         </div>
-                        <div className="p-8 bg-slate-50 border-t border-slate-100">
+                        <div className="p-6 sm:p-8 bg-slate-50 border-t border-slate-100 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-8 shrink-0">
                             <button
                                 onClick={() => setShowStockModal(false)}
-                                className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-xs hover:bg-slate-800 transition-all"
+                                className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-xs hover:bg-slate-800 transition-all shadow-sm"
                             >
                                 Tutup Laporan
                             </button>
@@ -1980,17 +1983,18 @@ export default function BusinessDayDashboard() {
             )}
             {/* Custom Range WhatsApp Modal */}
             {showCustomRangeModal && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCustomRangeModal(false)} />
-                    <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
-                        <div className="p-10">
-                            <div className="flex items-center gap-5 mb-10">
-                                <div className="w-16 h-16 bg-indigo-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl shadow-indigo-100">
-                                    <Clock className="w-8 h-8" />
+                <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowCustomRangeModal(false)} />
+                    <div className="relative bg-white w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] flex flex-col">
+                        <div className="p-6 sm:p-10 pt-4 sm:pt-10 flex-1 overflow-y-auto no-scrollbar pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-10">
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden shrink-0" />
+                            <div className="flex items-center gap-4 sm:gap-5 mb-8 sm:mb-10">
+                                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-indigo-600 rounded-[1rem] sm:rounded-[1.5rem] flex items-center justify-center text-white shadow-xl shadow-indigo-100 shrink-0">
+                                    <Clock className="w-6 h-6 sm:w-8 sm:h-8" />
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase italic">Laporan Kustom</h3>
-                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Pilih Rentang Jam & Tanggal Bebas</p>
+                                    <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight uppercase italic">Laporan Kustom</h3>
+                                    <p className="text-slate-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mt-1">Pilih Rentang Jam & Tanggal Bebas</p>
                                 </div>
                             </div>
 
@@ -2036,21 +2040,20 @@ export default function BusinessDayDashboard() {
                                         />
                                     </div>
                                 </div>
-
-                                <div className="flex gap-4">
+                                                         <div className="flex gap-4 mt-10">
                                     <button 
                                         onClick={() => setShowCustomRangeModal(false)}
-                                        className="flex-1 py-5 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                        className="flex-1 py-4 sm:py-5 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-slate-200 transition-all shadow-sm"
                                     >
                                         Batal
                                     </button>
                                     <button 
                                         onClick={handleSendCustomRangeWhatsApp}
                                         disabled={sendingWa}
-                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                                        className="flex-[2] py-4 sm:py-5 bg-indigo-600 text-white rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-indigo-200"
                                     >
-                                        {sendingWa ? <Loader2 className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5" />}
-                                        {sendingWa ? 'Mengirim...' : 'Kirim Ke WhatsApp'}
+                                        {sendingWa ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Smartphone className="w-4 h-4 sm:w-5 sm:h-5" />}
+                                        {sendingWa ? 'Mengirim...' : 'Kirim Laporan'}
                                     </button>
                                 </div>
                             </div>

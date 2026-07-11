@@ -346,7 +346,7 @@ export default function KitchenBarUnifiedPage() {
             const isReadyToFinish = s === 'PROCESSING'; // Only pure PROCESSING can be finished
             const isRejected = s === 'CANCEL_REJECTED';
             const isPendingCancel = s === 'CANCEL_REQUESTED';
-            const qty = Number(item.quantity) || 0;
+            const qty = Number(item.quantity) || 1;
 
             const existing = acc.find(i => i.name === item.name);
             if (existing) {
@@ -914,7 +914,7 @@ export default function KitchenBarUnifiedPage() {
                                 {(newOrderAlert.items || []).map((item: any, i: number) => (
                                     <div key={i} className="flex justify-between items-center py-3 border-b border-slate-700 last:border-0">
                                         <span className="text-2xl font-bold text-slate-200">{item.name}</span>
-                                        <span className="text-2xl font-black text-blue-400 bg-blue-400/10 px-4 py-1 rounded-lg">x{item.quantity}</span>
+                                        <span className="text-2xl font-black text-blue-400 bg-blue-400/10 px-4 py-1 rounded-lg">x{Number(item.quantity) || 1}</span>
                                     </div>
                                 ))}
                             </div>
@@ -934,7 +934,7 @@ export default function KitchenBarUnifiedPage() {
             )}
 
             {/* Header */}
-            <header className="fixed top-0 left-0 right-0 h-16 md:h-20 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
+            <header className="sticky top-0 h-16 md:h-20 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
                 <div className="flex items-center gap-2 md:gap-6">
                     <button
                         onClick={() => setIsSummaryOpen(!isSummaryOpen)}
@@ -956,10 +956,12 @@ export default function KitchenBarUnifiedPage() {
                                 {isConnected ? 'Realtime' : 'Offline'}
                             </span>
                         </button>
-                        <h1 className="text-xl md:text-3xl font-black tracking-tighter text-white flex items-center gap-2">
-                            <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-indigo-500 drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
-                            <span className="hidden sm:inline">KITCHEN & BAR <span className="text-indigo-400 opacity-80">(UNIFIED)</span></span>
-                            <span className="sm:hidden">UNIFIED</span>
+                        <h1 className="text-base sm:text-lg md:text-xl lg:text-3xl font-black tracking-tighter text-white flex items-center gap-1 sm:gap-2 truncate">
+                            <ChefHat className="w-6 h-6 md:w-8 md:h-8 lg:w-10 lg:h-10 text-indigo-500 drop-shadow-[0_0_10px_rgba(99,102,241,0.5)] shrink-0" />
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-0 sm:gap-2 leading-tight truncate">
+                                <span>KITCHEN & BAR</span>
+                                <span className="text-indigo-400 opacity-80 text-[10px] sm:text-sm md:text-base lg:text-3xl">(UNIFIED)</span>
+                            </div>
                         </h1>
                     </div>
                 </div>
@@ -1003,11 +1005,11 @@ export default function KitchenBarUnifiedPage() {
             </header>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-hidden relative pt-16 md:pt-20 flex flex-row bg-[#020617]">
+            <div className="flex-1 overflow-hidden relative flex flex-row bg-[#020617]">
                 {/* AGGREGATION SIDEBAR - fixed always, like BDS */}
-                <aside className={`fixed z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-900/60 backdrop-blur-2xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'}`}>
+                <aside className={`absolute z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-950/95 md:bg-slate-900/60 backdrop-blur-3xl md:backdrop-blur-2xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100 shadow-[20px_0_50px_-10px_rgba(0,0,0,0.5)]' : '-translate-x-full opacity-0 pointer-events-none'}`}>
                     {/* Header Summary - BDS style */}
-                    <div className="p-6 md:p-8 border-b border-white/5 bg-white/[0.02] mt-16 lg:mt-0">
+                    <div className="p-6 md:p-8 border-b border-white/5 bg-white/[0.02]">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xs font-black text-blue-500 uppercase tracking-[0.2em] flex items-center gap-2">
                                 <LayoutGrid className="w-4 h-4" />
@@ -1053,7 +1055,7 @@ export default function KitchenBarUnifiedPage() {
                                             ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
                                             : 'bg-black/40 border-white/5 text-blue-400'
                                             }`}>
-                                            {item.quantity}
+                                            {Number(item.quantity) || 1}
                                         </div>
                                     </div>
                                     {/* Action Buttons */}
@@ -1123,9 +1125,12 @@ export default function KitchenBarUnifiedPage() {
                 </aside>
 
                 {/* Main Grid */}
-                <div className={`h-full flex-1 p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${isSummaryOpen ? 'lg:pl-[320px]' : ''} ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}>
+                <div className={`h-full flex-1 p-2 sm:p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${isSummaryOpen ? 'sm:pl-[288px] md:pl-[340px]' : ''} ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}>
                     {/* Added items-start to prevent cards from stretching vertically in the grid row */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 pb-24 max-w-[1600px] mx-auto items-start">
+                    <div 
+                        className="grid gap-3 sm:gap-4 md:gap-6 pb-40 max-w-[1600px] mx-auto items-start"
+                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}
+                    >
                         {orders.map((order) => {
                             const elapsed = getTimeElapsed(order.timestamp);
                             const isLate = elapsed > 15 && order.status !== 'READY';
@@ -1239,7 +1244,7 @@ export default function KitchenBarUnifiedPage() {
                                                         <div className="flex flex-col items-center gap-2 shrink-0">
                                                             <div className={`text-lg md:text-xl font-black px-2.5 py-0.5 rounded-lg border transition-all duration-300 ${item.status === 'DONE' || order.status === 'READY' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/40' : 'bg-slate-800 border-white/10 text-white shadow-inner'
                                                                 }`}>
-                                                                x{item.quantity}
+                                                                x{Number(item.quantity) || 1}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1474,7 +1479,7 @@ export default function KitchenBarUnifiedPage() {
                                             {(order.items || []).filter((item: any) => item.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, i: number) => (
                                                 <div key={i} className="flex justify-between items-start text-xs">
                                                     <span className="text-slate-400 font-bold leading-snug">{item.name}</span>
-                                                    <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{item.quantity}</span>
+                                                    <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{Number(item.quantity) || 1}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1500,7 +1505,7 @@ export default function KitchenBarUnifiedPage() {
             </div>
 
             {/* Bottom Stats Content */}
-            <div className="fixed bottom-0 left-0 right-0 lg:left-0 bg-slate-900/40 backdrop-blur-3xl border-t border-white/5 p-4 md:p-6 z-[180] transition-all duration-500">
+            <div className={`fixed bottom-0 left-0 right-0 ${isSummaryOpen ? 'lg:pl-[320px]' : ''} bg-slate-950 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 p-4 md:p-6 z-[180] transition-all duration-500`}>
                 <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex-1 flex justify-around items-center">
                         <div className="text-center group cursor-help transition-all hover:scale-110">

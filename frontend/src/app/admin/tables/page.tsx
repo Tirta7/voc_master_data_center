@@ -718,12 +718,13 @@ export default function TableManagementPage() {
             {/* ════════════════ MODALS ════════════════ */}
 
             {modalMode && (
-                    <div className="fixed inset-0 bg-slate-900/60 z-[1000] backdrop-blur-sm flex items-center justify-center p-4 lg:p-0 animate-in fade-in duration-300" onClick={handleCloseModal}>
+                    <div className="fixed inset-0 bg-slate-900/60 z-[1000] backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 lg:p-0 animate-in fade-in duration-300" onClick={handleCloseModal}>
                         {/* ── Type Chooser ── */}
                         {modalMode === 'choose' && (
-                            <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-                                <div className="p-6 lg:p-8 lg:px-10">
-                                    <div className="flex justify-between items-center mb-8">
+                            <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-3xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                                <div className="pt-4 px-6 lg:p-8 lg:px-10 flex flex-col overflow-y-auto no-scrollbar pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-8">
+                                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                    <div className="flex justify-between items-center mb-8 shrink-0">
                                         <div>
                                             <h2 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Tambah Meja Baru</h2>
                                             <p className="text-sm font-semibold text-slate-500 mt-2">Pilih jenis meja yang ingin ditambahkan:</p>
@@ -781,10 +782,12 @@ export default function TableManagementPage() {
 
                         {/* ── Billiard Form ── */}
                         {modalMode === 'billiard-form' && (
-                            <div className="relative z-10 bg-white rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-5xl 2xl:max-w-6xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-                                <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
+                            <div className="relative z-10 bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-5xl 2xl:max-w-6xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+                                <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-8 border-b border-slate-100 flex flex-col shrink-0 bg-white">
+                                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
                                             <Server className={`w-5 h-5 ${billiardForm.stationType === 'PLAYSTATION' ? 'text-blue-600' : 'text-indigo-600'}`} />
                                             <span className={`text-xs font-bold ${billiardForm.stationType === 'PLAYSTATION' ? 'text-blue-600' : 'text-indigo-600'} uppercase tracking-widest`}>{billiardForm.stationType === 'PLAYSTATION' ? 'Meja PlayStation' : 'Meja Billiard'}</span>
                                         </div>
@@ -804,9 +807,10 @@ export default function TableManagementPage() {
                                         <X className="w-6 h-6" />
                                     </button>
                                 </div>
+                            </div>
 
-                                <div className="overflow-y-auto flex-1 bg-slate-50/50">
-                                    <form onSubmit={handleSubmitBilliard} className="p-8">
+                            <div className="overflow-y-auto flex-1 bg-slate-50/50">
+                                    <form onSubmit={handleSubmitBilliard} className="p-4 sm:p-8 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8">
                                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                                             {/* Column 1: Identity */}
                                             <div className="lg:col-span-7 space-y-6">
@@ -1244,10 +1248,12 @@ export default function TableManagementPage() {
 
                         {/* ── Cafe Form ── */}
                         {modalMode === 'cafe-form' && (
-                            <div className="relative z-10 bg-white rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-                                <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
+                            <div className="relative z-10 bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+                                <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-8 border-b border-slate-100 flex flex-col shrink-0 bg-white">
+                                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
                                             <Coffee className="w-5 h-5 text-amber-600" />
                                             <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">Meja Cafe</span>
                                         </div>
@@ -1259,8 +1265,9 @@ export default function TableManagementPage() {
                                         <X className="w-6 h-6" />
                                     </button>
                                 </div>
+                            </div>
 
-                                <form onSubmit={handleSubmitCafe} className="p-8 space-y-6">
+                            <form onSubmit={handleSubmitCafe} className="overflow-y-auto no-scrollbar p-6 sm:p-8 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8 space-y-6">
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-2">
                                             Nama Meja <span className="text-rose-500">*</span>

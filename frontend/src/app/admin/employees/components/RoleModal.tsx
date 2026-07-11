@@ -55,9 +55,9 @@ export function RoleModal({
   })).filter(group => group.permissions.length > 0);
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 sm:p-6 overscroll-contain overflow-hidden">
+    <div className="fixed inset-0 z-[1000000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       <div
-        className="fixed inset-0 bg-slate-950/40 backdrop-blur-2xl animate-in fade-in duration-500"
+        className="fixed inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300"
         onClick={() => {
           setShowRoleModal(false);
           setEditingRole(null);
@@ -66,31 +66,34 @@ export function RoleModal({
       />
       <form
         onSubmit={handleCreateRole}
-        className="relative bg-white w-full max-w-[900px] h-[95vh] sm:h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300"
+        className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-[900px] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col"
       >
-        <div className="p-10 border-b border-slate-100 flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-              {editingRole ? "EDIT ROLE" : "KONFIGURASI ROLE BARU"}
-            </h2>
-            <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-xs">
-              Atur Hak Akses Berdasarkan Matrix Izin
-            </p>
+        <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
+          <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
+          <div className="flex justify-between items-center w-full">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                {editingRole ? "EDIT ROLE" : "KONFIGURASI ROLE BARU"}
+              </h2>
+              <p className="text-slate-500 font-bold uppercase tracking-[0.1em] text-[10px] md:text-xs">
+                Atur Hak Akses Berdasarkan Matrix Izin
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowRoleModal(false);
+                setEditingRole(null);
+                setNewRole({ name: "", permissions: [] });
+              }}
+              className="p-2.5 bg-slate-50 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all text-slate-400 group"
+            >
+              <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setShowRoleModal(false);
-              setEditingRole(null);
-              setNewRole({ name: "", permissions: [] });
-            }}
-            className="p-3 hover:bg-slate-100 rounded-2xl transition-all text-slate-400"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto no-scrollbar p-6 sm:p-10 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-10 space-y-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
               <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">

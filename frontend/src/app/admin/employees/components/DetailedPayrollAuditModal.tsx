@@ -30,33 +30,36 @@ export function DetailedPayrollAuditModal({
   if (!isMounted || !showDetailedModal || !selectedDetailedEmployee) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-2 sm:p-6 overscroll-contain overflow-hidden">
+    <div className="fixed inset-0 z-[1000000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       <div
-        className="fixed inset-0 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300"
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300"
         onClick={() => setShowDetailedModal(false)}
       />
-      <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] sm:max-h-[92vh] animate-in fade-in slide-in-from-bottom-8 duration-300">
+      <div className="relative w-full max-w-5xl bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[92vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-8 sm:zoom-in-95 duration-300">
         {/* Header - Compact */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center relative overflow-hidden shrink-0">
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-lg">
-              {selectedDetailedEmployee.name.charAt(0)}
+        <div className="px-6 py-4 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-center relative overflow-hidden shrink-0">
+          <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
+          <div className="flex justify-between items-center w-full">
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-lg">
+                {selectedDetailedEmployee.name.charAt(0)}
+              </div>
+              <div>
+                <h2 className="text-lg font-black tracking-tight leading-tight">
+                  {selectedDetailedEmployee.name}
+                </h2>
+                <p className="text-slate-400 text-[8px] font-black uppercase tracking-widest">
+                  {selectedDetailedEmployee.role?.name || "Staff"} • Financial Audit Ledger
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-black tracking-tight leading-tight">
-                {selectedDetailedEmployee.name}
-              </h2>
-              <p className="text-slate-400 text-[8px] font-black uppercase tracking-widest">
-                {selectedDetailedEmployee.role?.name || "Staff"} • Financial Audit Ledger
-              </p>
-            </div>
+            <button
+              onClick={() => setShowDetailedModal(false)}
+              className="p-2 hover:bg-white/10 rounded-xl transition-all text-slate-400 shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={() => setShowDetailedModal(false)}
-            className="p-2 hover:bg-white/10 rounded-xl transition-all text-slate-400"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Tabs - Denser */}
@@ -81,7 +84,7 @@ export function DetailedPayrollAuditModal({
         </div>
 
         {/* Content - Optimized Spacing */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/20">
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/20 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-6">
           {detailedLoading ? (
             <div className="h-48 flex flex-col items-center justify-center text-slate-400">
               <RefreshCw className="w-8 h-8 animate-spin mb-3 text-indigo-500/30" />

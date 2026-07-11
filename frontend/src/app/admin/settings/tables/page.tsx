@@ -655,21 +655,24 @@ export default function PanelControlPage() {
                                                 <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> TEST LAMPU (IoT)
                                             </button>
                                             {testModeDropdown && (
-                                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setTestModeDropdown(false)}>
-                                                    <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100" onClick={e => e.stopPropagation()}>
-                                                        <div className="p-4 bg-gradient-to-br from-indigo-50 to-white border-b border-indigo-100 flex justify-between items-center">
-                                                            <div className="flex items-center gap-2.5">
-                                                                <div className="relative flex h-3 w-3">
-                                                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setTestModeDropdown(false)}>
+                                                    <div className="w-full max-w-sm bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 border border-slate-100 max-h-[85vh] sm:max-h-[65vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                                        <div className="pt-4 pb-4 sm:p-4 bg-gradient-to-br from-indigo-50 to-white border-b border-indigo-100 flex flex-col shrink-0">
+                                                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                                            <div className="flex justify-between items-center px-4 sm:px-0">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <div className="relative flex h-3 w-3">
+                                                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                                                      <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                                                    </div>
+                                                                    <p className="text-xs font-black text-indigo-950 uppercase tracking-widest">Mode Uji Coba Lampu</p>
                                                                 </div>
-                                                                <p className="text-xs font-black text-indigo-950 uppercase tracking-widest">Mode Uji Coba Lampu</p>
+                                                                <button onClick={() => setTestModeDropdown(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all active:scale-95 shrink-0">
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
                                                             </div>
-                                                            <button onClick={() => setTestModeDropdown(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all active:scale-95">
-                                                                <X className="w-4 h-4" />
-                                                            </button>
                                                         </div>
-                                                        <div className="p-3 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-1.5 text-slate-900">
+                                                        <div className="p-3 overflow-y-auto custom-scrollbar space-y-1.5 text-slate-900 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] sm:pb-3">
                                                         <div className="px-3 pb-1 pt-2">
                                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Animasi Dasar</p>
                                                         </div>

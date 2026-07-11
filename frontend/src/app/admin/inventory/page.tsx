@@ -39,7 +39,9 @@ import {
     Calendar,
     Image,
     ClipboardCheck,
-    CalendarDays
+    CalendarDays,
+    ChevronDown,
+    Coffee
 } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
@@ -1127,21 +1129,23 @@ function InventoryContent() {
 
                 {/* Add Ingredient Modal */}
                 {showAddModal && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+1rem))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 lg:p-0 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
-                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-5 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[calc(100dvh-max(2rem,calc(env(safe-area-inset-top)+env(safe-area-inset-bottom)+2rem)))] sm:max-h-[90vh] flex flex-col">
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                            <div className="flex justify-between items-center mb-4 md:mb-6">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">{editingIngredient ? 'Edit Bahan Baku' : 'Tambah Bahan Baku'}</h2>
-                                    <p className="text-slate-500 font-semibold text-[10px] md:text-xs">Input detail bahan baku untuk akurasi HPP (COGS).</p>
+                    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
+                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col">
+                            <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
+                                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                <div className="flex justify-between items-center mb-0 md:mb-2">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">{editingIngredient ? 'Edit Bahan Baku' : 'Tambah Bahan Baku'}</h2>
+                                        <p className="text-slate-500 font-semibold text-[10px] md:text-xs">Input detail bahan baku untuk akurasi HPP (COGS).</p>
+                                    </div>
+                                    <button onClick={() => { setShowAddModal(false); resetIngredientForm(); }} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                        <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                                    </button>
                                 </div>
-                                <button onClick={() => { setShowAddModal(false); resetIngredientForm(); }} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
-                                    <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                                </button>
                             </div>
 
-                            <form onSubmit={handleAddIngredient} className="space-y-5 md:space-y-6">
+                            <form onSubmit={handleAddIngredient} className="space-y-5 md:space-y-6 overflow-y-auto no-scrollbar p-6 sm:p-10 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-10">
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8 lg:gap-14">
                                     {/* Left Column: Info & Stock */}
                                     <div className="space-y-8">
@@ -1520,28 +1524,29 @@ function InventoryContent() {
                                     {editingIngredient ? 'SIMPAN PERUBAHAN' : 'SIMPAN DATA BAHAN'}
                                 </button>
                             </form>
-                            </div>
                         </div>
                     </div>
                 )}
 
                 {/* Add Menu Modal */}
                 {showAddMenuModal && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
-                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                            <div className="flex justify-between items-center mb-4 md:mb-6">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">{editingMenu ? 'Edit Menu' : 'Tambah Menu'}</h2>
-                                    <p className="text-slate-500 font-semibold text-[10px] md:text-xs">{editingMenu ? 'Update detail menu dalam katalog cafe.' : 'Input menu baru ke dalam katalog cafe.'}</p>
+                    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
+                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col">
+                            <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
+                                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                <div className="flex justify-between items-center mb-0 md:mb-2">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">{editingMenu ? 'Edit Menu' : 'Tambah Menu'}</h2>
+                                        <p className="text-slate-500 font-semibold text-[10px] md:text-xs">{editingMenu ? 'Update detail menu dalam katalog cafe.' : 'Input menu baru ke dalam katalog cafe.'}</p>
+                                    </div>
+                                    <button onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                        <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                                    </button>
                                 </div>
-                                <button onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
-                                    <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                                </button>
                             </div>
 
-                            <form onSubmit={handleAddMenu} className="space-y-5 md:space-y-6">
+                            <form onSubmit={handleAddMenu} className="space-y-5 md:space-y-6 overflow-y-auto no-scrollbar p-6 sm:p-10 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-10">
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
                                     {/* Left Column: Basic Info */}
                                     <div className="space-y-8">
@@ -1794,7 +1799,6 @@ function InventoryContent() {
                                     {editingMenu ? 'SIMPAN PERUBAHAN' : 'SIMPAN MENU BARU'}
                                 </button>
                             </form>
-                            </div>
                         </div>
                     </div>
                 )}
@@ -2324,112 +2328,116 @@ function InventoryContent() {
                 }
                 {/* Category Management Modal - Premium Redesign */}
                 {showCategoryModal && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCategoryModal(false)} />
-                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[85vh] flex flex-col">
-                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                                <div className="flex justify-between items-center mb-8 md:mb-12">
-                                    <div className="flex items-center gap-5">
-                                        <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200">
-                                            <Zap className="w-7 h-7" />
+                    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowCategoryModal(false)} />
+                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col">
+                            <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
+                                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+                                <div className="flex justify-between items-center w-full">
+                                    <div className="flex items-center gap-4 sm:gap-5">
+                                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 shrink-0">
+                                            <Zap className="w-6 h-6 sm:w-7 sm:h-7" />
                                         </div>
                                         <div>
-                                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
-                                            <p className="text-slate-500 font-semibold text-xs md:text-sm">Konfigurasi pengelompokan menu & stasiun produksi otomatis.</p>
+                                            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
+                                            <p className="text-slate-500 font-semibold text-[10px] md:text-xs">Konfigurasi pengelompokan menu & stasiun produksi otomatis.</p>
                                         </div>
                                     </div>
-                                    <button onClick={() => setShowCategoryModal(false)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
-                                        <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+                                    <button onClick={() => setShowCategoryModal(false)} className="p-2.5 sm:p-3 bg-slate-50 text-slate-400 rounded-xl sm:rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group shrink-0 ml-2">
+                                        <X className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-90 transition-transform duration-300" />
                                     </button>
                                 </div>
+                            </div>
 
-                                <form onSubmit={handleCategoryAction} className="space-y-10">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20">
-                                        {/* Left Side: General Info */}
-                                        <div className="space-y-8">
-                                            <div className="space-y-6">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
-                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Identitas Kategori</h3>
+                            <form onSubmit={handleCategoryAction} className="space-y-10 overflow-y-auto no-scrollbar p-6 sm:p-10 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-10">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20">
+                                    {/* Left Side: General Info */}
+                                    <div className="space-y-8">
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Identitas Kategori</h3>
+                                            </div>
+                                            <InputField
+                                                label="Nama Kategori"
+                                                value={newCategory.name}
+                                                onChange={val => setNewCategory({ ...newCategory, name: val })}
+                                                placeholder="Contoh: Merchandise atau Billiard"
+                                                required
+                                            />
+                                            <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100/50 space-y-4">
+                                                <div className="flex items-center gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="isActiveCat"
+                                                        checked={newCategory.isActive}
+                                                        onChange={e => setNewCategory({ ...newCategory, isActive: e.target.checked })}
+                                                        className="w-6 h-6 rounded-lg text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                                                    />
+                                                    <label htmlFor="isActiveCat" className="text-xs font-black text-slate-900 uppercase tracking-wider select-none cursor-pointer">
+                                                        Kategori Aktif (Tampilkan di POS)
+                                                    </label>
                                                 </div>
-                                                <InputField
-                                                    label="Nama Kategori"
-                                                    value={newCategory.name}
-                                                    onChange={val => setNewCategory({ ...newCategory, name: val })}
-                                                    placeholder="Contoh: Merchandise atau Billiard"
-                                                    required
-                                                />
-                                                <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100/50 space-y-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <input
-                                                            type="checkbox"
-                                                            id="isActiveCat"
-                                                            checked={newCategory.isActive}
-                                                            onChange={e => setNewCategory({ ...newCategory, isActive: e.target.checked })}
-                                                            className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                                        />
-                                                        <label htmlFor="isActiveCat" className="text-xs font-black text-slate-700 uppercase tracking-wide cursor-pointer select-none">Kategori Aktif (Tampilkan di POS)</label>
-                                                    </div>
-                                                    <p className="text-[10px] text-slate-400 font-bold px-8">Kategori yang tidak aktif tidak akan muncul di layar kasir, namun data historis tetap tersimpan.</p>
-                                                </div>
+                                                <p className="text-xs text-slate-500 font-bold ml-9">
+                                                    Kategori yang tidak aktif tidak akan muncul di layar kasir, namun data historis tetap tersimpan.
+                                                </p>
                                             </div>
                                         </div>
 
-                                        {/* Right Side: Operational Logic */}
-                                         <div className="space-y-8">
-                                            <div className="space-y-6">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-4 bg-emerald-600 rounded-full" />
-                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Tipe & Cakupan</h3>
-                                                </div>
-                                                <div className="space-y-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Berlaku Untuk</label>
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1.5 h-4 bg-emerald-500 rounded-full" />
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Tipe & Cakupan</h3>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Berlaku Untuk</label>
+                                                    <div className="relative">
                                                         <select
-                                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-sm text-slate-800 transition-all outline-none cursor-pointer"
+                                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-100 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 outline-none focus:bg-white transition-all appearance-none cursor-pointer hover:bg-slate-100"
                                                             value={newCategory.type}
-                                                            onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
+                                                            onChange={e => setNewCategory({ ...newCategory, type: e.target.value as 'MENU' | 'INGREDIENT' | 'BOTH' })}
                                                         >
                                                             <option value="MENU">Menu / Produk Jadi (Penjualan)</option>
-                                                            <option value="INGREDIENT">Bahan Baku (Inventaris Gudang)</option>
-                                                            <option value="BOTH">Keduanya (Menu & Bahan Baku)</option>
+                                                            <option value="INGREDIENT">Bahan Baku Mentah (Inventory)</option>
+                                                            <option value="BOTH">Keduanya</option>
                                                         </select>
+                                                        <ChevronDown className="w-5 h-5 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                                                     </div>
-
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Default Target Stasiun (KDS/BDS)</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                list="stations"
-                                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-sm text-slate-800 transition-all outline-none"
-                                                                value={newCategory.productionTarget}
-                                                                onChange={e => setNewCategory({ ...newCategory, productionTarget: e.target.value })}
-                                                                placeholder="Pilih atau Ketik Stasiun..."
-                                                            />
-                                                            <Monitor className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                                            <datalist id="stations">
-                                                                <option value="KDS">Kitchen (KDS)</option>
-                                                                <option value="BDS">Bartender (BDS)</option>
-                                                                <option value="NONE">Direct / Instan (Ready)</option>
-                                                            </datalist>
-                                                        </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Default Target Stasiun (KDS/BDS)</label>
+                                                    <div className="relative">
+                                                        <select
+                                                            className="w-full bg-slate-50 border-2 border-transparent focus:border-indigo-100 rounded-2xl py-4 px-12 text-sm font-bold text-slate-900 outline-none focus:bg-white transition-all appearance-none cursor-pointer hover:bg-slate-100"
+                                                            value={newCategory.defaultTargetStation}
+                                                            onChange={e => setNewCategory({ ...newCategory, defaultTargetStation: e.target.value as 'NONE' | 'KDS' | 'BDS' })}
+                                                        >
+                                                            <option value="NONE">Tidak Ada (Langsung Selesai)</option>
+                                                            <option value="KDS">KDS (Kitchen Display)</option>
+                                                            <option value="BDS">BDS (Bar Display)</option>
+                                                        </select>
+                                                        {newCategory.defaultTargetStation === 'KDS' ? <ChefHat className="w-5 h-5 text-indigo-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" /> :
+                                                         newCategory.defaultTargetStation === 'BDS' ? <Coffee className="w-5 h-5 text-amber-500 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" /> :
+                                                         <Monitor className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />}
+                                                        <ChevronDown className="w-5 h-5 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <div className="pt-6 border-t border-slate-50">
-                                        <button
-                                            type="submit"
-                                            className="w-full bg-slate-900 hover:bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98] uppercase tracking-[0.2em] text-sm"
-                                        >
-                                            <Save className="w-5 h-5" />
-                                            Simpan Konfigurasi Kategori
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
+                                <div className="pt-6 border-t border-slate-50 mt-10">
+                                    <button
+                                        type="submit"
+                                        className="w-full bg-slate-900 hover:bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98] uppercase tracking-[0.2em] text-sm"
+                                    >
+                                        <Save className="w-5 h-5" />
+                                        Simpan Konfigurasi Kategori
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}
