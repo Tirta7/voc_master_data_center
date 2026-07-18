@@ -4790,7 +4790,7 @@ export default function BusinessSettings() {
 
                                     type="submit"
 
-                                    disabled={saving || activeTab === 'preferences'}
+                                    disabled={saving}
 
                                     className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
 

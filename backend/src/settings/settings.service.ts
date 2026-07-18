@@ -97,10 +97,15 @@ export class SettingsService implements OnModuleInit {
       const dataObj = data as any;
       const settingsObj = settings as any;
       for (const key of Object.keys(dataObj)) {
-        if (dataObj[key] !== settingsObj[key]) {
-          changes.push(
-            `${key}: ${JSON.stringify(settingsObj[key])} -> ${JSON.stringify(dataObj[key])}`,
-          );
+        const oldValStr = JSON.stringify(settingsObj[key]);
+        const newValStr = JSON.stringify(dataObj[key]);
+
+        if (oldValStr !== newValStr) {
+          if (typeof dataObj[key] !== 'object' || dataObj[key] === null) {
+            changes.push(`${key}: ${settingsObj[key]} -> ${dataObj[key]}`);
+          } else {
+            changes.push(`${key}: diperbarui`);
+          }
         }
       }
       if (changes.length > 0) {
