@@ -34,6 +34,7 @@
  * server)
  */
 
+#include <time.h>
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 #include <DNSServer.h>  // 🛡️ Added for Portal
@@ -53,6 +54,164 @@
 #include <esp_wifi.h>
 // WebSerial removed — uses standard Serial instead
 
+// ─── OLED & ENCODER ──────────────────────────────────────────────
+#include <U8g2lib.h>
+
+// Layar OLED ukuran > 1 inch biasanya menggunakan chip SH1106, bukan SSD1306.
+// Jika layar masih acak, ubah U8G2_SH1106_... menjadi U8G2_SSD1306_...
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
+
+// ─── WEB SERIAL CUSTOM ───────────────────────────────────────────
+const int LOG_BUFFER_SIZE = 4096;
+char logBuffer[LOG_BUFFER_SIZE];
+int logHead = 0;
+int logTail = 0;
+bool logFull = false;
+
+extern bool needOledUpdate;
+String oledLogLines[5] = {"", "", "", "", ""};
+String currentOledLine = "";
+
+class DualSerialWrapper : public Print {
+public:
+  void begin(unsigned long baud) { Serial.begin(baud); }
+  int available() { return Serial.available(); }
+  int read() { return Serial.read(); }
+  int peek() { return Serial.peek(); }
+  void flush() { Serial.flush(); }
+  
+  void addToBuffer(uint8_t c) {
+    logBuffer[logHead] = (char)c;
+    logHead = (logHead + 1) % LOG_BUFFER_SIZE;
+    if (logFull) {
+      logTail = (logTail + 1) % LOG_BUFFER_SIZE;
+    }
+    if (logHead == logTail) {
+      logFull = true;
+    }
+    
+    // OLED Log logic
+    if (c == '\n') {
+      for(int i=0; i<4; i++) oledLogLines[i] = oledLogLines[i+1];
+      oledLogLines[4] = currentOledLine;
+      currentOledLine = "";
+      needOledUpdate = true;
+    } else if (c != '\r') {
+      if (currentOledLine.length() >= 23) { // Batas layar OLED (wrap teks)
+        for(int i=0; i<4; i++) oledLogLines[i] = oledLogLines[i+1];
+        oledLogLines[4] = currentOledLine;
+        currentOledLine = "";
+        needOledUpdate = true;
+      }
+      currentOledLine += (char)c;
+    }
+  }
+
+  size_t write(uint8_t c) override {
+    Serial.write(c);
+    addToBuffer(c);
+    return 1;
+  }
+  size_t write(const uint8_t *buffer, size_t size) override {
+    size_t n = Serial.write(buffer, size);
+    for(size_t i=0; i<n; i++) addToBuffer(buffer[i]);
+    return n;
+  }
+};
+DualSerialWrapper DualSerial;
+#define Serial DualSerial
+
+String getLogBuffer() {
+  String s = "";
+  s.reserve(LOG_BUFFER_SIZE + 1);
+  if (logFull) {
+    for (int i = logTail; i < LOG_BUFFER_SIZE; i++) s += logBuffer[i];
+    for (int i = 0; i < logHead; i++) s += logBuffer[i];
+  } else {
+    for (int i = 0; i < logHead; i++) s += logBuffer[i];
+  }
+  return s;
+}
+
+#define ENC_A 32
+#define ENC_B 33
+#define ENC_BTN 25
+#define BTN_CONFIRM 26
+#define BTN_BACK 27
+
+volatile int encoderPos = 0;
+volatile bool encoderA_Prev = false;
+int lastEncoderPos = 0;
+int currentMenuSelection = 0;
+bool needOledUpdate = true;
+unsigned long lastButtonPress = 0;
+unsigned long lastOledDraw = 0;
+
+enum UIState {
+  STATE_MAIN_MENU,
+  STATE_RELAY_CONTROL,
+  STATE_TIME_SELECTION,
+  STATE_SCREEN_SETTINGS,
+  STATE_IDLE_TIME_SELECTION,
+  STATE_RESTART_SELECTION,
+  STATE_PASSWORD_INPUT,
+  STATE_LOCK_CONFIRMATION,
+  STATE_NETWORK_INFO,
+  STATE_SYSTEM_INFO,
+  STATE_SCREENSAVER,
+  STATE_CUSTOM_TIME_INPUT
+};
+UIState currentUIState = STATE_MAIN_MENU;
+int mainMenuSelection = 0;
+const int NUM_MAIN_MENU_ITEMS = 5;
+
+int lockConfirmSelection = 1; // 0 = Ya, 1 = Tidak
+int timeMenuSelection = 0;
+int customTimeDigitPos = 0;
+int enteredCustomTime[6] = {0, 0, 0, 0, 0, 0};
+int pinDigitPos = 0;
+
+int enteredPin[4] = {0, 0, 0, 0};
+int expectedPinLength = 4;
+String expectedPinCode = "";
+UIState stateAfterPin = STATE_MAIN_MENU;
+int selectedTableForTimer = 0;
+
+int screenMenuSelection = 0;
+int idleTimeMenuSelection = 0;
+
+int restartMenuSelection = 0;
+int systemInfoPage = 0;
+
+bool enableScreensaver = true;
+int idleMode = 1;       // 0 = Logo VOC, 1 = Jam Digital
+int idleTimeout = 15;   // Waktu idle (detik)
+int timeZoneOffset = 7; // 7 = WIB, 8 = WITA, 9 = WIT
+
+unsigned long lastActivityTime = 0;
+unsigned long lastPinEncoderMoveTime = 0;
+float ssProgress = 0.0;
+bool ssIncreasing = true;
+
+// Variabel untuk Toast Popup
+bool showToast = false;
+String toastMessage = "";
+unsigned long toastEndTime = 0;
+
+void IRAM_ATTR readEncoder() {
+  bool encA = digitalRead(ENC_A);
+  bool encB = digitalRead(ENC_B);
+  if (encA != encoderA_Prev) {
+    if (encA == encB) {
+      encoderPos++;
+    } else {
+      encoderPos--;
+    }
+    encoderA_Prev = encA;
+  }
+}
+// ─────────────────────────────────────────────────────────────
+
 // ─── ESP-NOW PACKET ──────────────────────────────────────────────
 typedef struct __attribute__((packed)) {
   int32_t mesaId;
@@ -69,6 +228,7 @@ char ssid[33] = "";
 char password[65] = "";
 char mqtt_server[65] = "";
 int mqtt_port = 1883;
+String tablePinCode = "";
 
 // GPIO Pins (Bisa diatur di Portal)
 int pin_mode_switch = 5;
@@ -88,7 +248,11 @@ Preferences preferences;
 bool isConfigMode = false;
 const byte DNS_PORT = 53;
 PCF8575 *pcfModules[8]; // Mendukung hingga 8 modul (128 relay)
-int num_relays = 16;
+
+// 🔥 ATUR JUMLAH MEJA DI SINI 🔥
+// Ubah angka ini sesuai jumlah meja fisik yang Anda miliki (contoh: 6)
+#define JUMLAH_MEJA 10
+int num_relays = JUMLAH_MEJA;
 
 // ─────────────────────────────────────────────────────────────
 // STATE & VARIABEL GLOBAL
@@ -102,10 +266,11 @@ String baseTopic = ""; // billiard/table/{deviceMac}
 bool relayState[128] = {false};
 bool relayTarget[128] = {false};
 unsigned long relayProtectedUntil[128] = {0};
-unsigned long apiOverrideUntil[128] = {0}; // 🛡️ Blokir MQTT ON setelah REST API action
-uint32_t tableTimer[128] = {0};           // 🛡️ Sisa waktu per meja (detik)
-uint32_t tableAlertTime[128] = {0};       // 🛡️ Waktu alert per meja (detik)
-uint8_t relayBlinkCount[128] = {0};       // Sisa transisi blink
+unsigned long apiOverrideUntil[128] = {
+    0};                             // 🛡️ Blokir MQTT ON setelah REST API action
+uint32_t tableTimer[128] = {0};     // 🛡️ Sisa waktu per meja (detik)
+uint32_t tableAlertTime[128] = {0}; // 🛡️ Waktu alert per meja (detik)
+uint8_t relayBlinkCount[128] = {0}; // Sisa transisi blink
 unsigned long relayBlinkTimer[128] = {0}; // Timer non-blocking blink
 unsigned long lastTimerTick = 0;
 
@@ -174,15 +339,25 @@ void loadSettings() {
       lastComma = i;
     }
   }
-  num_relays = num_pcf_modules * 16;
+
+  // Baca konfigurasi Jumlah Meja dari memory, default ke JUMLAH_MEJA
+  num_relays = preferences.getInt("nRel", JUMLAH_MEJA);
+  
+  // Baca konfigurasi Screensaver, default ON (true)
+  enableScreensaver = preferences.getBool("pScr", true);
+  idleMode = preferences.getInt("iMod", 1);    // Default Jam Digital
+  idleTimeout = preferences.getInt("iTo", 15); // Default 15 detik
+  timeZoneOffset = preferences.getInt("tZ", 7);
+  tablePinCode = preferences.getString("pPin", "");
 
   preferences.end();
   Serial.println("[CONFIG] Settings hydrated from memory.");
 }
 
 void saveSettings(String s, String p, String m, int pt, String ph, int pm,
-                  int pl, int pr, int pb, bool al) {
+                  int pl, int pr, int pb, bool al, int nr, int tz, String pin) {
   preferences.begin("voc-config", false);
+  preferences.putString("pPin", pin);
   preferences.putString("ssid", s);
   preferences.putString("pass", p);
   preferences.putString("mqtt", m);
@@ -193,6 +368,8 @@ void saveSettings(String s, String p, String m, int pt, String ph, int pm,
   preferences.putInt("pTrn", pr);
   preferences.putInt("pBuz", pb);
   preferences.putBool("pAL", al);
+  preferences.putInt("nRel", nr);
+  preferences.putInt("tZ", tz);
   preferences.end();
   Serial.println("[CONFIG] New settings saved.");
 }
@@ -338,6 +515,9 @@ void handleRoot() {
        "value='" +
        preferences.getString("pcf", "0x20") +
        "' placeholder='0x20,0x21'></div>";
+  h += "<div class='field'><label>JUMLAH MEJA DIPAKAI</label><input name='nr' "
+       "type='number' value='" +
+       String(num_relays) + "'></div>";
   h += "<div class='row'>";
   h += " <div class='field'><label>PIN MODE</label><input name='pm' "
        "type='number' value='" +
@@ -359,6 +539,17 @@ void handleRoot() {
        ">LOW (Common)</option><option value='0' " +
        String(!pcf_active_low ? "selected" : "") +
        ">HIGH</option></select></div>";
+  h += "<div class='field'><label>ZONA WAKTU (TIMEZONE)</label><select "
+       "name='tz'><option value='7' " +
+       String(timeZoneOffset == 7 ? "selected" : "") +
+       ">WIB (UTC+7)</option><option value='8' " +
+       String(timeZoneOffset == 8 ? "selected" : "") +
+       ">WITA (UTC+8)</option><option value='9' " +
+       String(timeZoneOffset == 9 ? "selected" : "") +
+       ">WIT (UTC+9)</option></select></div>";
+  h += "<div class='field'><label>PIN KONTROL MEJA (Kosongkan jika bebas)</label><input name='pin' "
+       "type='number' placeholder='Misal: 1234' value='" +
+       tablePinCode + "'></div>";
   h += "<button type='submit'>APPLY SETTINGS</button></form>";
   h += "<a href='/dashboard' "
        "style='display:block;text-align:center;margin-top:20px;padding:12px;"
@@ -390,7 +581,8 @@ void handleSave() {
                server.arg("pt").toInt(), server.arg("ph"),
                server.arg("pm").toInt(), server.arg("pl").toInt(),
                server.arg("ptr").toInt(), server.arg("pb").toInt(),
-               server.arg("al") == "1");
+               server.arg("al") == "1", server.arg("nr").toInt(),
+               server.arg("tz").toInt(), server.arg("pin"));
 
   // PRG Pattern: redirect ke GET /saved sehingga reload browser TIDAK trigger
   // save ulang
@@ -709,6 +901,12 @@ void callback(char *topic, byte *payload, unsigned int length) {
       startBuzzer(200);
       Serial.printf("[RELAY] DB_ID:%d MAC:%s Pin%d → OFF\n", tableId,
                     deviceMac.c_str(), pinIndex);
+
+      toastMessage = String("MEJA ") + String(pinIndex + 1) + " MATI!";
+      showToast = true;
+      toastEndTime = millis() + 3000;
+      needOledUpdate = true;
+      // Tidak mengubah currentUIState agar tidak mem-bypass layar kunci
     } else {
       // 🛡️ Proteksi minimalis 500ms (nyaris instan tapi tetap aman untuk relay)
       unsigned long protDuration = isExtend ? 60000 : 500;
@@ -734,6 +932,12 @@ void callback(char *topic, byte *payload, unsigned int length) {
       Serial.printf("[RELAY] DB_ID:%d MAC:%s Pin%d → ON (%s) | Timer: %u min\n",
                     tableId, deviceMac.c_str(), pinIndex,
                     isExtend ? "EXTEND" : "START", duration);
+                    
+      toastMessage = String("MEJA ") + String(pinIndex + 1) + (isExtend ? " EXTEND!" : " AKTIF!");
+      showToast = true;
+      toastEndTime = millis() + 3000;
+      needOledUpdate = true;
+      // Tidak mengubah currentUIState agar tidak mem-bypass layar kunci
     }
     publishStatus(); // 🚀 Kirim feedback instan setelah perintah diterima
     return;
@@ -957,7 +1161,7 @@ void handleApiStatus() {
     server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(503, "application/json",
                 "{\"error\":\"Low memory\",\"freeHeap\":" +
-                String(ESP.getFreeHeap()) + "}");
+                    String(ESP.getFreeHeap()) + "}");
     Serial.println("[REST API] /api/status — LOW MEMORY, skip.");
     return;
   }
@@ -990,7 +1194,8 @@ void handleApiStatus() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Cache-Control", "no-cache");
   server.send(200, "application/json", buf);
-  Serial.printf("[REST API] GET /api/status → 200 OK (%d bytes)\n", buf.length());
+  Serial.printf("[REST API] GET /api/status → 200 OK (%d bytes)\n",
+                buf.length());
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1050,12 +1255,12 @@ void handleApiRelay() {
 
 void handleDashboard() {
   // ── Server-side: hitung status sekarang ──
-  String ipStr     = WiFi.localIP().toString();
-  String rssiStr   = String(WiFi.RSSI()) + "dBm";
-  bool   mqttOk    = client.connected();
-  String mqttTxt   = mqttOk ? "MQTT OK" : "MQTT Putus";
-  String mqttCls   = mqttOk ? "ok" : "err";
-  String heapStr   = String(ESP.getFreeHeap() / 1024) + "KB free";
+  String ipStr = WiFi.localIP().toString();
+  String rssiStr = String(WiFi.RSSI()) + "dBm";
+  bool mqttOk = client.connected();
+  String mqttTxt = mqttOk ? "MQTT OK" : "MQTT Putus";
+  String mqttCls = mqttOk ? "ok" : "err";
+  String heapStr = String(ESP.getFreeHeap() / 1024) + "KB free";
   String uptimeStr = String(millis() / 1000) + "s";
 
   String h =
@@ -1123,22 +1328,34 @@ void handleDashboard() {
       "<div class='hdr'>"
       "<div>"
       "<div class='logo'>&#9889; VOC Emergency Panel V2 (Tested OTA)</div>"
-      "<div class='sub'>STANDALONE &mdash; " + deviceMac + "</div>"
+      "<div class='sub'>STANDALONE &mdash; " +
+      deviceMac +
+      "</div>"
       "</div>"
       "<div class='info'>"
-      "<span class='badge'>" + ipStr + "</span>"
-      "<span class='badge'>" + rssiStr + "</span>"
-      "<span class='badge " + mqttCls + "'>" + mqttTxt + "</span>"
-      "<span class='badge'>" + heapStr + "</span>"
+      "<span class='badge'>" +
+      ipStr +
+      "</span>"
+      "<span class='badge'>" +
+      rssiStr +
+      "</span>"
+      "<span class='badge " +
+      mqttCls + "'>" + mqttTxt +
+      "</span>"
+      "<span class='badge'>" +
+      heapStr +
+      "</span>"
       "</div>"
       "</div>"
-      "<div class='sb'>&#8635; Auto-refresh 8s | Uptime: " + uptimeStr + "</div>"
+      "<div class='sb'>&#8635; Auto-refresh 8s | Uptime: " +
+      uptimeStr +
+      "</div>"
       "<div class='grid'>";
 
   // ── Server-side render tiap relay ──
   for (int i = 0; i < num_relays; i++) {
     int meja = i + 1;
-    bool on  = relayState[i];
+    bool on = relayState[i];
     uint32_t sec = tableTimer[i];
 
     String timerStr = "&nbsp;";
@@ -1148,11 +1365,11 @@ void handleDashboard() {
       timerStr = "Bebas";
     }
 
-    String onCmd  = "/api/relay?meja=" + String(meja) + "&status=ON";
+    String onCmd = "/api/relay?meja=" + String(meja) + "&status=ON";
     String offCmd = "/api/relay?meja=" + String(meja) + "&status=OFF";
     String btnHref = on ? offCmd : onCmd;
-    String btnTxt  = on ? "&#9646; MATIKAN" : "&#9654; NYALAKAN";
-    String btnCls  = on ? "btn btn-off" : "btn btn-on";
+    String btnTxt = on ? "&#9646; MATIKAN" : "&#9654; NYALAKAN";
+    String btnCls = on ? "btn btn-off" : "btn btn-on";
 
     h += "<div class='card " + String(on ? "on" : "off") + "'>";
     h += "<span class='dot'></span>";
@@ -1160,26 +1377,81 @@ void handleDashboard() {
     h += "<div class='num'>" + String(meja) + "</div>";
     h += "<div class='tmr'>" + timerStr + "</div>";
     // Fetch background dan reload, tanpa navigasi JSON
-    h += "<a href='" + btnHref + "' class='" + btnCls + "' onclick='fetch(this.href);setTimeout(()=>location.reload(),300);return false;'>" + btnTxt + "</a>";
+    h += "<a href='" + btnHref + "' class='" + btnCls +
+         "' "
+         "onclick='fetch(this.href);setTimeout(()=>location.reload(),300);"
+         "return false;'>" +
+         btnTxt + "</a>";
     h += "</div>";
   }
 
-  h +=
-      "</div>"
-      "<div class='nav'>"
-      "<a href='/'>&#9881; Konfigurasi</a>"
-      "<a href='/update'>&#128260; OTA Update</a>"
-      "<a href='/dashboard'>&#9889; Dashboard</a>"
-      "</div>"
-      "<script>"
-      "function fmt(s){if(s<=0)return'Bebas';var m=Math.floor(s/60);return "
-      "m+'m '+(s%60)+'s sisa';}"
-      "</script>"
-      "<p style='text-align:center;font-size:10px;color:#334155;margin-top:10px'>"
-      "Mode Standalone &mdash; bekerja tanpa koneksi server VOC</p>"
-      "</body></html>";
+  h += "</div>"
+       "<div class='nav'>"
+       "<a href='/'>&#9881; Konfigurasi</a>"
+       "<a href='/update'>&#128260; OTA Update</a>"
+       "<a href='/dashboard'>&#9889; Dashboard</a>"
+       "<a href='/webserial'>&#128240; Web Serial</a>"
+       "</div>"
+       "<script>"
+       "function fmt(s){if(s<=0)return'Bebas';var m=Math.floor(s/60);return "
+       "m+'m '+(s%60)+'s sisa';}"
+       "</script>"
+       "<p "
+       "style='text-align:center;font-size:10px;color:#334155;margin-top:10px'>"
+       "Mode Standalone &mdash; bekerja tanpa koneksi server VOC</p>"
+       "</body></html>";
 
   server.send(200, "text/html", h);
+}
+
+void handleWebSerial() {
+  String h = "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
+             "<title>VOC Web Serial</title>"
+             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+             "<link href='https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;700&display=swap' rel='stylesheet'>"
+             "<style>"
+             "body{background:#0f172a;color:#cbd5e1;font-family:'Outfit',sans-serif;margin:0;padding:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;}"
+             ".header{background:rgba(15,23,42,0.9);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.05);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;z-index:10;box-shadow:0 4px 20px rgba(0,0,0,0.3);}"
+             ".title{font-weight:700;font-size:16px;color:#3b82f6;display:flex;align-items:center;gap:8px;}"
+             ".controls{display:flex;gap:10px;}"
+             "button,.btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;transition:0.2s;text-decoration:none;display:inline-block;}"
+             "button:hover,.btn:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);}"
+             "button.active{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981;}"
+             ".btn-danger:hover{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444;}"
+             "#log-container{flex:1;overflow-y:auto;padding:20px;background:#020617;}"
+             "#log{font-family:'Fira Code',monospace;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;color:#10b981;}"
+             "</style></head><body>"
+             "<div class='header'><div class='title'>&#9889; VOC Serial Monitor</div>"
+             "<div class='controls'>"
+             "<button id='btn-scroll' class='active' onclick='toggleScroll()'>Autoscroll: ON</button>"
+             "<button class='btn-danger' onclick='clearLog()'>Clear</button>"
+             "<a href='/dashboard' class='btn'>Back</a>"
+             "</div></div>"
+             "<div id='log-container'><div id='log'>" + getLogBuffer() + "</div></div>"
+             "<script>"
+             "var autoScroll=true;var logCont=document.getElementById('log-container');var logEl=document.getElementById('log');"
+             "function toggleScroll(){autoScroll=!autoScroll;var btn=document.getElementById('btn-scroll');if(autoScroll){btn.className='active';btn.innerText='Autoscroll: ON';scrollToBottom();}else{btn.className='';btn.innerText='Autoscroll: OFF';}}"
+             "function clearLog(){fetch('/api/logs/clear').then(()=>{logEl.innerText='';});}"
+             "function scrollToBottom(){logCont.scrollTop=logCont.scrollHeight;}"
+             "logCont.addEventListener('scroll',function(){if(logCont.scrollTop+logCont.clientHeight<logCont.scrollHeight-30){if(autoScroll)toggleScroll();}});"
+             "setInterval(()=>{fetch('/api/logs').then(r=>r.text()).then(t=>{logEl.innerText=t;if(autoScroll)scrollToBottom();})}, 1500);"
+             "window.onload=scrollToBottom;"
+             "</script></body></html>";
+  server.send(200, "text/html", h);
+}
+
+void handleApiLogs() {
+  server.send(200, "text/plain", getLogBuffer());
+}
+
+void handleApiLogsClear() {
+  logHead = 0;
+  logTail = 0;
+  logFull = false;
+  for(int i=0; i<5; i++) oledLogLines[i] = "";
+  currentOledLine = "";
+  needOledUpdate = true;
+  server.send(200, "text/plain", "OK");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1187,6 +1459,9 @@ void handleDashboard() {
 // ─────────────────────────────────────────────────────────────
 
 void startWebServices() {
+  // Init NTP (Sesuai Zona Waktu yang disetting)
+  configTime(timeZoneOffset * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  
   if (webServicesStarted)
     return;
 
@@ -1225,6 +1500,9 @@ void startWebServices() {
   server.on("/api/status", HTTP_GET, handleApiStatus);
   server.on("/api/relay", HTTP_GET, handleApiRelay);
   server.on("/dashboard", HTTP_GET, handleDashboard); // ⚡ Dashboard Darurat
+  server.on("/webserial", HTTP_GET, handleWebSerial);
+  server.on("/api/logs", HTTP_GET, handleApiLogs);
+  server.on("/api/logs/clear", HTTP_GET, handleApiLogsClear);
   server.onNotFound([]() {
     server.sendHeader("Location", "/", true);
     server.send(302, "text/plain", "");
@@ -1248,6 +1526,638 @@ void startWebServices() {
   Serial.println(String(num_relays));
   Serial.println("║  Ketik 'help' di Serial Monitor      ║");
   Serial.println("╚══════════════════════════════════════╝");
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANIMASI LOGO (SCREENSAVER & BOOT)
+// ─────────────────────────────────────────────────────────────
+const uint8_t voc_logo_128x64[] PROGMEM = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xff,
+    0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x07, 0xff, 0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xff, 0xff, 0xf8, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xf0,
+    0x0f, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0xff, 0x80, 0x01, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xf8, 0x00, 0x00, 0x1f, 0xc0, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xe0, 0x00,
+    0x00, 0x07, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x1f, 0x80, 0x00, 0x00, 0x01, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x00, 0xfc, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x00,
+    0x00, 0x00, 0x3e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x01, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x80,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00,
+    0x00, 0x00, 0x07, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xc0, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x07, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe0,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3c,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1e,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x78, 0x00, 0x00, 0x1f, 0xf8, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x3f, 0xfc, 0x00, 0x00, 0x0e,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0x00, 0x00, 0xff,
+    0xff, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x70, 0x00, 0x01, 0xff, 0xff, 0x80, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x70, 0x00, 0x01, 0xf0, 0x0f, 0xc0, 0x00, 0x0e,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x03, 0xe0,
+    0x03, 0xc0, 0x00, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xf0, 0x00, 0x07, 0xc0, 0x03, 0xe0, 0x00, 0x0f, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x70, 0x00, 0x07, 0x80, 0x01, 0xe0, 0x00, 0x0f,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0x00, 0x0f, 0x80,
+    0x01, 0xf0, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x70, 0x00, 0x1f, 0x00, 0x00, 0xf8, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x1e, 0x01, 0x80, 0x78, 0x00, 0x0e,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x1e, 0x01,
+    0x80, 0x78, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x78, 0x00, 0x3c, 0x03, 0xc0, 0x3c, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x7c, 0x00, 0x7c, 0x07, 0xe0, 0x3e, 0x00, 0x1e,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x78, 0x07,
+    0xe0, 0x1e, 0x00, 0x3e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x3c, 0x00, 0xf8, 0x0f, 0xf0, 0x1f, 0x00, 0x3c, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x3c, 0x00, 0xf0, 0x0f, 0xf0, 0x0f, 0x00, 0x3c,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x01, 0xe0, 0x1f,
+    0xf8, 0x07, 0x80, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x1e, 0x01, 0xe0, 0x1f, 0xf8, 0x07, 0x80, 0x78, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x0c, 0x03, 0xc0, 0x3f, 0xfc, 0x03, 0xc0, 0xf0,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x03, 0xc0, 0x3f,
+    0xfc, 0x03, 0xe0, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x07, 0x80, 0x7f, 0xfe, 0x01, 0xe1, 0xf0, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x80, 0xff, 0xff, 0x01, 0xf3, 0xe0,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00, 0xff,
+    0xff, 0x00, 0xf3, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x1e, 0x01, 0xff, 0xff, 0x80, 0x7f, 0x80, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x01, 0xff, 0xff, 0x80, 0x7f, 0x80,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x03, 0xff,
+    0xff, 0xc0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x3c, 0x03, 0xff, 0xff, 0xc0, 0x3e, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x38, 0x07, 0xff, 0xff, 0xe0, 0x1c, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x0f, 0xff,
+    0xff, 0xf0, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x0f, 0xff, 0xff, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xff, 0xff, 0xf8, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xff,
+    0xff, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3f, 0xff, 0xff, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xff, 0xff, 0xf8, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xff,
+    0xff, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00};
+
+void drawLogo(float progress) {
+  // progress bergerak 0.0 hingga 1.0 (digunakan untuk efek melayang
+  // vertikal/bouncing) tujuannya agar piksel OLED tidak burn-in (mati) jika
+  // nyala terlalu lama
+  int yOffset = 25 + (int)(15.0 * progress);
+
+  u8g2.setFont(u8g2_font_ncenB14_tr); // Font tebal & besar
+  u8g2.setCursor(42, yOffset);
+  u8g2.print("VOC");
+
+  u8g2.setFont(u8g2_font_5x8_tf);
+  u8g2.setCursor(25, yOffset + 14);
+  u8g2.print("BILLIARD SYSTEM");
+}
+
+void drawClock() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo, 10)) { // Cek cepat (10ms)
+    // Fallback jika waktu belum sinkron
+    drawLogo(ssProgress);
+    return;
+  }
+  
+  char timeBuf[10];
+  strftime(timeBuf, sizeof(timeBuf), "%H:%M", &timeinfo);
+  
+  char secBuf[5];
+  strftime(secBuf, sizeof(secBuf), "%S", &timeinfo);
+  
+  char dateBuf[20];
+  strftime(dateBuf, sizeof(dateBuf), "%d %b %Y", &timeinfo);
+  
+  // Efek pantul / float pelan agar tidak burn-in
+  int yOffset = 15 + (int)(10.0 * ssProgress);
+  
+  u8g2.setFont(u8g2_font_logisoso24_tn);
+  u8g2.setCursor(18, yOffset + 24);
+  u8g2.print(timeBuf);
+  
+  u8g2.setFont(u8g2_font_ncenB10_tr);
+  u8g2.setCursor(95, yOffset + 24);
+  u8g2.print(secBuf);
+  
+  u8g2.setFont(u8g2_font_5x8_tf);
+  int w = u8g2.getStrWidth(dateBuf);
+  u8g2.setCursor(64 - (w/2), yOffset + 40);
+  u8g2.print(dateBuf);
+}
+
+// ─────────────────────────────────────────────────────────────
+// OLED UI RENDERER (STATE MACHINE)
+// ─────────────────────────────────────────────────────────────
+void updateOLED() {
+  u8g2.clearBuffer();
+
+  if (currentUIState == STATE_SCREENSAVER) {
+    // --- LAYAR SCREENSAVER ---
+    if (idleMode == 0) {
+      drawLogo(ssProgress);
+    } else {
+      drawClock();
+    }
+
+    // Update progress animasi (wipe effect up and down)
+    if (ssIncreasing) {
+      ssProgress += 0.04;
+      if (ssProgress >= 1.0) {
+        ssProgress = 1.0;
+        ssIncreasing = false;
+      }
+    } else {
+      ssProgress -= 0.04;
+      if (ssProgress <= 0.0) {
+        ssProgress = 0.0;
+        ssIncreasing = true;
+      }
+    }
+  } else if (currentUIState == STATE_MAIN_MENU) {
+    // --- LAYAR 1: MENU UTAMA ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(35, 10, "MENU UTAMA");
+
+    const char *menuItems[] = {"1. Kontrol Meja", "2. Info Jaringan",
+                               "3. Info Sistem", "4. Pengaturan Layar", "5. Restart Alat"};
+    u8g2.setFont(u8g2_font_6x10_tf);
+    
+    int startIndex = 0;
+    if (mainMenuSelection >= 4) startIndex = mainMenuSelection - 3;
+
+    for (int i = 0; i < 4; i++) {
+      int itemIndex = startIndex + i;
+      if (itemIndex >= NUM_MAIN_MENU_ITEMS) break;
+      int yPos = 16 + (i * 12);
+      if (itemIndex == mainMenuSelection) {
+        u8g2.setDrawColor(1);
+        u8g2.drawRBox(2, yPos, 124, 11, 2);
+        u8g2.setDrawColor(0);
+      } else {
+        u8g2.setDrawColor(1);
+      }
+      u8g2.setCursor(6, yPos + 9);
+      u8g2.print(menuItems[itemIndex]);
+    }
+    
+    u8g2.setDrawColor(1);
+    int trackHeight = 64 - 16;
+    int scrollBarHeight = (trackHeight * 4) / NUM_MAIN_MENU_ITEMS;
+    int scrollY = 16 + ((trackHeight - scrollBarHeight) * startIndex / (NUM_MAIN_MENU_ITEMS - 4));
+    for (int y = 16; y < 64; y += 2)
+      u8g2.drawPixel(126, y);
+    u8g2.drawBox(125, scrollY, 3, scrollBarHeight);
+  } else if (currentUIState == STATE_RELAY_CONTROL) {
+    // --- LAYAR 2: KONTROL MEJA ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(30, 10, "KONTROL MEJA");
+
+    int maxVisible = 4;
+    int startIndex = 0;
+    if (currentMenuSelection >= maxVisible) {
+      startIndex = currentMenuSelection - maxVisible + 1;
+    }
+
+    u8g2.setFont(u8g2_font_6x10_tf);
+    for (int i = 0; i < maxVisible; i++) {
+      int itemIndex = startIndex + i;
+      if (itemIndex >= num_relays)
+        break;
+
+      int yPos = 16 + (i * 12);
+      bool isSelected = (itemIndex == currentMenuSelection);
+
+      if (isSelected) {
+        u8g2.setDrawColor(1);
+        u8g2.drawRBox(2, yPos, 121, 11, 2);
+        u8g2.setDrawColor(0);
+      } else {
+        u8g2.setDrawColor(1);
+      }
+
+      u8g2.setCursor(6, yPos + 9);
+      u8g2.print("Meja ");
+      if (itemIndex + 1 < 10)
+        u8g2.print(" ");
+      u8g2.print(itemIndex + 1);
+
+      if (relayState[itemIndex]) {
+        if (tableTimer[itemIndex] > 0) {
+          uint32_t t = tableTimer[itemIndex];
+          char buf[12];
+          sprintf(buf, "%02lu:%02lu:%02lu", t/3600, (t%3600)/60, t%60);
+          u8g2.setCursor(68, yPos + 9);
+          u8g2.print(buf);
+        } else {
+          u8g2.setCursor(92, yPos + 9);
+          u8g2.print("  ON ");
+        }
+      } else {
+        u8g2.setCursor(96, yPos + 9);
+        u8g2.print(" OFF ");
+      }
+    }
+
+    // Scrollbar untuk layar kontrol meja
+    u8g2.setDrawColor(1);
+    if (num_relays > maxVisible) {
+      int trackHeight = 64 - 16;
+      int scrollBarHeight = (trackHeight * maxVisible) / num_relays;
+      if (scrollBarHeight < 5)
+        scrollBarHeight = 5;
+
+      int scrollY = 16 + ((trackHeight - scrollBarHeight) * startIndex /
+                          (num_relays - maxVisible));
+      for (int y = 16; y < 64; y += 2)
+        u8g2.drawPixel(126, y);
+      u8g2.drawBox(125, scrollY, 3, scrollBarHeight);
+    }
+  } else if (currentUIState == STATE_TIME_SELECTION) {
+    // --- LAYAR SUB-MENU: PILIH WAKTU ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    
+    char titleBuf[32];
+    sprintf(titleBuf, "PILIH WAKTU - MEJA %d", selectedTableForTimer + 1);
+    u8g2.drawStr(5, 10, titleBuf);
+
+    const char *timeMenuItems[] = {"1 Jam", "2 Jam", "3 Jam", "4 Jam", "Bebas (ON)", "Matikan (OFF)", "Custom Waktu"};
+    u8g2.setFont(u8g2_font_6x10_tf);
+    
+    int startIndex = 0;
+    if (timeMenuSelection >= 4) startIndex = timeMenuSelection - 3;
+    
+    for (int i = 0; i < 4; i++) {
+      int itemIndex = startIndex + i;
+      if (itemIndex >= 7) break;
+      
+      int yPos = 16 + (i * 12);
+      if (itemIndex == timeMenuSelection) {
+        u8g2.setDrawColor(1);
+        u8g2.drawRBox(2, yPos, 124, 11, 2);
+        u8g2.setDrawColor(0);
+      } else {
+        u8g2.setDrawColor(1);
+      }
+      u8g2.setCursor(6, yPos + 9);
+      u8g2.print(timeMenuItems[itemIndex]);
+    }
+    
+    u8g2.setDrawColor(1);
+    // Scrollbar simple
+    int trackHeight = 64 - 16;
+    int scrollBarHeight = (trackHeight * 4) / 7;
+    int scrollY = 16 + ((trackHeight - scrollBarHeight) * startIndex / 3);
+    for (int y = 16; y < 64; y += 2)
+      u8g2.drawPixel(126, y);
+    u8g2.drawBox(125, scrollY, 3, scrollBarHeight);
+  } else if (currentUIState == STATE_CUSTOM_TIME_INPUT) {
+    // --- LAYAR SUB-MENU: CUSTOM WAKTU ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(25, 10, "MASUKKAN WAKTU");
+
+    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_logisoso24_tn); // Font besar
+
+    // Gambar HH : MM : SS
+    int xPositions[6] = { 2, 18, 44, 60, 86, 102 };
+    for (int i = 0; i < 6; i++) {
+      int curX = xPositions[i];
+      
+      char digitBuf[2];
+      sprintf(digitBuf, "%d", enteredCustomTime[i]);
+      u8g2.setCursor(curX, 48);
+      u8g2.print(digitBuf);
+
+      if (i == customTimeDigitPos) {
+        if ((millis() / 250) % 2 == 0) {
+          u8g2.drawBox(curX, 52, 16, 3);
+        } else {
+          u8g2.drawBox(curX, 52, 16, 1);
+        }
+      } else {
+        u8g2.drawBox(curX, 52, 16, 1);
+      }
+    }
+    
+    // Titik dua pemisah berkedip
+    u8g2.setFont(u8g2_font_ncenB18_tr);
+    if ((millis() / 500) % 2 == 0) {
+      u8g2.drawStr(34, 45, ":");
+      u8g2.drawStr(76, 45, ":");
+    }
+  } else if (currentUIState == STATE_SCREEN_SETTINGS) {
+    // --- SUB-MENU: PENGATURAN LAYAR ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(20, 10, "PENGATURAN LAYAR");
+
+    char modeBuf[32];
+    sprintf(modeBuf, "1. Mode: %s", idleMode == 0 ? "Logo VOC" : "Jam Digital");
+    char timeoutBuf[32];
+    if (idleTimeout == 0) {
+      sprintf(timeoutBuf, "2. Waktu Idle: OFF");
+    } else {
+      sprintf(timeoutBuf, "2. Waktu Idle: %ds", idleTimeout);
+    }
+    const char *menuItems[] = {modeBuf, timeoutBuf, "3. Kembali"};
+    
+    u8g2.setFont(u8g2_font_6x10_tf);
+    for (int i = 0; i < 3; i++) {
+      int yPos = 16 + (i * 12);
+      if (i == screenMenuSelection) {
+        u8g2.setDrawColor(1);
+        u8g2.drawRBox(2, yPos, 124, 11, 2);
+        u8g2.setDrawColor(0);
+      } else {
+        u8g2.setDrawColor(1);
+      }
+      u8g2.setCursor(6, yPos + 9);
+      u8g2.print(menuItems[i]);
+    }
+  } else if (currentUIState == STATE_IDLE_TIME_SELECTION) {
+    // --- SUB-MENU: WAKTU IDLE ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(15, 10, "PILIH WAKTU IDLE");
+
+    const char *timeItems[] = {"5 Detik", "10 Detik", "15 Detik", "20 Detik", "30 Detik", "60 Detik", "Matikan (OFF)"};
+    u8g2.setFont(u8g2_font_6x10_tf);
+    
+    int startIndex = 0;
+    if (idleTimeMenuSelection >= 4) startIndex = idleTimeMenuSelection - 3;
+    
+    for (int i = 0; i < 4; i++) {
+      int itemIndex = startIndex + i;
+      if (itemIndex >= 7) break;
+      int yPos = 16 + (i * 12);
+      if (itemIndex == idleTimeMenuSelection) {
+        u8g2.setDrawColor(1);
+        u8g2.drawRBox(2, yPos, 124, 11, 2);
+        u8g2.setDrawColor(0);
+      } else {
+        u8g2.setDrawColor(1);
+      }
+      u8g2.setCursor(6, yPos + 9);
+      u8g2.print(timeItems[itemIndex]);
+    }
+    
+    u8g2.setDrawColor(1);
+    int trackHeight = 64 - 16;
+    int scrollBarHeight = (trackHeight * 4) / 7;
+    int scrollY = 16 + ((trackHeight - scrollBarHeight) * startIndex / 3);
+    for (int y = 16; y < 64; y += 2)
+      u8g2.drawPixel(126, y);
+    u8g2.drawBox(125, scrollY, 3, scrollBarHeight);
+  } else if (currentUIState == STATE_RESTART_SELECTION) {
+    // --- SUB-MENU: RESTART ALAT ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(30, 10, "RESTART ALAT");
+
+    const char *restartItems[] = {"1. Reboot Biasa", "2. Masuk Mode Portal", "3. Batal"};
+    u8g2.setFont(u8g2_font_6x10_tf);
+    for (int i = 0; i < 3; i++) {
+      int yPos = 16 + (i * 12);
+      if (i == restartMenuSelection) {
+        u8g2.setDrawColor(1);
+        u8g2.drawRBox(2, yPos, 124, 11, 2);
+        u8g2.setDrawColor(0);
+      } else {
+        u8g2.setDrawColor(1);
+      }
+      u8g2.setCursor(6, yPos + 9);
+      u8g2.print(restartItems[i]);
+    }
+  } else if (currentUIState == STATE_PASSWORD_INPUT) {
+    // --- LAYAR INPUT PIN ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(25, 10, "MASUKKAN PIN");
+
+    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_logisoso24_tn);
+    
+    for (int i = 0; i < expectedPinLength; i++) {
+      int startX = 64 - ((expectedPinLength * 22) / 2) + 4; 
+      int curX = startX + (i * 22);
+      
+      if (i == pinDigitPos) {
+        // Tampilkan angka hanya jika baru saja diputar (kurang dari 800ms)
+        if (millis() - lastActivityTime < 800) {
+          char digitBuf[2];
+          sprintf(digitBuf, "%d", enteredPin[i]);
+          u8g2.setCursor(curX, 48);
+          u8g2.print(digitBuf);
+        } else {
+          // Setelah 800ms tidak disentuh, ubah angka yang sedang dipilih jadi titik
+          u8g2.drawDisc(curX + 8, 36, 6);
+        }
+        
+        if ((millis() / 250) % 2 == 0) {
+          u8g2.drawBox(curX, 52, 16, 3);
+        } else {
+          u8g2.drawBox(curX, 52, 16, 1);
+        }
+      } else if (i < pinDigitPos) {
+        u8g2.drawDisc(curX + 8, 36, 6);
+        u8g2.drawBox(curX, 52, 16, 1);
+      } else {
+        u8g2.drawBox(curX, 52, 16, 1);
+      }
+    }
+  } else if (currentUIState == STATE_LOCK_CONFIRMATION) {
+    // --- KONFIRMASI KUNCI LAYAR ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(25, 10, "KUNCI LAYAR?");
+
+    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    
+    // Opsi YA
+    if (lockConfirmSelection == 0) {
+      u8g2.drawRBox(14, 30, 40, 16, 2);
+      u8g2.setDrawColor(0);
+    } else {
+      u8g2.drawRFrame(14, 30, 40, 16, 2);
+      u8g2.setDrawColor(1);
+    }
+    u8g2.drawStr(25, 42, "YA");
+    
+    u8g2.setDrawColor(1);
+    // Opsi TIDAK
+    if (lockConfirmSelection == 1) {
+      u8g2.drawRBox(64, 30, 50, 16, 2);
+      u8g2.setDrawColor(0);
+    } else {
+      u8g2.drawRFrame(64, 30, 50, 16, 2);
+      u8g2.setDrawColor(1);
+    }
+    u8g2.drawStr(72, 42, "TIDAK");
+  } else if (currentUIState == STATE_NETWORK_INFO) {
+    // --- LAYAR 3: INFO JARINGAN ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(25, 10, "INFO JARINGAN");
+
+    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.setCursor(0, 25);
+    u8g2.print("WIFI: ");
+    u8g2.print(WiFi.SSID());
+    u8g2.setCursor(0, 35);
+    u8g2.print("IP  : ");
+    u8g2.print(WiFi.localIP().toString());
+    u8g2.setCursor(0, 45);
+    u8g2.print("MQTT: ");
+    u8g2.print(client.connected() ? "Terhubung" : "Putus");
+    u8g2.setCursor(0, 55);
+    u8g2.print("RSSI: ");
+    u8g2.print(WiFi.RSSI());
+    u8g2.print(" dBm");
+  } else if (currentUIState == STATE_SYSTEM_INFO) {
+    // --- LAYAR 4: INFO SISTEM ---
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(0, 0, 128, 14);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    u8g2.drawStr(30, 10, "INFO SISTEM");
+    
+    // Indikator scroll halaman
+    u8g2.setCursor(110, 10);
+    u8g2.print(systemInfoPage + 1);
+    u8g2.print("/3");
+
+    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_5x8_tf);
+    
+    if (systemInfoPage == 0) {
+      // Halaman 1: Info Hardware
+      u8g2.setCursor(0, 25);
+      u8g2.print("MAC : ");
+      u8g2.print(deviceMac);
+      u8g2.setCursor(0, 35);
+      u8g2.print("RAM : ");
+      u8g2.print(ESP.getFreeHeap() / 1024);
+      u8g2.print(" KB Free");
+  
+      int upMins = millis() / 60000;
+      u8g2.setCursor(0, 45);
+      u8g2.print("UP  : ");
+      u8g2.print(upMins / 60);
+      u8g2.print("j ");
+      u8g2.print(upMins % 60);
+      u8g2.print("m");
+      u8g2.setCursor(0, 55);
+      u8g2.print("MEJA: ");
+      u8g2.print(num_relays);
+      u8g2.print(" Aktif");
+    } else if (systemInfoPage == 1) {
+      // Halaman 2: Info Layanan Web / mDNS
+      u8g2.setCursor(0, 25);
+      u8g2.print("Host: ");
+      u8g2.print(mdnsHostname);
+      u8g2.print(".local");
+      u8g2.setCursor(0, 35);
+      u8g2.print("Web : /");
+      u8g2.setCursor(0, 45);
+      u8g2.print("OTA : /update");
+      u8g2.setCursor(0, 55);
+      u8g2.print("API : /api/status");
+    } else if (systemInfoPage == 2) {
+      // Halaman 3: Serial Monitor Log
+      for (int i = 0; i < 5; i++) {
+        u8g2.setCursor(0, 24 + (i * 9));
+        u8g2.print(oledLogLines[i]);
+      }
+    }
+  }
+
+  // --- LAYAR POPUP NOTIFIKASI (TOAST) ---
+  if (showToast) {
+    if (millis() > toastEndTime) {
+      showToast = false;
+      needOledUpdate = true; // Hapus overlay di frame berikutnya
+    } else {
+      // Gambar background kotak popup
+      u8g2.setDrawColor(0);
+      u8g2.drawBox(10, 20, 108, 24);
+      u8g2.setDrawColor(1);
+      u8g2.drawFrame(10, 20, 108, 24);
+      u8g2.setFont(u8g2_font_5x8_tf);
+      int txtW = u8g2.getStrWidth(toastMessage.c_str());
+      u8g2.setCursor(64 - (txtW / 2), 35);
+      u8g2.print(toastMessage);
+    }
+  }
+
+  // --- PERINGATAN WIFI TERPUTUS ---
+  if (WiFi.status() != WL_CONNECTED && !isConfigMode) {
+    if ((millis() / 500) % 2 == 0) { // Berkedip setiap 500ms
+      if (currentUIState == STATE_SCREENSAVER) {
+        // Layar idle (background hitam)
+        u8g2.setDrawColor(1);
+        u8g2.setFont(u8g2_font_ncenB08_tr);
+        int w = u8g2.getStrWidth("! WIFI TERPUTUS !");
+        u8g2.setCursor(64 - (w / 2), 60);
+        u8g2.print("! WIFI TERPUTUS !");
+      } else {
+        // Layar menu (background bar putih di atas)
+        u8g2.setDrawColor(0);
+        u8g2.setFont(u8g2_font_5x8_tf);
+        u8g2.drawStr(72, 10, "[!] NO WIFI");
+      }
+    }
+  }
+
+  u8g2.sendBuffer();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1280,7 +2190,36 @@ void setup() {
 
   // 🛡️ 4. I2C & DYNAMIC PCF INIT
   Wire.begin(21, 22);
-  Wire.setClock(400000); // 🚀 I2C Fast Mode untuk respon instan
+  // Wire.setClock(400000); // 🚀 Dihapus sementara untuk stabilitas OLED
+
+  // ─── INIT OLED & ENCODER ───
+  pinMode(ENC_A, INPUT_PULLUP);
+  pinMode(ENC_B, INPUT_PULLUP);
+  pinMode(ENC_BTN, INPUT_PULLUP);
+  pinMode(BTN_CONFIRM, INPUT_PULLUP);
+  pinMode(BTN_BACK, INPUT_PULLUP);
+
+  encoderA_Prev = digitalRead(ENC_A);
+  attachInterrupt(digitalPinToInterrupt(ENC_A), readEncoder, CHANGE);
+
+  u8g2.begin();
+
+  // ─── ANIMASI LOADING BOOT ───
+  for (int i = 0; i <= 100; i += 2) {
+    u8g2.clearBuffer();
+
+    // Posisi teks di tengah secara statis saat loading boot
+    drawLogo(0.5);
+
+    // Loading bar
+    u8g2.drawFrame(14, 58, 100, 4);
+    u8g2.drawBox(14, 58, i, 4);
+
+    u8g2.sendBuffer();
+    delay(20);
+  }
+  lastActivityTime = millis();
+  // ───────────────────────────
 
   // 3. Mount SPIFFS & restore state
   if (SPIFFS.begin(true)) {
@@ -1403,6 +2342,16 @@ void setup() {
   if (isConfigMode)
     Serial.println("  STATUS      : 🛠️ CONFIG MODE (PORTAL ACTIVE)");
   Serial.println("================================\n");
+
+  // Lockscreen at boot if PIN is set to exactly 4 digits
+  if (tablePinCode.length() == 4 && !isConfigMode) {
+    currentUIState = STATE_PASSWORD_INPUT;
+    expectedPinLength = 4;
+    expectedPinCode = tablePinCode;
+    stateAfterPin = STATE_MAIN_MENU;
+    pinDigitPos = 0;
+    for(int i=0; i<4; i++) enteredPin[i] = 0;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1422,6 +2371,413 @@ void loop() {
     ESP.restart();
   }
 
+  // ─── ENCODER & OLED UI STATE MACHINE ───
+  int currentEncPos = encoderPos;
+  bool activityDetected = false;
+
+  if (currentEncPos != lastEncoderPos) {
+    int diff = currentEncPos - lastEncoderPos;
+    if (abs(diff) >= 2) {
+      activityDetected = true;
+      if (currentUIState == STATE_SCREENSAVER) {
+        // Abaikan navigasi saat screensaver, hanya bangunkan layar
+      } else if (currentUIState == STATE_MAIN_MENU) {
+        if (diff > 0)
+          mainMenuSelection++;
+        else
+          mainMenuSelection--;
+        if (mainMenuSelection < 0)
+          mainMenuSelection = 0;
+        if (mainMenuSelection >= NUM_MAIN_MENU_ITEMS)
+          mainMenuSelection = NUM_MAIN_MENU_ITEMS - 1;
+      } else if (currentUIState == STATE_RELAY_CONTROL) {
+        if (diff > 0)
+          currentMenuSelection++;
+        else
+          currentMenuSelection--;
+        if (currentMenuSelection < 0)
+          currentMenuSelection = 0;
+        if (currentMenuSelection >= num_relays)
+          currentMenuSelection = num_relays - 1;
+      } else if (currentUIState == STATE_TIME_SELECTION) {
+        if (diff > 0)
+          timeMenuSelection++;
+        else
+          timeMenuSelection--;
+        if (timeMenuSelection < 0)
+          timeMenuSelection = 0;
+        if (timeMenuSelection >= 7)
+          timeMenuSelection = 6;
+      } else if (currentUIState == STATE_SCREEN_SETTINGS) {
+        if (diff > 0) screenMenuSelection++;
+        else screenMenuSelection--;
+        if (screenMenuSelection < 0) screenMenuSelection = 0;
+        if (screenMenuSelection >= 3) screenMenuSelection = 2;
+      } else if (currentUIState == STATE_IDLE_TIME_SELECTION) {
+        if (diff > 0) idleTimeMenuSelection++;
+        else idleTimeMenuSelection--;
+        if (idleTimeMenuSelection < 0) idleTimeMenuSelection = 0;
+        if (idleTimeMenuSelection >= 7) idleTimeMenuSelection = 6;
+      } else if (currentUIState == STATE_RESTART_SELECTION) {
+        if (diff > 0) restartMenuSelection++;
+        else restartMenuSelection--;
+        if (restartMenuSelection < 0) restartMenuSelection = 0;
+        if (restartMenuSelection >= 3) restartMenuSelection = 2;
+      } else if (currentUIState == STATE_SYSTEM_INFO) {
+        if (diff > 0) systemInfoPage++;
+        else systemInfoPage--;
+        if (systemInfoPage < 0) systemInfoPage = 0;
+        if (systemInfoPage > 2) systemInfoPage = 2;
+      } else if (currentUIState == STATE_PASSWORD_INPUT) {
+        if (diff > 0) enteredPin[pinDigitPos]++;
+        else enteredPin[pinDigitPos]--;
+        if (enteredPin[pinDigitPos] < 0) enteredPin[pinDigitPos] = 9;
+        if (enteredPin[pinDigitPos] > 9) enteredPin[pinDigitPos] = 0;
+        lastPinEncoderMoveTime = millis();
+      } else if (currentUIState == STATE_CUSTOM_TIME_INPUT) {
+        if (diff > 0) enteredCustomTime[customTimeDigitPos]++;
+        else enteredCustomTime[customTimeDigitPos]--;
+        // Aturan waktu HH:MM:SS (Puluhan menit & puluhan detik maks 5)
+        if (customTimeDigitPos == 2 || customTimeDigitPos == 4) { 
+          if (enteredCustomTime[customTimeDigitPos] < 0) enteredCustomTime[customTimeDigitPos] = 5;
+          if (enteredCustomTime[customTimeDigitPos] > 5) enteredCustomTime[customTimeDigitPos] = 0;
+        } else {
+          if (enteredCustomTime[customTimeDigitPos] < 0) enteredCustomTime[customTimeDigitPos] = 9;
+          if (enteredCustomTime[customTimeDigitPos] > 9) enteredCustomTime[customTimeDigitPos] = 0;
+        }
+      } else if (currentUIState == STATE_LOCK_CONFIRMATION) {
+        if (diff > 0) lockConfirmSelection++;
+        else lockConfirmSelection--;
+        if (lockConfirmSelection < 0) lockConfirmSelection = 0;
+        if (lockConfirmSelection > 1) lockConfirmSelection = 1;
+      }
+      lastEncoderPos = currentEncPos;
+      needOledUpdate = true;
+    }
+  }
+
+  bool confirmPressed =
+      (digitalRead(BTN_CONFIRM) == LOW) || (digitalRead(ENC_BTN) == LOW);
+  bool backPressed = (digitalRead(BTN_BACK) == LOW);
+
+  if (currentUIState == STATE_PASSWORD_INPUT && lastPinEncoderMoveTime != 0 && (now - lastPinEncoderMoveTime > 1000)) {
+    confirmPressed = true;
+  }
+
+  if (confirmPressed) {
+    lastPinEncoderMoveTime = 0;
+  }
+
+  if (confirmPressed || backPressed) {
+    activityDetected = true;
+  }
+
+  if (activityDetected && currentUIState == STATE_SCREENSAVER) {
+    if (tablePinCode.length() == 4 && !isConfigMode) {
+      currentUIState = STATE_PASSWORD_INPUT;
+      expectedPinLength = 4;
+      expectedPinCode = tablePinCode;
+      stateAfterPin = STATE_MAIN_MENU;
+      pinDigitPos = 0;
+      for(int i=0; i<4; i++) enteredPin[i] = 0;
+    } else {
+      currentUIState = STATE_MAIN_MENU;
+    }
+    needOledUpdate = true;
+    lastActivityTime = now;
+    lastButtonPress = now + 300; // Debounce wake up press
+    startBuzzer(100);
+  } else if (activityDetected) {
+    lastActivityTime = now;
+  }
+
+  if (backPressed && (now - lastButtonPress > 300) &&
+      currentUIState != STATE_SCREENSAVER) {
+    lastButtonPress = now;
+    if (currentUIState == STATE_TIME_SELECTION) {
+      currentUIState = STATE_RELAY_CONTROL; // Kembali ke daftar meja
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_CUSTOM_TIME_INPUT) {
+      if (customTimeDigitPos > 0) {
+        customTimeDigitPos--;
+      } else {
+        currentUIState = STATE_TIME_SELECTION; // Batal, kembali ke pilih waktu
+      }
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_IDLE_TIME_SELECTION) {
+      currentUIState = STATE_SCREEN_SETTINGS; // Kembali ke pengaturan layar
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_RESTART_SELECTION) {
+      currentUIState = STATE_MAIN_MENU; // Kembali ke menu utama
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_PASSWORD_INPUT) {
+      if (pinDigitPos > 0) {
+        pinDigitPos--;
+      } else {
+        if (expectedPinLength != 4) { // Allow back only if it's table control
+          currentUIState = STATE_MAIN_MENU;
+        }
+      }
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_MAIN_MENU) {
+      if (tablePinCode.length() == 4 && !isConfigMode) {
+        currentUIState = STATE_LOCK_CONFIRMATION;
+        lockConfirmSelection = 1; // Default to Tidak
+        needOledUpdate = true;
+        startBuzzer(100);
+      }
+    } else if (currentUIState == STATE_LOCK_CONFIRMATION) {
+      currentUIState = STATE_MAIN_MENU;
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState != STATE_MAIN_MENU) {
+      currentUIState = STATE_MAIN_MENU; // Kembali ke menu utama
+      needOledUpdate = true;
+      startBuzzer(100);
+    }
+  }
+
+  if (confirmPressed && (now - lastButtonPress > 300) &&
+      currentUIState != STATE_SCREENSAVER) {
+    lastButtonPress = now;
+
+    if (currentUIState == STATE_MAIN_MENU) {
+      if (mainMenuSelection == 0) {
+        if (tablePinCode.length() == 4) {
+          currentUIState = STATE_PASSWORD_INPUT;
+          expectedPinLength = 2;
+          expectedPinCode = tablePinCode.substring(2); // last 2 digits
+          stateAfterPin = STATE_RELAY_CONTROL;
+          pinDigitPos = 0;
+          for(int i=0; i<4; i++) enteredPin[i] = 0;
+        } else {
+          currentUIState = STATE_RELAY_CONTROL;
+        }
+      }
+      else if (mainMenuSelection == 1)
+        currentUIState = STATE_NETWORK_INFO;
+      else if (mainMenuSelection == 2) {
+        currentUIState = STATE_SYSTEM_INFO;
+        systemInfoPage = 0;
+      } else if (mainMenuSelection == 3) {
+        currentUIState = STATE_SCREEN_SETTINGS;
+        screenMenuSelection = 0;
+      }
+      else if (mainMenuSelection == 4) {
+        currentUIState = STATE_RESTART_SELECTION;
+        restartMenuSelection = 0;
+      }
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_LOCK_CONFIRMATION) {
+      if (lockConfirmSelection == 0) { // YA (Kunci Layar)
+        currentUIState = STATE_PASSWORD_INPUT;
+        expectedPinLength = 4;
+        expectedPinCode = tablePinCode;
+        stateAfterPin = STATE_MAIN_MENU;
+        pinDigitPos = 0;
+        for(int i=0; i<4; i++) enteredPin[i] = 0;
+        startBuzzer(500); // Nada panjang tanda terkunci
+      } else { // TIDAK
+        currentUIState = STATE_MAIN_MENU;
+        startBuzzer(100);
+      }
+      needOledUpdate = true;
+    } else if (currentUIState == STATE_PASSWORD_INPUT) {
+      if (pinDigitPos < expectedPinLength - 1) {
+        pinDigitPos++;
+      } else {
+        // Validate PIN
+        String enteredStr = "";
+        for (int i = 0; i < expectedPinLength; i++) {
+          enteredStr += String(enteredPin[i]);
+        }
+        
+        if (enteredStr == expectedPinCode) {
+          currentUIState = stateAfterPin;
+          startBuzzer(300);
+        } else {
+          showToast = true;
+          toastMessage = "PIN SALAH!";
+          toastEndTime = millis() + 2000;
+          
+          if (expectedPinLength == 4) {
+             pinDigitPos = 0;
+             for (int i=0; i<4; i++) enteredPin[i] = 0;
+          } else {
+             currentUIState = STATE_MAIN_MENU;
+          }
+          startBuzzer(1000); // Error beep
+        }
+      }
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_RELAY_CONTROL) {
+      // Masuk ke menu pemilihan waktu
+      selectedTableForTimer = currentMenuSelection;
+      currentUIState = STATE_TIME_SELECTION;
+      timeMenuSelection = 0; // Default posisi ke 0 (1 Jam)
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_TIME_SELECTION) {
+      if (timeMenuSelection == 6) {
+        currentUIState = STATE_CUSTOM_TIME_INPUT;
+        customTimeDigitPos = 0;
+        for (int i = 0; i < 6; i++) enteredCustomTime[i] = 0;
+        needOledUpdate = true;
+        startBuzzer(100);
+      } else {
+        bool targetState = false;
+        uint32_t durationMin = 0;
+        
+        if (timeMenuSelection == 0) { targetState = true; durationMin = 60; }
+        else if (timeMenuSelection == 1) { targetState = true; durationMin = 120; }
+        else if (timeMenuSelection == 2) { targetState = true; durationMin = 180; }
+        else if (timeMenuSelection == 3) { targetState = true; durationMin = 240; }
+        else if (timeMenuSelection == 4) { targetState = true; durationMin = 0; }
+        else if (timeMenuSelection == 5) { targetState = false; durationMin = 0; }
+        
+        relayState[selectedTableForTimer] = targetState;
+        relayTarget[selectedTableForTimer] = targetState;
+        if (!targetState) {
+          tableTimer[selectedTableForTimer] = 0;
+          relayProtectedUntil[selectedTableForTimer] = 0;
+        } else {
+          tableTimer[selectedTableForTimer] = durationMin * 60;
+          relayProtectedUntil[selectedTableForTimer] = now + 500;
+          tableAlertTime[selectedTableForTimer] = 5 * 60; // Peringatan sisa 5 menit
+        }
+        apiOverrideUntil[selectedTableForTimer] = now + 30000;
+        pcfWrite(selectedTableForTimer, targetState);
+        storageDirty = true;
+        lastStateChange = now;
+
+        startBuzzer(targetState ? 300 : 200);
+        publishStatus();
+        
+        // Tampilkan Toast
+        if (targetState) {
+          toastMessage = String("MEJA ") + String(selectedTableForTimer + 1) + (durationMin > 0 ? " TIMER AKTIF!" : " BEBAS AKTIF!");
+        } else {
+          toastMessage = String("MEJA ") + String(selectedTableForTimer + 1) + " MATI!";
+        }
+        showToast = true;
+        toastEndTime = now + 3000;
+        
+        currentUIState = STATE_RELAY_CONTROL; // Kembali ke daftar meja
+        needOledUpdate = true;
+      }
+    } else if (currentUIState == STATE_CUSTOM_TIME_INPUT) {
+      if (customTimeDigitPos < 5) {
+        customTimeDigitPos++;
+        needOledUpdate = true;
+        startBuzzer(100);
+      } else {
+        // Eksekusi Custom Timer (HH:MM:SS)
+        uint32_t totalSec = ((enteredCustomTime[0] * 10 + enteredCustomTime[1]) * 3600) + 
+                            ((enteredCustomTime[2] * 10 + enteredCustomTime[3]) * 60) + 
+                            (enteredCustomTime[4] * 10 + enteredCustomTime[5]);
+                            
+        bool targetState = (totalSec > 0);
+        
+        relayState[selectedTableForTimer] = targetState;
+        relayTarget[selectedTableForTimer] = targetState;
+        if (!targetState) {
+          tableTimer[selectedTableForTimer] = 0;
+          relayProtectedUntil[selectedTableForTimer] = 0;
+        } else {
+          tableTimer[selectedTableForTimer] = totalSec;
+          relayProtectedUntil[selectedTableForTimer] = now + 500;
+          tableAlertTime[selectedTableForTimer] = 5 * 60; // Peringatan sisa 5 menit (jika > 5 menit)
+        }
+        apiOverrideUntil[selectedTableForTimer] = now + 30000;
+        pcfWrite(selectedTableForTimer, targetState);
+        storageDirty = true;
+        lastStateChange = now;
+
+        startBuzzer(targetState ? 300 : 200);
+        publishStatus();
+        
+        // Tampilkan Toast
+        if (targetState) {
+          toastMessage = String("MEJA ") + String(selectedTableForTimer + 1) + " TIMER AKTIF!";
+        } else {
+          toastMessage = String("MEJA ") + String(selectedTableForTimer + 1) + " MATI!";
+        }
+        showToast = true;
+        toastEndTime = now + 3000;
+        
+        currentUIState = STATE_RELAY_CONTROL; // Kembali ke daftar meja
+        needOledUpdate = true;
+      }
+    } else if (currentUIState == STATE_SCREEN_SETTINGS) {
+      if (screenMenuSelection == 0) {
+        idleMode = (idleMode == 0) ? 1 : 0;
+        preferences.begin("voc-config", false);
+        preferences.putInt("iMod", idleMode);
+        preferences.end();
+      } else if (screenMenuSelection == 1) {
+        currentUIState = STATE_IDLE_TIME_SELECTION;
+        idleTimeMenuSelection = 0;
+      } else if (screenMenuSelection == 2) {
+        currentUIState = STATE_MAIN_MENU;
+      }
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_IDLE_TIME_SELECTION) {
+      int times[] = {5, 10, 15, 20, 30, 60, 0};
+      idleTimeout = times[idleTimeMenuSelection];
+      preferences.begin("voc-config", false);
+      preferences.putInt("iTo", idleTimeout);
+      preferences.end();
+      
+      currentUIState = STATE_SCREEN_SETTINGS;
+      needOledUpdate = true;
+      startBuzzer(100);
+    } else if (currentUIState == STATE_RESTART_SELECTION) {
+      if (restartMenuSelection == 0) { // Reboot Biasa
+        startBuzzer(1000);
+        delay(1500);
+        ESP.restart();
+      } else if (restartMenuSelection == 1) { // Masuk Mode Portal
+        startBuzzer(500);
+        delay(500);
+        startBuzzer(500);
+        startPortal();
+      } else { // Batal
+        currentUIState = STATE_MAIN_MENU;
+        needOledUpdate = true;
+        startBuzzer(100);
+      }
+    }
+  }
+
+  // Timeout Screensaver (dapat diatur)
+  bool forceScreensaver = (currentUIState == STATE_PASSWORD_INPUT && expectedPinLength == 4 && now - lastActivityTime > 10000);
+  if (((idleTimeout > 0 && enableScreensaver && now - lastActivityTime > (idleTimeout * 1000)) || forceScreensaver) && currentUIState != STATE_SCREENSAVER) {
+    currentUIState = STATE_SCREENSAVER;
+    needOledUpdate = true;
+  }
+
+  // Refresh otomatis (berguna untuk update uptime/RSSI di layar Info & Animasi)
+  if (currentUIState == STATE_SCREENSAVER) {
+    if (now - lastOledDraw > 30) { // ~30 FPS untuk animasi mulus
+      updateOLED();
+      lastOledDraw = now;
+      needOledUpdate = false;
+    }
+  } else if (needOledUpdate || (now - lastOledDraw > 1000) || (currentUIState == STATE_PASSWORD_INPUT && (now - lastOledDraw > 100))) {
+    updateOLED();
+    needOledUpdate = false;
+    lastOledDraw = now;
+  }
+  // ─────────────────────────
+
   // 🛡️ 0. MANUAL PORTAL TRIGGER (Hold BOOT Button 5s)
   if (digitalRead(0) == LOW && !isConfigMode) {
     if (portalTriggerStart == 0)
@@ -1440,6 +2796,28 @@ void loop() {
     dnsServer.processNextRequest();
     server.handleClient();
     digitalWrite(pin_led_wifi, (now / 500) % 2);
+    
+    // RENDER OLED UNTUK PORTAL
+    if (now - lastOledDraw > 500) {
+      u8g2.clearBuffer();
+      u8g2.setDrawColor(1);
+      u8g2.drawBox(0, 0, 128, 14);
+      u8g2.setDrawColor(0);
+      u8g2.setFont(u8g2_font_5x8_tf);
+      u8g2.drawStr(25, 10, "PORTAL AKTIF");
+      
+      u8g2.setDrawColor(1);
+      u8g2.setFont(u8g2_font_5x8_tf);
+      u8g2.drawStr(0, 30, "1. Konek WiFi HP ke:");
+      u8g2.setFont(u8g2_font_6x10_tf);
+      u8g2.drawStr(10, 42, "VOC-Config");
+      
+      u8g2.setFont(u8g2_font_5x8_tf);
+      u8g2.drawStr(0, 58, "2. Buka: 192.168.4.1");
+      
+      u8g2.sendBuffer();
+      lastOledDraw = now;
+    }
     return;
   }
 
@@ -1507,14 +2885,19 @@ void loop() {
 
   // 🛡️ 5. AUTONOMOUS TIMERS
   if (now - lastTimerTick >= 1000) {
-    lastTimerTick = now;
+    uint32_t passedSeconds = (now - lastTimerTick) / 1000;
+    lastTimerTick += (passedSeconds * 1000); // 🚀 Anti-drift fix
     bool anyStop = false;
     for (int i = 0; i < num_relays; i++) {
       if (relayState[i] && tableTimer[i] > 0) {
-        tableTimer[i]--;
+        if (tableTimer[i] >= passedSeconds) {
+          tableTimer[i] -= passedSeconds;
+        } else {
+          tableTimer[i] = 0;
+        }
 
-        // 🚀 Trigger blink 2x jika waktu tersisa persis sama dengan alert time
-        if (tableAlertTime[i] > 0 && tableTimer[i] == tableAlertTime[i]) {
+        // 🚀 Trigger blink 2x jika waktu mendekati/melewati alert time
+        if (tableAlertTime[i] > 0 && tableTimer[i] <= tableAlertTime[i] && (tableTimer[i] + passedSeconds) > tableAlertTime[i]) {
           relayBlinkCount[i] = 4; // 4 transisi (OFF -> ON -> OFF -> ON)
           relayBlinkTimer[i] = now;
           pcfWrite(i, false); // Matikan seketika untuk memulai kedipan
@@ -1526,6 +2909,16 @@ void loop() {
           relayTarget[i] = false;
           anyStop = true;
           startBuzzer(1000);
+          
+          toastMessage = String("WAKTU MEJA ") + String(i + 1) + " HABIS!";
+          showToast = true;
+          toastEndTime = millis() + 4000;
+          needOledUpdate = true;
+          
+          if (currentUIState == STATE_SCREENSAVER) {
+            currentUIState = STATE_RELAY_CONTROL;
+            lastActivityTime = millis();
+          }
         }
       }
     }

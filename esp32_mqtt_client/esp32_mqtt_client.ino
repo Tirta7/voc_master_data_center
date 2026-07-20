@@ -61,6 +61,78 @@
 // Jika layar masih acak, ubah U8G2_SH1106_... menjadi U8G2_SSD1306_...
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
+// ─── WEB SERIAL CUSTOM ───────────────────────────────────────────
+const int LOG_BUFFER_SIZE = 4096;
+char logBuffer[LOG_BUFFER_SIZE];
+int logHead = 0;
+int logTail = 0;
+bool logFull = false;
+
+extern bool needOledUpdate;
+String oledLogLines[5] = {"", "", "", "", ""};
+String currentOledLine = "";
+
+class DualSerialWrapper : public Print {
+public:
+  void begin(unsigned long baud) { Serial.begin(baud); }
+  int available() { return Serial.available(); }
+  int read() { return Serial.read(); }
+  int peek() { return Serial.peek(); }
+  void flush() { Serial.flush(); }
+  
+  void addToBuffer(uint8_t c) {
+    logBuffer[logHead] = (char)c;
+    logHead = (logHead + 1) % LOG_BUFFER_SIZE;
+    if (logFull) {
+      logTail = (logTail + 1) % LOG_BUFFER_SIZE;
+    }
+    if (logHead == logTail) {
+      logFull = true;
+    }
+    
+    // OLED Log logic
+    if (c == '\n') {
+      for(int i=0; i<4; i++) oledLogLines[i] = oledLogLines[i+1];
+      oledLogLines[4] = currentOledLine;
+      currentOledLine = "";
+      needOledUpdate = true;
+    } else if (c != '\r') {
+      if (currentOledLine.length() >= 23) { // Batas layar OLED (wrap teks)
+        for(int i=0; i<4; i++) oledLogLines[i] = oledLogLines[i+1];
+        oledLogLines[4] = currentOledLine;
+        currentOledLine = "";
+        needOledUpdate = true;
+      }
+      currentOledLine += (char)c;
+    }
+  }
+
+  size_t write(uint8_t c) override {
+    Serial.write(c);
+    addToBuffer(c);
+    return 1;
+  }
+  size_t write(const uint8_t *buffer, size_t size) override {
+    size_t n = Serial.write(buffer, size);
+    for(size_t i=0; i<n; i++) addToBuffer(buffer[i]);
+    return n;
+  }
+};
+DualSerialWrapper DualSerial;
+#define Serial DualSerial
+
+String getLogBuffer() {
+  String s = "";
+  s.reserve(LOG_BUFFER_SIZE + 1);
+  if (logFull) {
+    for (int i = logTail; i < LOG_BUFFER_SIZE; i++) s += logBuffer[i];
+    for (int i = 0; i < logHead; i++) s += logBuffer[i];
+  } else {
+    for (int i = 0; i < logHead; i++) s += logBuffer[i];
+  }
+  return s;
+}
+
 #define ENC_A 32
 #define ENC_B 33
 #define ENC_BTN 25
@@ -109,6 +181,7 @@ int screenMenuSelection = 0;
 int idleTimeMenuSelection = 0;
 
 int restartMenuSelection = 0;
+int systemInfoPage = 0;
 
 bool enableScreensaver = true;
 int idleMode = 1;       // 0 = Logo VOC, 1 = Jam Digital
@@ -116,6 +189,7 @@ int idleTimeout = 15;   // Waktu idle (detik)
 int timeZoneOffset = 7; // 7 = WIB, 8 = WITA, 9 = WIT
 
 unsigned long lastActivityTime = 0;
+unsigned long lastPinEncoderMoveTime = 0;
 float ssProgress = 0.0;
 bool ssIncreasing = true;
 
@@ -1316,6 +1390,7 @@ void handleDashboard() {
        "<a href='/'>&#9881; Konfigurasi</a>"
        "<a href='/update'>&#128260; OTA Update</a>"
        "<a href='/dashboard'>&#9889; Dashboard</a>"
+       "<a href='/webserial'>&#128240; Web Serial</a>"
        "</div>"
        "<script>"
        "function fmt(s){if(s<=0)return'Bebas';var m=Math.floor(s/60);return "
@@ -1327,6 +1402,56 @@ void handleDashboard() {
        "</body></html>";
 
   server.send(200, "text/html", h);
+}
+
+void handleWebSerial() {
+  String h = "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
+             "<title>VOC Web Serial</title>"
+             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+             "<link href='https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Outfit:wght@400;700&display=swap' rel='stylesheet'>"
+             "<style>"
+             "body{background:#0f172a;color:#cbd5e1;font-family:'Outfit',sans-serif;margin:0;padding:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;}"
+             ".header{background:rgba(15,23,42,0.9);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.05);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;z-index:10;box-shadow:0 4px 20px rgba(0,0,0,0.3);}"
+             ".title{font-weight:700;font-size:16px;color:#3b82f6;display:flex;align-items:center;gap:8px;}"
+             ".controls{display:flex;gap:10px;}"
+             "button,.btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;transition:0.2s;text-decoration:none;display:inline-block;}"
+             "button:hover,.btn:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.2);}"
+             "button.active{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981;}"
+             ".btn-danger:hover{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444;}"
+             "#log-container{flex:1;overflow-y:auto;padding:20px;background:#020617;}"
+             "#log{font-family:'Fira Code',monospace;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;color:#10b981;}"
+             "</style></head><body>"
+             "<div class='header'><div class='title'>&#9889; VOC Serial Monitor</div>"
+             "<div class='controls'>"
+             "<button id='btn-scroll' class='active' onclick='toggleScroll()'>Autoscroll: ON</button>"
+             "<button class='btn-danger' onclick='clearLog()'>Clear</button>"
+             "<a href='/dashboard' class='btn'>Back</a>"
+             "</div></div>"
+             "<div id='log-container'><div id='log'>" + getLogBuffer() + "</div></div>"
+             "<script>"
+             "var autoScroll=true;var logCont=document.getElementById('log-container');var logEl=document.getElementById('log');"
+             "function toggleScroll(){autoScroll=!autoScroll;var btn=document.getElementById('btn-scroll');if(autoScroll){btn.className='active';btn.innerText='Autoscroll: ON';scrollToBottom();}else{btn.className='';btn.innerText='Autoscroll: OFF';}}"
+             "function clearLog(){fetch('/api/logs/clear').then(()=>{logEl.innerText='';});}"
+             "function scrollToBottom(){logCont.scrollTop=logCont.scrollHeight;}"
+             "logCont.addEventListener('scroll',function(){if(logCont.scrollTop+logCont.clientHeight<logCont.scrollHeight-30){if(autoScroll)toggleScroll();}});"
+             "setInterval(()=>{fetch('/api/logs').then(r=>r.text()).then(t=>{logEl.innerText=t;if(autoScroll)scrollToBottom();})}, 1500);"
+             "window.onload=scrollToBottom;"
+             "</script></body></html>";
+  server.send(200, "text/html", h);
+}
+
+void handleApiLogs() {
+  server.send(200, "text/plain", getLogBuffer());
+}
+
+void handleApiLogsClear() {
+  logHead = 0;
+  logTail = 0;
+  logFull = false;
+  for(int i=0; i<5; i++) oledLogLines[i] = "";
+  currentOledLine = "";
+  needOledUpdate = true;
+  server.send(200, "text/plain", "OK");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1375,6 +1500,9 @@ void startWebServices() {
   server.on("/api/status", HTTP_GET, handleApiStatus);
   server.on("/api/relay", HTTP_GET, handleApiRelay);
   server.on("/dashboard", HTTP_GET, handleDashboard); // ⚡ Dashboard Darurat
+  server.on("/webserial", HTTP_GET, handleWebSerial);
+  server.on("/api/logs", HTTP_GET, handleApiLogs);
+  server.on("/api/logs/clear", HTTP_GET, handleApiLogsClear);
   server.onNotFound([]() {
     server.sendHeader("Location", "/", true);
     server.send(302, "text/plain", "");
@@ -1941,28 +2069,55 @@ void updateOLED() {
     u8g2.setDrawColor(0);
     u8g2.setFont(u8g2_font_5x8_tf);
     u8g2.drawStr(30, 10, "INFO SISTEM");
+    
+    // Indikator scroll halaman
+    u8g2.setCursor(110, 10);
+    u8g2.print(systemInfoPage + 1);
+    u8g2.print("/3");
 
     u8g2.setDrawColor(1);
     u8g2.setFont(u8g2_font_5x8_tf);
-    u8g2.setCursor(0, 25);
-    u8g2.print("MAC : ");
-    u8g2.print(deviceMac);
-    u8g2.setCursor(0, 35);
-    u8g2.print("RAM : ");
-    u8g2.print(ESP.getFreeHeap() / 1024);
-    u8g2.print(" KB Free");
-
-    int upMins = millis() / 60000;
-    u8g2.setCursor(0, 45);
-    u8g2.print("UP  : ");
-    u8g2.print(upMins / 60);
-    u8g2.print("j ");
-    u8g2.print(upMins % 60);
-    u8g2.print("m");
-    u8g2.setCursor(0, 55);
-    u8g2.print("MEJA: ");
-    u8g2.print(num_relays);
-    u8g2.print(" Aktif");
+    
+    if (systemInfoPage == 0) {
+      // Halaman 1: Info Hardware
+      u8g2.setCursor(0, 25);
+      u8g2.print("MAC : ");
+      u8g2.print(deviceMac);
+      u8g2.setCursor(0, 35);
+      u8g2.print("RAM : ");
+      u8g2.print(ESP.getFreeHeap() / 1024);
+      u8g2.print(" KB Free");
+  
+      int upMins = millis() / 60000;
+      u8g2.setCursor(0, 45);
+      u8g2.print("UP  : ");
+      u8g2.print(upMins / 60);
+      u8g2.print("j ");
+      u8g2.print(upMins % 60);
+      u8g2.print("m");
+      u8g2.setCursor(0, 55);
+      u8g2.print("MEJA: ");
+      u8g2.print(num_relays);
+      u8g2.print(" Aktif");
+    } else if (systemInfoPage == 1) {
+      // Halaman 2: Info Layanan Web / mDNS
+      u8g2.setCursor(0, 25);
+      u8g2.print("Host: ");
+      u8g2.print(mdnsHostname);
+      u8g2.print(".local");
+      u8g2.setCursor(0, 35);
+      u8g2.print("Web : /");
+      u8g2.setCursor(0, 45);
+      u8g2.print("OTA : /update");
+      u8g2.setCursor(0, 55);
+      u8g2.print("API : /api/status");
+    } else if (systemInfoPage == 2) {
+      // Halaman 3: Serial Monitor Log
+      for (int i = 0; i < 5; i++) {
+        u8g2.setCursor(0, 24 + (i * 9));
+        u8g2.print(oledLogLines[i]);
+      }
+    }
   }
 
   // --- LAYAR POPUP NOTIFIKASI (TOAST) ---
@@ -2268,11 +2423,17 @@ void loop() {
         else restartMenuSelection--;
         if (restartMenuSelection < 0) restartMenuSelection = 0;
         if (restartMenuSelection >= 3) restartMenuSelection = 2;
+      } else if (currentUIState == STATE_SYSTEM_INFO) {
+        if (diff > 0) systemInfoPage++;
+        else systemInfoPage--;
+        if (systemInfoPage < 0) systemInfoPage = 0;
+        if (systemInfoPage > 2) systemInfoPage = 2;
       } else if (currentUIState == STATE_PASSWORD_INPUT) {
         if (diff > 0) enteredPin[pinDigitPos]++;
         else enteredPin[pinDigitPos]--;
         if (enteredPin[pinDigitPos] < 0) enteredPin[pinDigitPos] = 9;
         if (enteredPin[pinDigitPos] > 9) enteredPin[pinDigitPos] = 0;
+        lastPinEncoderMoveTime = millis();
       } else if (currentUIState == STATE_CUSTOM_TIME_INPUT) {
         if (diff > 0) enteredCustomTime[customTimeDigitPos]++;
         else enteredCustomTime[customTimeDigitPos]--;
@@ -2298,6 +2459,14 @@ void loop() {
   bool confirmPressed =
       (digitalRead(BTN_CONFIRM) == LOW) || (digitalRead(ENC_BTN) == LOW);
   bool backPressed = (digitalRead(BTN_BACK) == LOW);
+
+  if (currentUIState == STATE_PASSWORD_INPUT && lastPinEncoderMoveTime != 0 && (now - lastPinEncoderMoveTime > 1000)) {
+    confirmPressed = true;
+  }
+
+  if (confirmPressed) {
+    lastPinEncoderMoveTime = 0;
+  }
 
   if (confirmPressed || backPressed) {
     activityDetected = true;
@@ -2392,9 +2561,10 @@ void loop() {
       }
       else if (mainMenuSelection == 1)
         currentUIState = STATE_NETWORK_INFO;
-      else if (mainMenuSelection == 2)
+      else if (mainMenuSelection == 2) {
         currentUIState = STATE_SYSTEM_INFO;
-      else if (mainMenuSelection == 3) {
+        systemInfoPage = 0;
+      } else if (mainMenuSelection == 3) {
         currentUIState = STATE_SCREEN_SETTINGS;
         screenMenuSelection = 0;
       }
