@@ -405,6 +405,21 @@ let CafeService = class CafeService {
         if (usedInPromo) {
             throw new _common.BadRequestException('Menu tidak bisa dihapus karena sedang digunakan dalam Promo Bundling aktif.');
         }
+        // 2.5 Check if used in active unpaid transactions
+        const activeOrderCount = await this.orderItemRepository.count({
+            where: {
+                menuItemId: id,
+                transaction: {
+                    status: (0, _typeorm1.In)([
+                        _transactionentity.TransactionStatus.UNPAID,
+                        _transactionentity.TransactionStatus.PARTIAL
+                    ])
+                }
+            }
+        });
+        if (activeOrderCount > 0) {
+            throw new _common.BadRequestException('Menu/Item tidak bisa dihapus karena sedang ada di pesanan (Bill/Invoice) aktif yang belum lunas. Selesaikan atau batalkan pesanan tersebut terlebih dahulu.');
+        }
         // 3. Check if it has order history
         const orderCount = await this.orderItemRepository.count({
             where: {

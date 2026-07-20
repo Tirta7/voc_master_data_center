@@ -490,6 +490,22 @@ export class CafeService {
       );
     }
 
+    // 2.5 Check if used in active unpaid transactions
+    const activeOrderCount = await this.orderItemRepository.count({
+      where: {
+        menuItemId: id,
+        transaction: {
+          status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+        },
+      },
+    });
+
+    if (activeOrderCount > 0) {
+      throw new BadRequestException(
+        'Menu/Item tidak bisa dihapus karena sedang ada di pesanan (Bill/Invoice) aktif yang belum lunas. Selesaikan atau batalkan pesanan tersebut terlebih dahulu.',
+      );
+    }
+
     // 3. Check if it has order history
     const orderCount = await this.orderItemRepository.count({
       where: { menuItemId: id },
