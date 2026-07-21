@@ -129,6 +129,9 @@ let TransactionController = class TransactionController {
     async removeVoucher(id) {
         return this.transactionService.removeVoucher(id);
     }
+    async submitRating(id, data) {
+        return this.transactionService.submitRating(id, data.waiterRating, data.kasirRating, data.ratingMessage);
+    }
     constructor(transactionService, invoiceService, hardwareService){
         this.transactionService = transactionService;
         this.invoiceService = invoiceService;
@@ -307,6 +310,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], TransactionController.prototype, "removeVoucher", null);
+_ts_decorate([
+    (0, _common.Post)(':id/rating'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], TransactionController.prototype, "submitRating", null);
 TransactionController = _ts_decorate([
     (0, _common.Controller)('transactions'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

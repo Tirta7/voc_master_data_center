@@ -246,4 +246,12 @@ export class TransactionController {
   ) {
     return this.transactionService.removeVoucher(id);
   }
+
+  @Post(':id/rating')
+  async submitRating(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: { waiterRating: number; kasirRating: number; ratingMessage?: string },
+  ) {
+    return this.transactionService.submitRating(id, data.waiterRating, data.kasirRating, data.ratingMessage);
+  }
 }

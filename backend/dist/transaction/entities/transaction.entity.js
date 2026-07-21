@@ -456,6 +456,27 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], Transaction.prototype, "cashbackEarned", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 5
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "waiterRating", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 5
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "kasirRating", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Transaction.prototype, "ratingMessage", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Transaction.prototype, "createdAt", void 0);

@@ -53,6 +53,9 @@ function BillingContent() {
     const [voucherCodeInput, setVoucherCodeInput] = useState('');
     const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
     const [lastPaymentInfo, setLastPaymentInfo] = useState<{total: number, method: string, payAmount: number, change: number} | null>(null);
+    const [customerRatingStatus, setCustomerRatingStatus] = useState<'PENDING' | 'SUBMITTED'>('PENDING');
+    const [customerRatings, setCustomerRatings] = useState<{ waiter: number, kasir: number } | null>(null);
+    const [customerMessage, setCustomerMessage] = useState<string>('');
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -115,6 +118,26 @@ function BillingContent() {
             }
         }
     }, [selectedItemsParam]);
+
+    // Socket Listener for Rating Status
+    useEffect(() => {
+        if (!socket.connected) {
+            socket.connect();
+        }
+        const handleRatingSubmitted = (data: any) => {
+            if (data.transactionId === transaction?.id || data.transactionId === Number(transactionId)) {
+                setCustomerRatingStatus('SUBMITTED');
+                if (data.waiterRating !== undefined && data.kasirRating !== undefined) {
+                    setCustomerRatings({ waiter: data.waiterRating, kasir: data.kasirRating });
+                    if (data.ratingMessage) setCustomerMessage(data.ratingMessage);
+                }
+            }
+        };
+        socket.on('rating_submitted', handleRatingSubmitted);
+        return () => {
+            socket.off('rating_submitted', handleRatingSubmitted);
+        };
+    }, [transaction?.id, transactionId]);
 
     // REAL-TIME CFD SYNC (MQTT & SOCKET)
     useEffect(() => {
@@ -810,6 +833,48 @@ function BillingContent() {
                                 </div>
                             </div>
 
+                            {/* RATING STATUS INDICATOR */}
+                            <div className={`p-3 rounded-xl sm:rounded-[1.5rem] border flex flex-col items-center justify-center gap-2 ${customerRatingStatus === 'SUBMITTED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse'}`}>
+                                {customerRatingStatus === 'SUBMITTED' ? (
+                                    <>
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle2 className="w-4 h-4" /> 
+                                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Customer Sudah Menilai</span>
+                                        </div>
+                                        {customerRatings && (
+                                            <div className="flex flex-col gap-2 mt-1">
+                                                <div className="flex items-center justify-center gap-6 text-slate-300">
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-[8px] font-bold uppercase tracking-wider">Waiter</span>
+                                                        <div className="flex gap-0.5">
+                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                <svg key={star} className={`w-3.5 h-3.5 ${star <= customerRatings.waiter ? 'text-yellow-400 fill-yellow-400' : 'text-slate-600/50 fill-slate-600/20'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-px h-6 bg-emerald-500/20"></div>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="text-[8px] font-bold uppercase tracking-wider">Kasir</span>
+                                                        <div className="flex gap-0.5">
+                                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                                <svg key={star} className={`w-3.5 h-3.5 ${star <= customerRatings.kasir ? 'text-yellow-400 fill-yellow-400' : 'text-slate-600/50 fill-slate-600/20'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {customerMessage && (
+                                                    <div className="text-[10px] text-center italic text-emerald-200 bg-emerald-900/20 px-3 py-1.5 rounded-lg border border-emerald-500/10">
+                                                        "{customerMessage}"
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">⌛ Menunggu Penilaian Customer...</span>
+                                )}
+                            </div>
+
                             {/* LUNASKAN BUTTON */}
                             <button
                                 onClick={() => {
@@ -852,37 +917,6 @@ function BillingContent() {
                 </section>
             </main>
             
-            {/* 04. FLOATING CFD MIRROR: PREMIUM FEEDBACK */}
-            <div className="hidden lg:block fixed bottom-10 right-10 z-[60] w-72 aspect-video bg-slate-900/90 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden group hover:scale-105 transition-all duration-500 cursor-pointer">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent"></div>
-                
-                <div className="absolute top-4 left-6 flex items-center gap-3 z-10">
-                    <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]"></div>
-                    <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.3em]">CFD Live Mirror</span>
-                </div>
-
-                <div className="h-full flex flex-col items-center justify-center p-6 relative z-0">
-                    <div className="text-center space-y-4 opacity-90">
-                        <div className="space-y-1">
-                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.4em]">Balance Remaining</p>
-                            <p className="text-3xl font-black text-white tracking-tighter tabular-nums leading-none">
-                                <span className="text-sm opacity-20 mr-1.5 font-bold">Rp</span>
-                                {remainingBalance.toLocaleString()}
-                            </p>
-                        </div>
-                        
-                        {Number(paymentAmount) > 0 && (
-                            <div className="pt-4 border-t border-white/5 animate-in slide-in-from-bottom-2 duration-500">
-                                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-1">Customer Change</p>
-                                <p className="text-xl font-black text-emerald-400 leading-none">Rp {Math.max(0, Number(paymentAmount) - remainingBalance).toLocaleString()}</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none"></div>
-                <div className="absolute inset-0 border-2 border-white/5 rounded-[2.5rem] pointer-events-none"></div>
-            </div>
 
             <style jsx global>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 5px; }
@@ -904,6 +938,7 @@ function BillingContent() {
                 isLoading={isSubmitting}
                 transaction={transaction}
                 settings={settings}
+                customerRatingStatus={customerRatingStatus}
                 data={lastPaymentInfo || {
                     total: remainingBalance,
                     method: paymentMethod,

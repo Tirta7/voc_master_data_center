@@ -231,6 +231,16 @@ export class Transaction {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   cashbackEarned: number;
 
+  // --- CFD RATING FIELDS ---
+  @Column({ type: 'int', default: 5 })
+  waiterRating: number;
+
+  @Column({ type: 'int', default: 5 })
+  kasirRating: number;
+
+  @Column({ type: 'text', nullable: true })
+  ratingMessage: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

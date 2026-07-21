@@ -97,8 +97,14 @@ let ReportController = class ReportController {
     async getStaffLeaderboard(days) {
         return this.reportService.getStaffPerformanceLeaderboard(days ? Number(days) : 30);
     }
+    async getWeeklyTrafficTrend(days) {
+        return this.reportService.getWeeklyTrafficTrend(days ? Number(days) : 30);
+    }
     async getMissionReportPdf(id) {
         return this.reportService.generateMissionReportPdf(id);
+    }
+    async getStaffRatings(start, end) {
+        return this.reportService.getDetailedStaffRatings(start, end);
     }
     constructor(reportService){
         this.reportService = reportService;
@@ -289,6 +295,15 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getStaffLeaderboard", null);
 _ts_decorate([
+    (0, _common.Get)('weekly-trend'),
+    _ts_param(0, (0, _common.Query)('days')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getWeeklyTrafficTrend", null);
+_ts_decorate([
     (0, _common.Get)('mission-report/pdf/:id'),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
@@ -297,6 +312,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getMissionReportPdf", null);
+_ts_decorate([
+    (0, _common.Get)('staff-ratings'),
+    _ts_param(0, (0, _common.Query)('start')),
+    _ts_param(1, (0, _common.Query)('end')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getStaffRatings", null);
 ReportController = _ts_decorate([
     (0, _common.Controller)('reports'),
     _ts_metadata("design:type", Function),

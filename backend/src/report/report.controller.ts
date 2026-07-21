@@ -178,8 +178,21 @@ export class ReportController {
     );
   }
 
+  @Get('weekly-trend')
+  async getWeeklyTrafficTrend(@Query('days') days?: number) {
+    return this.reportService.getWeeklyTrafficTrend(days ? Number(days) : 30);
+  }
+
   @Get('mission-report/pdf/:id')
   async getMissionReportPdf(@Param('id') id: number) {
     return this.reportService.generateMissionReportPdf(id);
+  }
+
+  @Get('staff-ratings')
+  async getStaffRatings(
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    return this.reportService.getDetailedStaffRatings(start, end);
   }
 }

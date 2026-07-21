@@ -107,6 +107,12 @@ function SmartDisplayContent() {
     const [paymentState, setPaymentState] = useState<any>(null);
     const [splitState, setSplitState] = useState<any>(null);
 
+    const [kasirRating, setKasirRating] = useState(0);
+    const [waiterRating, setWaiterRating] = useState(0);
+    const [ratingSubmitted, setRatingSubmitted] = useState(false);
+    const [showRatingPopup, setShowRatingPopup] = useState(false);
+    const [ratingMessage, setRatingMessage] = useState('');
+
     // Member Identification State
     const [phoneNumber, setPhoneNumber] = useState('');
     const [member, setMember] = useState<any>(null);
@@ -267,6 +273,24 @@ function SmartDisplayContent() {
         else socket.connect();
     }, [terminalId]);
 
+    const ratingSubmittedRef = useRef(ratingSubmitted);
+    const waiterRatingRef = useRef(waiterRating);
+    const kasirRatingRef = useRef(kasirRating);
+    const showRatingPopupRef = useRef(showRatingPopup);
+    const ratingMessageRef = useRef(ratingMessage);
+    const txIdRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        ratingSubmittedRef.current = ratingSubmitted;
+        waiterRatingRef.current = waiterRating;
+        kasirRatingRef.current = kasirRating;
+        showRatingPopupRef.current = showRatingPopup;
+        ratingMessageRef.current = ratingMessage;
+        if (paymentState?.transactionId) {
+            txIdRef.current = paymentState.transactionId;
+        }
+    }, [ratingSubmitted, waiterRating, kasirRating, showRatingPopup, ratingMessage, paymentState]);
+
     useEffect(() => {
         syncFocus();
         const handleFocusChange = (data: { tableId: number, type: string } | null) => {
@@ -284,6 +308,22 @@ function SmartDisplayContent() {
         const handlePaymentState = (data: any) => {
             console.log('[CFD] Received billing_payment_state:', data);
             setPaymentState(data);
+            if (data) {
+                setShowRatingPopup(true);
+                setRatingSubmitted(false);
+                setWaiterRating(0);
+                setKasirRating(0);
+                setRatingMessage('');
+            } else {
+                if (showRatingPopupRef.current && !ratingSubmittedRef.current && txIdRef.current) {
+                    axios.post(`/transactions/${txIdRef.current}/rating`, {
+                        waiterRating: waiterRatingRef.current || 5,
+                        kasirRating: kasirRatingRef.current || 5,
+                        ratingMessage: ratingMessageRef.current
+                    }).catch(console.error);
+                }
+                setShowRatingPopup(false);
+            }
         };
 
         const handleSplitState = (data: any) => {
@@ -2338,6 +2378,8 @@ function SmartDisplayContent() {
                                                     </div>
                                                 </div>
                                             )}
+                                            
+                                            {/* Rating UI has been moved to a popup modal overlay */}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -2378,6 +2420,120 @@ function SmartDisplayContent() {
                     </div>
                 </div>
             </div>
+            
+            {/* RATING POPUP MODAL */}
+            <AnimatePresence>
+                {paymentState && showRatingPopup && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#020617]/80 backdrop-blur-xl p-4 sm:p-6"
+                    >
+                        {!ratingSubmitted ? (
+                            <motion.div 
+                                initial={{ scale: 0.9, y: 30, opacity: 0 }} 
+                                animate={{ scale: 1, y: 0, opacity: 1 }} 
+                                exit={{ scale: 0.9, y: -30, opacity: 0 }}
+                                transition={{ type: "spring", duration: 0.6, bounce: 0.3 }}
+                                className="bg-slate-900 border border-indigo-500/30 p-8 sm:p-12 2xl:p-16 rounded-[3rem] shadow-[0_0_100px_rgba(79,70,229,0.3)] w-full max-w-2xl md:max-w-4xl 2xl:max-w-6xl relative overflow-hidden"
+                            >
+                                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500"></div>
+
+                                <div className="text-center mb-10 2xl:mb-14 mt-6">
+                                    <p className="text-xs md:text-sm 2xl:text-base font-black uppercase tracking-[0.4em] text-indigo-400 mb-4 opacity-80">Feedback Pelanggan</p>
+                                    <h2 className="text-white text-3xl sm:text-4xl md:text-5xl 2xl:text-6xl font-black tracking-tight mb-3 2xl:mb-5">Bagaimana Pelayanan Kami, {paymentState?.customerName || member?.name || tx?.member?.name || tx?.customerName || 'Kak'}?</h2>
+                                    <p className="text-slate-400 text-sm md:text-base 2xl:text-xl font-medium">Bantu kami meningkatkan kualitas layanan dengan memberikan penilaian.</p>
+                                </div>
+
+                                <div className="flex flex-col lg:flex-row gap-6 2xl:gap-8 mb-10 2xl:mb-12">
+                                    {/* Waiter Rating */}
+                                    <div className="flex-1 bg-white/5 p-6 2xl:p-10 rounded-3xl border border-white/10 flex flex-col items-center gap-4 2xl:gap-8 transition-all hover:bg-white/10 hover:border-white/20">
+                                        <div className="text-center">
+                                            <p className="text-[10px] md:text-xs 2xl:text-sm font-black text-slate-400 uppercase tracking-widest mb-1.5 2xl:mb-3">Dilayani Oleh (Waiter)</p>
+                                            <p className="text-lg md:text-xl 2xl:text-3xl font-bold text-white truncate max-w-[200px] 2xl:max-w-[300px]">{tx?.commissionUser?.name || tx?.openedBy?.name || 'Staff'}</p>
+                                        </div>
+                                        <div className="flex gap-2.5 2xl:gap-3 bg-black/30 p-3.5 2xl:p-5 rounded-2xl 2xl:rounded-3xl">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button 
+                                                    key={star}
+                                                    onClick={() => setWaiterRating(star)}
+                                                    className="focus:outline-none transition-transform hover:scale-125 active:scale-90"
+                                                >
+                                                    <Star className={`w-9 h-9 sm:w-11 sm:h-11 md:w-14 md:h-14 2xl:w-16 2xl:h-16 ${waiterRating >= star ? 'fill-yellow-400 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.6)]' : 'text-white/10 hover:text-white/30'}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Kasir Rating */}
+                                    <div className="flex-1 bg-white/5 p-6 2xl:p-10 rounded-3xl border border-white/10 flex flex-col items-center gap-4 2xl:gap-8 transition-all hover:bg-white/10 hover:border-white/20">
+                                        <div className="text-center">
+                                            <p className="text-[10px] md:text-xs 2xl:text-sm font-black text-slate-400 uppercase tracking-widest mb-1.5 2xl:mb-3">Kasir (Cashier)</p>
+                                            <p className="text-lg md:text-xl 2xl:text-3xl font-bold text-white truncate max-w-[200px] 2xl:max-w-[300px]">{tx?.createdBy?.name || 'Kasir'}</p>
+                                        </div>
+                                        <div className="flex gap-2.5 2xl:gap-3 bg-black/30 p-3.5 2xl:p-5 rounded-2xl 2xl:rounded-3xl">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button 
+                                                    key={star}
+                                                    onClick={() => setKasirRating(star)}
+                                                    className="focus:outline-none transition-transform hover:scale-125 active:scale-90"
+                                                >
+                                                    <Star className={`w-9 h-9 sm:w-11 sm:h-11 md:w-14 md:h-14 2xl:w-16 2xl:h-16 ${kasirRating >= star ? 'fill-yellow-400 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.6)]' : 'text-white/10 hover:text-white/30'}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 w-full">
+                                    <textarea 
+                                        placeholder="Pesan, kritik, atau saran untuk pelayanan kami... (Opsional)"
+                                        value={ratingMessage}
+                                        onChange={(e) => setRatingMessage(e.target.value)}
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-xs md:text-sm text-white placeholder-white/30 focus:border-indigo-500 focus:outline-none transition-all resize-none"
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div className="mt-6 w-full">
+                                    <button
+                                        disabled={waiterRating === 0 && kasirRating === 0}
+                                        onClick={async () => {
+                                            try {
+                                                await axios.post(`/transactions/${tx?.id}/rating`, {
+                                                    waiterRating: waiterRating || 5, 
+                                                    kasirRating: kasirRating || 5,
+                                                    ratingMessage
+                                                });
+                                                setRatingSubmitted(true);
+                                                setTimeout(() => setShowRatingPopup(false), 2500);
+                                            } catch(e) {}
+                                        }}
+                                        className="w-full py-5 2xl:py-7 rounded-2xl 2xl:rounded-3xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-white/5 disabled:text-white/20 text-white font-black uppercase tracking-widest text-[11px] md:text-sm 2xl:text-base transition-all shadow-xl shadow-indigo-500/20 active:scale-[0.98] border border-transparent disabled:border-white/10"
+                                    >
+                                        Kirim Penilaian
+                                    </button>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0 }} 
+                                animate={{ scale: 1, opacity: 1 }} 
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                className="bg-slate-900 border border-emerald-500/30 p-12 rounded-[3rem] shadow-[0_0_100px_rgba(16,185,129,0.3)] w-full max-w-lg text-center flex flex-col items-center justify-center gap-6 relative overflow-hidden"
+                            >
+                                <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
+                                <CheckCircle2 className="w-20 h-20 text-emerald-400" />
+                                <div>
+                                    <h3 className="text-white text-3xl font-black mb-2">Terima Kasih!</h3>
+                                    <p className="text-slate-400 text-sm font-medium">Penilaian Anda sangat berharga bagi peningkatan layanan kami.</p>
+                                </div>
+                            </motion.div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

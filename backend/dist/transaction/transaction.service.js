@@ -2335,6 +2335,28 @@ let TransactionService = class TransactionService {
         transaction.cashbackEarned = 0;
         return this.updateTotals(id);
     }
+    async submitRating(id, waiterRating, kasirRating, ratingMessage) {
+        const transaction = await this.transactionRepository.findOne({
+            where: {
+                id
+            }
+        });
+        if (!transaction) throw new _common.NotFoundException('Transaction not found');
+        transaction.waiterRating = waiterRating;
+        transaction.kasirRating = kasirRating;
+        transaction.ratingMessage = ratingMessage || '';
+        await this.transactionRepository.save(transaction);
+        this.billiardGateway.server.emit('rating_submitted', {
+            transactionId: id,
+            waiterRating,
+            kasirRating,
+            ratingMessage: ratingMessage || ''
+        });
+        return {
+            success: true,
+            message: 'Rating submitted successfully'
+        };
+    }
     constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService, eventEmitter, voucherService){
         this.transactionRepository = transactionRepository;
         this.orderItemRepository = orderItemRepository;

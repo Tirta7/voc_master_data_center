@@ -3,15 +3,21 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
-import { Timer, Coffee, CreditCard, ChevronRight, Zap, Trophy, Percent } from 'lucide-react';
+import { Timer, Coffee, CreditCard, ChevronRight, Zap, Trophy, Percent, Star } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-// import { getApiUrl } from '@/utils/urlUtils';
-// const API_URL = getApiUrl();
+import { getApiUrl } from '@/utils/urlUtils';
+import axios from 'axios';
+
+const API_URL = getApiUrl();
 
 export default function CustomerFacingDisplay() {
     const { tableId } = useParams();
     const { billiardTables, cafeTables, settings } = useRealtimeData();
     const [table, setTable] = useState<any>(null);
+
+    const [kasirRating, setKasirRating] = useState(0);
+    const [waiterRating, setWaiterRating] = useState(0);
+    const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
     // Find the specific table from the realtime data
     useEffect(() => {
@@ -235,6 +241,8 @@ export default function CustomerFacingDisplay() {
                         </div>
                         <p className="text-[9px] text-indigo-300 font-black uppercase tracking-[0.2em] mt-6">Scan QR Member for Points</p>
                     </div>
+
+
                 </div>
 
                 <div className="mt-10 pt-10 border-t border-slate-50 flex items-center justify-center gap-2">

@@ -1397,12 +1397,34 @@ export class ReportService {
               ? (revenue / totalHours) 
               : (revenue / Math.max(staffTransactions.length, 1));
 
+            // CFD Rating Calculation
+            const ratedTxs = transactions.filter(tx => 
+              (tx.createdBy?.name || 'System') === name || 
+              (tx.openedBy?.name) === name || 
+              (tx.commissionUser?.name) === name
+            );
+            
+            let sumRating = 0;
+            let countRating = 0;
+            ratedTxs.forEach(tx => {
+              if ((tx.openedBy?.name) === name || (tx.commissionUser?.name) === name) {
+                sumRating += (tx.waiterRating || 5);
+                countRating++;
+              }
+              if ((tx.createdBy?.name || 'System') === name) {
+                sumRating += (tx.kasirRating || 5);
+                countRating++;
+              }
+            });
+            const avgRating = countRating > 0 ? (sumRating / countRating) : 5.0;
+
             return {
               name,
               revenue,
               rph: stabilizedRph,
               upsellRatio: staffBilliard > 0 ? staffCafe / staffBilliard : 0,
               txCount: staffTransactions.length,
+              avgRating,
             };
           },
         ),
@@ -2211,6 +2233,7 @@ export class ReportService {
         badge,
         performanceLevel:
           s.rph > 300000 ? 'High' : s.rph > 150000 ? 'Steady' : 'Developing',
+        avgRating: s.avgRating || 5.0,
       };
     });
   }
@@ -2271,5 +2294,148 @@ export class ReportService {
         this.logger.error('Auto report delivery failed');
       }
     }
+  }
+
+  async getWeeklyTrafficTrend(days: number = 30) {
+    const settings = await this.settingsService.getSettings();
+    const [hours, minutes] = (settings.businessDayOffset || '00:00')
+      .split(':')
+      .map(Number);
+    const offsetMs = hours * 3600000 + minutes * 60000;
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    const transactions = await this.transactionRepository.find({
+      where: {
+        createdAt: MoreThanOrEqual(startDate),
+        status: In([TransactionStatus.PAID, TransactionStatus.DEBT, TransactionStatus.PARTIAL]),
+      },
+      select: ['id', 'createdAt', 'grandTotal', 'type'],
+    });
+
+    const dayNames = [
+      'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+    ];
+
+    const aggregated = Array(7)
+      .fill(0)
+      .map((_, idx) => ({
+        dayOfWeek: idx,
+        dayName: dayNames[idx],
+        totalRevenue: 0,
+        totalTransactions: 0,
+        activeDaysCount: new Set<string>(),
+      }));
+
+    transactions.forEach((tx) => {
+      // Shift backwards to align with Business Day
+      const businessDate = new Date(new Date(tx.createdAt).getTime() - offsetMs);
+      const dayOfWeek = businessDate.getDay();
+      const dateString = businessDate.toISOString().split('T')[0];
+
+      aggregated[dayOfWeek].totalRevenue += Number(tx.grandTotal || 0);
+      aggregated[dayOfWeek].totalTransactions += 1;
+      aggregated[dayOfWeek].activeDaysCount.add(dateString);
+    });
+
+    const result = aggregated.map((day) => {
+      const activeDays = Math.max(1, day.activeDaysCount.size);
+      return {
+        dayOfWeek: day.dayOfWeek,
+        dayName: day.dayName,
+        avgRevenue: Math.round(day.totalRevenue / activeDays),
+        avgTransactions: Math.round(day.totalTransactions / activeDays),
+        totalRevenue: day.totalRevenue,
+        totalTransactions: day.totalTransactions,
+      };
+    });
+
+    // Reorder array: Monday (1) to Sunday (0)
+    const orderedResult = [...result.slice(1), result[0]];
+
+    return orderedResult;
+  }
+
+  async getDetailedStaffRatings(start?: string | Date, end?: string | Date) {
+    let startDate: Date;
+    let endDate: Date;
+
+    if (start && end) {
+      startDate = new Date(start);
+      endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      const today = new Date();
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1); // Start of month
+      endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999); // End of month
+    }
+
+    const transactions = await this.transactionRepository.find({
+      where: {
+        createdAt: Between(startDate, endDate),
+        status: In([TransactionStatus.PAID, TransactionStatus.DEBT, TransactionStatus.PARTIAL]),
+      },
+      relations: ['commissionUser', 'openedBy', 'createdBy'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const detailedRatings = [];
+    let topKasirMap = new Map<string, { total: number; count: number }>();
+    let topWaiterMap = new Map<string, { total: number; count: number }>();
+
+    for (const tx of transactions) {
+      const waiterName = tx.commissionUser?.name || tx.openedBy?.name || 'Unknown Staff';
+      const kasirName = tx.createdBy?.name || 'System';
+      const waiterRating = tx.waiterRating || 5;
+      const kasirRating = tx.kasirRating || 5;
+      const message = tx.ratingMessage || '';
+
+      detailedRatings.push({
+        id: tx.id,
+        invoiceNumber: tx.invoiceNumber,
+        date: tx.createdAt,
+        waiterName,
+        waiterRating,
+        kasirName,
+        kasirRating,
+        message,
+      });
+
+      // Aggregate Kasir
+      if (!topKasirMap.has(kasirName)) topKasirMap.set(kasirName, { total: 0, count: 0 });
+      topKasirMap.get(kasirName)!.total += kasirRating;
+      topKasirMap.get(kasirName)!.count += 1;
+
+      // Aggregate Waiter
+      if (!topWaiterMap.has(waiterName)) topWaiterMap.set(waiterName, { total: 0, count: 0 });
+      topWaiterMap.get(waiterName)!.total += waiterRating;
+      topWaiterMap.get(waiterName)!.count += 1;
+    }
+
+    const topKasirs = Array.from(topKasirMap.entries()).map(([name, data]) => ({
+      name,
+      avgRating: Number((data.total / data.count).toFixed(2)),
+      count: data.count,
+    })).sort((a, b) => b.avgRating - a.avgRating);
+
+    const topWaiters = Array.from(topWaiterMap.entries()).map(([name, data]) => ({
+      name,
+      avgRating: Number((data.total / data.count).toFixed(2)),
+      count: data.count,
+    })).sort((a, b) => b.avgRating - a.avgRating);
+
+    return {
+      ratings: detailedRatings,
+      topKasirs,
+      topWaiters,
+    };
   }
 }

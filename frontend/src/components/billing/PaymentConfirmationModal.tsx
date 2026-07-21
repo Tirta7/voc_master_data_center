@@ -19,9 +19,10 @@ interface PaymentConfirmationModalProps {
     isPaid?: boolean;
     transaction?: any;
     settings?: any;
+    customerRatingStatus?: 'PENDING' | 'SUBMITTED';
 }
 
-export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, onPrint, onDone, data, isLoading, isPaid, transaction, settings }: PaymentConfirmationModalProps) {
+export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, onPrint, onDone, data, isLoading, isPaid, transaction, settings, customerRatingStatus }: PaymentConfirmationModalProps) {
     useBodyScrollLock(isOpen);
     const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false);
     const [paperSize, setPaperSize] = useState<58 | 80>(58);
@@ -136,6 +137,17 @@ export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, o
                         {/* Body */}
                         <div className="p-4">
                             <div className="space-y-4">
+                                {/* Rating Status Badge */}
+                                {customerRatingStatus && (
+                                    <div className={`text-[10px] font-black uppercase tracking-widest p-2 rounded-lg text-center flex items-center justify-center gap-2 ${customerRatingStatus === 'SUBMITTED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600 animate-pulse'}`}>
+                                        {customerRatingStatus === 'SUBMITTED' ? (
+                                            <><CheckCircle2 className="w-3.5 h-3.5" /> Customer Sudah Menilai</>
+                                        ) : (
+                                            <>Menunggu Penilaian Customer...</>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Summary Card */}
                                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2.5">
                                     <div className="flex justify-between items-end">

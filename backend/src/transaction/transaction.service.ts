@@ -3094,4 +3094,17 @@ export class TransactionService {
     
     return this.updateTotals(id);
   }
+
+  async submitRating(id: number, waiterRating: number, kasirRating: number, ratingMessage?: string) {
+    const transaction = await this.transactionRepository.findOne({ where: { id } });
+    if (!transaction) throw new NotFoundException('Transaction not found');
+    
+    transaction.waiterRating = waiterRating;
+    transaction.kasirRating = kasirRating;
+    transaction.ratingMessage = ratingMessage || '';
+
+    await this.transactionRepository.save(transaction);
+    this.billiardGateway.server.emit('rating_submitted', { transactionId: id, waiterRating, kasirRating, ratingMessage: ratingMessage || '' });
+    return { success: true, message: 'Rating submitted successfully' };
+  }
 }

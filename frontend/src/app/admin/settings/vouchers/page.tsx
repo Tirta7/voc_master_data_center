@@ -30,6 +30,8 @@ export default function VoucherPage() {
   const [bounceBackConfig, setBounceBackConfig] = useState<any[]>([]);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [formData, setFormData] = useState<any>({
     code: '',
@@ -427,7 +429,7 @@ export default function VoucherPage() {
           {/* Tabs Section */}
           <div className="flex bg-slate-100/50 p-1 rounded-2xl w-full md:w-fit mb-8 border border-slate-200/60 overflow-x-auto whitespace-nowrap scrollbar-hide">
             <button
-              onClick={() => setActiveTab('REGULAR')}
+              onClick={() => { setActiveTab('REGULAR'); setCurrentPage(1); }}
               className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
                 activeTab === 'REGULAR' 
                   ? 'bg-white text-indigo-600 shadow-sm shadow-black/5' 
@@ -437,7 +439,7 @@ export default function VoucherPage() {
               Voucher Reguler
             </button>
             <button
-              onClick={() => setActiveTab('BOUNCE_BACK')}
+              onClick={() => { setActiveTab('BOUNCE_BACK'); setCurrentPage(1); }}
               className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
                 activeTab === 'BOUNCE_BACK' 
                   ? 'bg-white text-indigo-600 shadow-sm shadow-black/5' 
@@ -679,7 +681,7 @@ export default function VoucherPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/60">
-                {displayedVouchers.map((v) => (
+                {displayedVouchers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((v) => (
                   <tr key={v.id} className="hover:bg-white transition-colors group">
                     <td className="px-6 py-5">
                       <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 font-mono font-bold text-xs sm:text-sm rounded-xl group-hover:bg-indigo-100 transition-colors">
@@ -777,6 +779,29 @@ export default function VoucherPage() {
               </tbody>
             </table>
           </div>
+          {displayedVouchers.length > itemsPerPage && (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, displayedVouchers.length)} of {displayedVouchers.length}
+              </p>
+              <div className="flex gap-2">
+                <button 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Prev
+                </button>
+                <button 
+                  disabled={currentPage * itemsPerPage >= displayedVouchers.length}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

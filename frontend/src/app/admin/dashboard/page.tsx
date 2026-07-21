@@ -9,7 +9,7 @@ import {
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
     CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2,
     Trophy, Dices, Zap, AlertCircle, Printer, ShieldCheck, ShieldAlert, CheckCircle2,
-    BarChart2, LineChart, BookOpen, Receipt, Settings, Utensils
+    BarChart2, LineChart, BookOpen, Receipt, Settings, Utensils, Loader2
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +17,16 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { AIStrategicAdvisor } from './components/AIStrategicAdvisor';
 import useSWR, { mutate } from 'swr';
 import { fetcher } from '@/lib/fetcher';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    ResponsiveContainer,
+    Tooltip as RechartsTooltip,
+    Legend
+} from 'recharts';
 import { formatRupiah as fmt, formatNumber } from '@/utils/formatUtils';
 const fmtK = fmt;
 const formatTableName = (name: string) => {
@@ -67,6 +77,7 @@ interface SummaryData {
         rph: number;
         upsellRatio: number;
         txCount: number;
+        avgRating?: number;
     }[];
     memberRevenue?: number;
     guestRevenue?: number;
@@ -272,7 +283,47 @@ function methodColor(m: string): string {
     return 'bg-slate-500';
 }
 
+function WeeklyTrafficTrendChart({ data }: { data: any[] }) {
+    if (!data || data.length === 0) return null;
+
+    return (
+        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 mt-6">
+            <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-t-[2rem]">
+                <div>
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <BarChart2 className="w-5 h-5 text-indigo-600" />
+                        Weekly Traffic Trend
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Average Revenue & Transactions By Day (Last 30 Days)</p>
+                </div>
+            </div>
+
+            <div className="p-6 h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="dayName" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 'bold' }} />
+                        <YAxis yAxisId="left" orientation="left" axisLine={false} tickLine={false} tickFormatter={(val) => `Rp ${val/1000000}M`} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 'bold' }} />
+                        <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 'bold' }} />
+                        <RechartsTooltip 
+                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: any, name: any) => {
+                                if (name === 'Avg Revenue') return [`Rp ${Number(value || 0).toLocaleString('id-ID')}`, name];
+                                return [`${value || 0} Pax`, name];
+                            }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                        <Bar yAxisId="left" dataKey="avgRevenue" name="Avg Revenue" fill="#4f46e5" radius={[6, 6, 0, 0]} barSize={40} />
+                        <Bar yAxisId="right" dataKey="avgTransactions" name="Avg Transactions" fill="#10b981" radius={[6, 6, 0, 0]} barSize={40} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
+}
+
 function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?: any[] }) {
+
     const maxTotal = Math.max(...data.map(h => h.total), 1);
     const maxForecast = Math.max(...forecast.map(f => f.count), 1);
     
@@ -685,12 +736,17 @@ export default function AdminDashboard() {
     const { data: printers, mutate: mutatePrinters } = useSWR<Printer[]>('/settings/printers', fetcher);
     const { data: shiftsAudit, isLoading: loadingAudit } = useSWR<ShiftAudit[]>(`/reports/shifts/audit?start=${startDate}&end=${endDate}`, fetcher);
     const { data: auditInsights } = useSWR<any>(`/reports/shifts/audit/insights?start=${startDate}&end=${endDate}`, fetcher);
+    const { data: weeklyTrend } = useSWR<any[]>('/reports/weekly-trend?days=30', fetcher);
 
     const initialLoading = loadingSummary || loadingDetailed || loadingItems || loadingStock || loadingFinance;
 
     const [loading, setLoading] = useState(false);
     // const [initialLoading, setInitialLoading] = useState(true); // Removed, SWR handles initial loading
-    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll' | 'analytics' | 'audit'>('overview');
+    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll' | 'analytics' | 'audit' | 'ratings'>('overview');
+    const { data: staffRatings } = useSWR<any>(tab === 'ratings' ? `/reports/staff-ratings?start=${startDate}&end=${endDate}` : null, fetcher);
+    const [ratingPage, setRatingPage] = useState(1);
+    const ratingLimit = 10;
+
     const [stockView, setStockView] = useState<'critical' | 'all'>('critical');
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -788,7 +844,7 @@ export default function AdminDashboard() {
             dEnd.setDate(dEnd.getDate() + 1);
             dEnd.setMinutes(dEnd.getMinutes() - 1); // 1 minute before next day offset
             
-            const fmt = (d: Date) => {
+            const formatDate = (d: Date) => {
                 const year = d.getFullYear();
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
@@ -797,8 +853,8 @@ export default function AdminDashboard() {
                 return `${year}-${month}-${day}T${HH}:${MM}:00`;
             };
 
-            setStartDate(fmt(dStart));
-            setEndDate(fmt(dEnd));
+            setStartDate(formatDate(dStart));
+            setEndDate(formatDate(dEnd));
         } else {
             // CALENDAR MODE: Sync to strictly 00:00 - 23:59 of today
             const now = new Date();
@@ -920,6 +976,7 @@ export default function AdminDashboard() {
         { id: 'stock', icon: <Package className="w-4 h-4" />, label: 'Inventori' },
         { id: 'finance', icon: <DollarSign className="w-4 h-4" />, label: 'Keuangan' },
         { id: 'analytics', icon: <LineChart className="w-4 h-4" />, label: 'Tabel & Analytics' },
+        { id: 'ratings', icon: <Star className="w-4 h-4" />, label: 'Rating & Feedback' },
         { id: 'payroll', icon: <Users className="w-4 h-4" />, label: 'Gaji Karyawan' },
         { id: 'audit', icon: <ShieldCheck className="w-4 h-4" />, label: 'Audit Shift' },
     ] as const;
@@ -1211,6 +1268,173 @@ export default function AdminDashboard() {
                             </button>
                         ))}
                     </div>
+
+                    {/* ── Ratings Tab ── */}
+                    {tab === 'ratings' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {staffRatings ? (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Top Kasir */}
+                                        <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 blur-[50px] -translate-y-1/2 translate-x-1/2 group-hover:bg-indigo-500/40 transition-colors"></div>
+                                            <div className="flex items-center gap-4 mb-6 relative z-10">
+                                                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                                                    <Trophy className="w-6 h-6 text-indigo-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-white font-black text-lg tracking-tight">Top Kasir of the Month</h3>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Highest Rated Cashier</p>
+                                                </div>
+                                            </div>
+                                            {staffRatings.topKasirs && staffRatings.topKasirs.length > 0 ? (
+                                                <div className="flex justify-between items-end relative z-10">
+                                                    <div>
+                                                        <p className="text-3xl font-black text-white">{staffRatings.topKasirs[0].name}</p>
+                                                        <p className="text-xs text-indigo-400 font-bold mt-1">{staffRatings.topKasirs[0].count} Reviews</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Star className="w-8 h-8 fill-yellow-400 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
+                                                        <span className="text-4xl font-black text-white">{staffRatings.topKasirs[0].avgRating}</span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-slate-500 text-sm italic relative z-10">No rating data yet</p>
+                                            )}
+                                        </div>
+
+                                        {/* Top Waiter */}
+                                        <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/20 blur-[50px] -translate-y-1/2 translate-x-1/2 group-hover:bg-amber-500/40 transition-colors"></div>
+                                            <div className="flex items-center gap-4 mb-6 relative z-10">
+                                                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
+                                                    <Trophy className="w-6 h-6 text-amber-400" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-white font-black text-lg tracking-tight">Top Waiter of the Month</h3>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Highest Rated Waiter</p>
+                                                </div>
+                                            </div>
+                                            {staffRatings.topWaiters && staffRatings.topWaiters.length > 0 ? (
+                                                <div className="flex justify-between items-end relative z-10">
+                                                    <div>
+                                                        <p className="text-3xl font-black text-white">{staffRatings.topWaiters[0].name}</p>
+                                                        <p className="text-xs text-amber-400 font-bold mt-1">{staffRatings.topWaiters[0].count} Reviews</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Star className="w-8 h-8 fill-yellow-400 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
+                                                        <span className="text-4xl font-black text-white">{staffRatings.topWaiters[0].avgRating}</span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-slate-500 text-sm italic relative z-10">No rating data yet</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                                        <div className="p-6 pb-4">
+                                            <SectionHeader icon={<Star className="w-4 h-4" />} title="Feedback & Rating History" badge={`${staffRatings.ratings?.length || 0} Records`} />
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="border-b-2 border-slate-100 bg-slate-50">
+                                                        <th className="py-5 px-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 w-[15%]">Date & Time</th>
+                                                        <th className="py-5 px-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 w-[15%]">Invoice</th>
+                                                        <th className="py-5 px-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 w-[20%]">Penilaian Kasir</th>
+                                                        <th className="py-5 px-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 w-[20%]">Penilaian Waiter</th>
+                                                        <th className="py-5 px-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 w-[30%]">Feedback Message</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {staffRatings.ratings?.slice((ratingPage - 1) * ratingLimit, ratingPage * ratingLimit).map((r: any) => (
+                                                        <tr key={r.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors group">
+                                                            <td className="py-4 px-6 align-top">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className="text-xs font-bold text-slate-800">{new Date(r.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                                                    <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+                                                                        <Clock className="w-3 h-3" /> {new Date(r.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-6 align-top">
+                                                                <span className="inline-flex px-2.5 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-mono font-bold border border-indigo-100/50 shadow-sm">{r.invoiceNumber}</span>
+                                                            </td>
+                                                            <td className="py-4 px-6 align-top">
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <span className="text-xs font-black text-slate-800">{r.kasirName}</span>
+                                                                    <div className="flex items-center gap-0.5">
+                                                                        {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.kasirRating ? 'fill-yellow-400 text-yellow-400 drop-shadow-sm' : 'fill-slate-100 text-slate-200'}`} />)}
+                                                                        <span className="ml-1.5 text-[10px] font-black text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded-md">{r.kasirRating}.0</span>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-6 align-top">
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <span className="text-xs font-black text-slate-800">{r.waiterName}</span>
+                                                                    <div className="flex items-center gap-0.5">
+                                                                        {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`w-3.5 h-3.5 ${s <= r.waiterRating ? 'fill-yellow-400 text-yellow-400 drop-shadow-sm' : 'fill-slate-100 text-slate-200'}`} />)}
+                                                                        <span className="ml-1.5 text-[10px] font-black text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded-md">{r.waiterRating}.0</span>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-4 px-6 align-top">
+                                                                {r.message || r.ratingMessage ? (
+                                                                    <div className="relative">
+                                                                        <div className="absolute -left-2 -top-1 text-slate-200 text-xl font-serif">"</div>
+                                                                        <p className="text-xs text-slate-600 italic bg-white p-3 rounded-xl border border-slate-200 shadow-sm leading-relaxed relative z-10">{r.message || r.ratingMessage}</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200 w-fit">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No Message</p>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {(!staffRatings.ratings || staffRatings.ratings.length === 0) && (
+                                                        <tr>
+                                                            <td colSpan={5} className="p-8 text-center text-slate-400 text-xs italic">No ratings found for this period.</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {staffRatings.ratings?.length > ratingLimit && (
+                                            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Showing {(ratingPage - 1) * ratingLimit + 1} - {Math.min(ratingPage * ratingLimit, staffRatings.ratings.length)} of {staffRatings.ratings.length}
+                                                </p>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        disabled={ratingPage === 1}
+                                                        onClick={() => setRatingPage(ratingPage - 1)}
+                                                        className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                                    >
+                                                        Prev
+                                                    </button>
+                                                    <button 
+                                                        disabled={ratingPage * ratingLimit >= staffRatings.ratings.length}
+                                                        onClick={() => setRatingPage(ratingPage + 1)}
+                                                        className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-20">
+                                    <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-4" />
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Ratings...</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Audit Tab ── */}
                     {tab === 'audit' && (
@@ -1567,6 +1791,7 @@ export default function AdminDashboard() {
                                 data={detailedRevenue.hourly || []} 
                                 forecast={detailedRevenue.hourlyForecast || []} 
                             />
+                            {weeklyTrend && <WeeklyTrafficTrendChart data={weeklyTrend} />}
                         </div>
                     )}
 
@@ -1690,6 +1915,10 @@ export default function AdminDashboard() {
                                                             <div className="flex items-center gap-1 border-l pl-3 text-emerald-600">
                                                                 <ShoppingBag className="w-3 h-3" />
                                                                 <span className="text-[10px] font-bold">Upsell: {(staff.upsellRatio * 100).toFixed(0)}%</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 border-l pl-3 text-yellow-500">
+                                                                <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                                                                <span className="text-[10px] font-bold text-slate-700">{(staff.avgRating || 5.0).toFixed(1)}</span>
                                                             </div>
                                                         </div>
                                                     </div>
