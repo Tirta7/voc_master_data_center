@@ -1229,15 +1229,15 @@ let CafeService = class CafeService {
         if (!item) throw new _common.NotFoundException('Order item not found');
         const s = item.status?.toUpperCase() || _orderitementity.OrderItemStatus.QUEUED;
         if (s === _orderitementity.OrderItemStatus.CANCELLED) return;
-        if (s === _orderitementity.OrderItemStatus.DONE) {
-            throw new Error('Pesanan yang sudah selesai tidak bisa dibatalkan secara normal.');
-        }
-        // GHOST VOID PROTECTION: Manager PIN required for items sent to kitchen
+        // GHOST VOID PROTECTION: Manager PIN required for items sent to kitchen or already done
         const isProcessing = [
             'QUEUED',
             'PROCESSING',
             'COOKING',
-            'CANCEL_REJECTED'
+            'CANCEL_REJECTED',
+            'DONE',
+            'SERVED',
+            'COMPLETED'
         ].includes(s);
         let managerName = user;
         if (isProcessing) {

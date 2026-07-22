@@ -490,7 +490,7 @@ export default function CafeDashboardPage() {
 
     const handleCancelItem = async (item: any, status: string) => {
         const s = status.toUpperCase();
-        const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED'].includes(s);
+        const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED', 'DONE', 'SERVED', 'COMPLETED'].includes(s);
         setCancellationItem({ id: item.id, name: item.menuItem?.name || item.name || 'Menu', isProcessing });
         setCancellationModalOpen(true);
     };

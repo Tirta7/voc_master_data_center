@@ -1497,14 +1497,8 @@ export class CafeService {
 
     const s = item.status?.toUpperCase() || OrderItemStatus.QUEUED;
     if (s === OrderItemStatus.CANCELLED) return;
-    if (s === OrderItemStatus.DONE) {
-      throw new Error(
-        'Pesanan yang sudah selesai tidak bisa dibatalkan secara normal.',
-      );
-    }
-
-    // GHOST VOID PROTECTION: Manager PIN required for items sent to kitchen
-    const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED'].includes(s);
+    // GHOST VOID PROTECTION: Manager PIN required for items sent to kitchen or already done
+    const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED', 'DONE', 'SERVED', 'COMPLETED'].includes(s);
     let managerName = user;
 
     if (isProcessing) {

@@ -218,7 +218,7 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
                                                     </div>
                                                     
                                                     {/* Cancel Button */}
-                                                    {onCancelItem && hasCancelPermission && !isPaid && !['DONE', 'SERVED', 'COMPLETED'].includes(s) && (
+                                                    {onCancelItem && hasCancelPermission && !isPaid && (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();

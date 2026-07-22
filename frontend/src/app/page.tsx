@@ -377,7 +377,7 @@ export default function Dashboard() {
 
   const handleCancelItem = React.useCallback(async (item: any) => {
     const status = item.status?.toUpperCase() || 'PENDING';
-    const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED'].includes(status);
+    const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED', 'DONE', 'SERVED', 'COMPLETED'].includes(status);
     setItemToCancel({ id: item.id, name: item.menuItem?.name || item.name || 'Menu', isProcessing });
     setCancellationModalOpen(true);
   }, []);
