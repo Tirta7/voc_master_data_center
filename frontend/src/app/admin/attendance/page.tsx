@@ -1167,138 +1167,170 @@ export default function AttendancePage() {
                 </div>
             )}
 
-            {/* --- PREMIUM MANUAL INPUT MODAL --- */}
+            {/* --- PREMIUM MANUAL INPUT MODAL (iOS Slide-Up Sheet) --- */}
             {isManualOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity" onClick={() => setIsManualOpen(false)} />
+                <div className="fixed inset-0 z-[100] bg-black/15 flex flex-col justify-end md:justify-center animate-in fade-in duration-200">
+                    <div className="absolute inset-0" onClick={() => setIsManualOpen(false)} />
                     
-                    <div className="relative bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden transform transition-all border border-white/20 animate-in zoom-in-95 duration-300">
+                    <div className="relative bg-white w-full h-[85vh] max-h-[calc(100vh-max(3.75rem,env(safe-area-inset-top)+1.5rem))] md:h-[88vh] md:max-w-md md:m-auto rounded-t-[2.25rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col transform transition-all border-0 outline-none animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 z-10">
+                        
+                        {/* Mobile Drag Handle Indicator Bar */}
+                        <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-800">
+                            <div className="w-11 h-1 bg-white/40 rounded-full" />
+                        </div>
+
                         {/* Modal Header with Gradient */}
-                        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 p-8 text-white relative">
-                            <div className="absolute top-0 right-0 p-6 opacity-10">
-                                <AlarmClock className="w-24 h-24 rotate-12" />
+                        <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 px-6 py-5 text-white relative shrink-0">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                                <AlarmClock className="w-20 h-20 rotate-12" />
                             </div>
-                            <div className="flex items-center gap-4 relative z-10">
-                                <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/30">
-                                    <Plus className="w-6 h-6 text-white" />
+                            <div className="flex items-center justify-between relative z-10">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border-0 shrink-0">
+                                        <Plus className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black tracking-tight uppercase leading-tight">Input Absensi</h3>
+                                        <p className="text-indigo-100 text-[9px] font-bold uppercase tracking-widest opacity-80">Manual Record Entry</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-xl font-black tracking-tight uppercase">Input Absensi</h3>
-                                    <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest opacity-70">Manual Record Entry</p>
-                                </div>
+                                <button
+                                    onClick={() => setIsManualOpen(false)}
+                                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
 
-                        <div className="p-8 space-y-5">
+                        {/* Scrollable Content Body */}
+                        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 sm:py-6 space-y-5 custom-scrollbar">
                             {/* Karyawan Select */}
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">
-                                    <Users className="w-3 h-3 text-indigo-500" /> Karyawan
+                            <div className="space-y-1.5">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    <Users className="w-3.5 h-3.5 text-indigo-500" /> Karyawan
                                 </label>
-                                <select 
-                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 px-5 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer"
-                                    value={manualForm.userId} 
-                                    onChange={e => setManualForm(f => ({ ...f, userId: e.target.value }))}
-                                >
-                                    <option value="" className="text-slate-400">Pilih karyawan...</option>
-                                    {employees.map(e => <option key={e.id} value={e.id} className="text-slate-900">{e.name.toUpperCase()}</option>)}
-                                </select>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full h-12 bg-slate-50 border border-slate-200/90 rounded-2xl px-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer appearance-none"
+                                        value={manualForm.userId} 
+                                        onChange={e => setManualForm(f => ({ ...f, userId: e.target.value }))}
+                                    >
+                                        <option value="" className="text-slate-400">Pilih karyawan...</option>
+                                        {employees.map(e => <option key={e.id} value={e.id} className="text-slate-900">{e.name.toUpperCase()}</option>)}
+                                    </select>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4">
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">
-                                        <Calendar className="w-3 h-3 text-indigo-500" /> Tanggal Presensi
-                                    </label>
+                            {/* Tanggal Presensi (Bounded iOS Safe Wrapper) */}
+                            <div className="space-y-1.5 w-full min-w-0">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Tanggal Presensi
+                                </label>
+                                <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl">
                                     <input 
                                         type="date" 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 px-5 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                        className="w-full max-w-full h-12 bg-slate-50 border border-slate-200/90 rounded-2xl px-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer block text-center sm:text-left [color-scheme:light] box-border"
                                         value={manualForm.date} 
                                         onChange={e => setManualForm(f => ({ ...f, date: e.target.value }))} 
                                     />
                                 </div>
                             </div>
 
-                            {/* JAM MASUK & KELUAR */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">
-                                        <Clock className="w-3 h-3 text-indigo-500" /> Jam Masuk
+                            {/* JAM MASUK & KELUAR (iOS WebKit Bounded Grid) */}
+                            <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
+                                <div className="space-y-1.5 w-full min-w-0">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                        <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        <span className="truncate">Jam Masuk</span>
                                     </label>
-                                    <input 
-                                        type="time" 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 px-5 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
-                                        value={manualForm.checkInTime} 
-                                        onChange={e => setManualForm(f => ({ ...f, checkInTime: e.target.value }))} 
-                                    />
+                                    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl">
+                                        <input 
+                                            type="time" 
+                                            className="w-full max-w-full h-12 bg-slate-50 border border-slate-200/90 rounded-2xl px-2 sm:px-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all text-center cursor-pointer block [color-scheme:light] box-border"
+                                            value={manualForm.checkInTime} 
+                                            onChange={e => setManualForm(f => ({ ...f, checkInTime: e.target.value }))} 
+                                        />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">
-                                        <Clock className="w-3 h-3 text-rose-500" /> Jam Keluar
+                                <div className="space-y-1.5 w-full min-w-0">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                        <Clock className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                        <span className="truncate">Jam Keluar</span>
                                     </label>
-                                    <input 
-                                        type="time" 
-                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 px-5 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all"
-                                        value={manualForm.checkOutTime} 
-                                        onChange={e => setManualForm(f => ({ ...f, checkOutTime: e.target.value }))} 
-                                    />
+                                    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl">
+                                        <input 
+                                            type="time" 
+                                            className="w-full max-w-full h-12 bg-slate-50 border border-slate-200/90 rounded-2xl px-2 sm:px-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 transition-all text-center cursor-pointer block [color-scheme:light] box-border"
+                                            value={manualForm.checkOutTime} 
+                                            onChange={e => setManualForm(f => ({ ...f, checkOutTime: e.target.value }))} 
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Status Grid with Icons */}
-                            <div className="space-y-3">
-                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">
-                                    <Zap className="w-3 h-3 text-indigo-500" /> Pilih Status
+                            {/* Status Grid */}
+                            <div className="space-y-2 pt-1">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    <Zap className="w-3.5 h-3.5 text-indigo-500" /> Pilih Status Presensi
                                 </label>
-                                <div className="grid grid-cols-4 gap-2">
+                                <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
                                     {[
-                                        { id: 'PRESENT', label: 'Hadir', icon: CheckCircle2, color: 'emerald' },
-                                        { id: 'LATE', label: 'Telat', icon: Clock, color: 'amber' },
-                                        { id: 'OVERTIME', label: 'Lembur', icon: Zap, color: 'orange' },
-                                        { id: 'SAKIT', label: 'Sakit', icon: Info, color: 'blue' },
-                                        { id: 'IZIN', label: 'Izin', icon: Shuffle, color: 'purple' },
-                                        { id: 'ALPHA', label: 'Alpha', icon: UserX, color: 'rose' },
-                                        { id: 'ABSENT', label: 'Absen', icon: Ban, color: 'slate' },
+                                        { id: 'PRESENT', label: 'Hadir', icon: CheckCircle2 },
+                                        { id: 'LATE', label: 'Telat', icon: Clock },
+                                        { id: 'OVERTIME', label: 'Lembur', icon: Zap },
+                                        { id: 'SAKIT', label: 'Sakit', icon: Info },
+                                        { id: 'IZIN', label: 'Izin', icon: Shuffle },
+                                        { id: 'ALPHA', label: 'Alpha', icon: UserX },
+                                        { id: 'ABSENT', label: 'Absen', icon: Ban },
                                     ].map(s => (
                                         <button 
                                             key={s.id}
+                                            type="button"
                                             onClick={() => setManualForm(f => ({ ...f, status: s.id }))}
-                                            className={`flex flex-col items-center justify-center py-2.5 rounded-2xl border-2 transition-all duration-300 gap-1 ${
+                                            className={`flex flex-col items-center justify-center py-2.5 sm:py-3 rounded-2xl border-2 transition-all duration-300 gap-1 active:scale-95 ${
                                                 manualForm.status === s.id 
-                                                ? `border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md` 
-                                                : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200'
+                                                ? `border-indigo-600 bg-indigo-50/80 text-indigo-700 shadow-md ring-2 ring-indigo-600/10 font-bold` 
+                                                : 'border-slate-100 bg-slate-50/50 text-slate-400 hover:border-slate-200 hover:bg-slate-50'
                                             }`}
                                         >
-                                            <s.icon className={`w-3.5 h-3.5 ${manualForm.status === s.id ? 'text-indigo-600' : 'text-slate-300'}`} />
-                                            <span className="text-[8px] font-black uppercase tracking-tight">{s.label}</span>
+                                            <s.icon className={`w-4 h-4 ${manualForm.status === s.id ? 'text-indigo-600' : 'text-slate-300'}`} />
+                                            <span className="text-[9px] font-black uppercase tracking-tight truncate max-w-full px-1">{s.label}</span>
                                         </button>
                                     ))}
                                 </div>
                             </div>
 
                             {/* Keterangan */}
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">
-                                    <ClipboardList className="w-3 h-3 text-indigo-500" /> Keterangan
+                            <div className="space-y-1.5">
+                                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                    <ClipboardList className="w-3.5 h-3.5 text-indigo-500" /> Keterangan Catatan
                                 </label>
                                 <input 
                                     placeholder="Tulis catatan di sini..." 
-                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 px-5 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all"
+                                    className="w-full h-12 bg-slate-50 border border-slate-200/90 rounded-2xl px-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all placeholder:text-slate-400"
                                     value={manualForm.note} 
                                     onChange={e => setManualForm(f => ({ ...f, note: e.target.value }))} 
                                 />
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="px-8 pb-8 flex gap-3">
-                            <button onClick={() => setIsManualOpen(false)} className="flex-1 py-4 rounded-2xl font-black text-[10px] text-slate-400 uppercase tracking-widest hover:bg-slate-50 transition-all">Batal</button>
+                        {/* Sticky Modal Footer (iOS Home Bar Safe) */}
+                        <div className="px-5 py-4 bg-white border-t border-slate-100 shrink-0 flex items-center gap-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
                             <button 
+                                type="button"
+                                onClick={() => setIsManualOpen(false)} 
+                                className="py-3.5 px-4 rounded-2xl font-black text-[10px] text-slate-400 uppercase tracking-widest hover:bg-slate-50 transition-all"
+                            >
+                                Batal
+                            </button>
+                            <button 
+                                type="button"
                                 onClick={handleManualEntry} 
                                 disabled={!manualForm.userId || !manualForm.note || isSubmitting}
-                                className="flex-[2] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                                className="flex-1 py-3.5 px-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
-                                {isSubmitting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan Presensi'}
                             </button>
                         </div>
@@ -1306,6 +1338,6 @@ export default function AttendancePage() {
                 </div>
             )}
         </div>
-        </div>
-    );
+    </div>
+);
 }

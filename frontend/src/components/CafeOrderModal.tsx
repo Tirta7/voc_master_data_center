@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, ShoppingCart, Trash2, Plus, Minus, X, Coffee, Utensils, Zap, ChevronDown, Tag, Clock, Check, Info, AlertTriangle, ShieldCheck, AlertCircle } from 'lucide-react';
+import { 
+    Search, ShoppingCart, Trash2, Plus, Minus, X, Coffee, Utensils, 
+    Zap, ChevronDown, Tag, Clock, Check, Info, AlertTriangle, 
+    ShieldCheck, AlertCircle, ShoppingBag, Sparkles, Layers, Receipt, CreditCard 
+} from 'lucide-react';
 import { useAlert } from '@/components/ui/AlertProvider';
 import InputField from '@/components/ui/InputField';
 import { inventorySocket, socket } from '@/lib/socket';
@@ -8,8 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { generateIdempotencyKey } from '@/utils/transactionUtils';
 
-
-// Default icons mapping for dynamic categories
+// ── Default icons mapping for dynamic categories ─────────────────────────────
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
     'FOOD': <Utensils className="w-3.5 h-3.5" />,
     'MAKANAN': <Utensils className="w-3.5 h-3.5" />,
@@ -17,24 +20,52 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
     'MINUMAN': <Coffee className="w-3.5 h-3.5" />,
     'SNACK': <Zap className="w-3.5 h-3.5" />,
     'BUNDLING': <Tag className="w-3.5 h-3.5" />,
-    'ALL': <Zap className="w-3.5 h-3.5" />,
+    'ALL': <Sparkles className="w-3.5 h-3.5" />,
 };
 
 const getCategoryIcon = (name: string) => {
-    const upper = name.toUpperCase();
+    const upper = (name || '').toUpperCase();
     for (const key in CATEGORY_ICONS) {
         if (upper.includes(key)) return CATEGORY_ICONS[key];
     }
-    return <Zap className="w-3.5 h-3.5" />; // Fallback
+    return <Layers className="w-3.5 h-3.5" />;
 };
 
-const getCategoryColor = (name: string) => {
+const getCategoryTheme = (name: string) => {
     const upper = (name || '').toUpperCase();
-    if (upper.includes('FOOD') || upper.includes('MAKANAN')) return 'bg-emerald-500';
-    if (upper.includes('DRINK') || upper.includes('MINUMAN')) return 'bg-sky-500';
-    if (upper.includes('SNACK')) return 'bg-violet-500';
-    if (upper.includes('BUNDLING') || upper.includes('PROMO')) return 'bg-amber-500';
-    return 'bg-stone-300';
+    if (upper.includes('FOOD') || upper.includes('MAKANAN')) {
+        return {
+            badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+            activeRing: 'border-emerald-500 ring-emerald-500/10',
+            dot: 'bg-emerald-500'
+        };
+    }
+    if (upper.includes('DRINK') || upper.includes('MINUMAN')) {
+        return {
+            badge: 'bg-sky-50 text-sky-700 border-sky-200/80',
+            activeRing: 'border-sky-500 ring-sky-500/10',
+            dot: 'bg-sky-500'
+        };
+    }
+    if (upper.includes('SNACK')) {
+        return {
+            badge: 'bg-violet-50 text-violet-700 border-violet-200/80',
+            activeRing: 'border-violet-500 ring-violet-500/10',
+            dot: 'bg-violet-500'
+        };
+    }
+    if (upper.includes('BUNDLING') || upper.includes('PROMO')) {
+        return {
+            badge: 'bg-amber-50 text-amber-700 border-amber-200/80',
+            activeRing: 'border-amber-500 ring-amber-500/10',
+            dot: 'bg-amber-500'
+        };
+    }
+    return {
+        badge: 'bg-slate-100 text-slate-700 border-slate-200',
+        activeRing: 'border-indigo-500 ring-indigo-500/10',
+        dot: 'bg-slate-400'
+    };
 };
 
 interface CafeOrderModalProps {
@@ -77,7 +108,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         cartTotal: number;
     } | null>(null);
 
-    // ── Derived Variables ──
+    // ── Derived Variables ────────────────────────────────────────────────────
     const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
     const totalItems = cart.reduce((a, b) => a + b.quantity, 0);
     const activeTransactionMember = activeTransaction?.member;
@@ -100,7 +131,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     const potentialTotal = remainingBalance - estimatedCartTotal;
     const isBalanceInsufficient = isMemberSession && potentialTotal < 0;
 
-
     useEffect(() => {
         if (isOpen) {
             fetchMenu();
@@ -113,37 +143,25 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             setSearchQuery('');
             setIsCartOpen(false);
 
-            // Sync connection status
             setConnectionStatus(inventorySocket.connected ? 'connected' : 'connecting');
 
-            const onConnect = () => {
-                console.log('Inventory socket connected');
-                setConnectionStatus('connected');
-            };
-
+            const onConnect = () => setConnectionStatus('connected');
             const onConnectError = (err: any) => {
                 console.error('Inventory socket connection error:', err);
                 setConnectionStatus('error');
             };
-
-            const onDisconnect = (reason: string) => {
-                console.log('Inventory socket disconnected:', reason);
-                setConnectionStatus('connecting');
-            };
+            const onDisconnect = () => setConnectionStatus('connecting');
 
             const onMenuAvailability = (data: Record<number, number>) => {
-                console.log('Real-time menu availability update received:', data);
                 setAvailability(prev => ({ ...prev, ...data }));
             };
 
             const onInventoryUpdate = (updatedIngredient: any) => {
-                console.log('Real-time ingredient update received:', updatedIngredient);
                 setIngredients(prev =>
                     prev.map(ing => ing.id === updatedIngredient.id ? updatedIngredient : ing)
                 );
             };
 
-            // ── Real-time Member Balance Update ──
             const onMemberBalanceUpdated = (data: { memberId: number; balance: number }) => {
                 setActiveTransaction((prev: any) => {
                     if (!prev || !prev.member || prev.member.id !== data.memberId) return prev;
@@ -169,7 +187,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         }
     }, [isOpen]);
 
-    // ── Real-time Stock Conflict Detection ──
+    // ── Real-time Stock Conflict Detection ───────────────────────────────────
     useEffect(() => {
         if (!isOpen || cart.length === 0) return;
 
@@ -196,7 +214,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         }
     }, [availability, isOpen]);
 
-    // ── Auto-dismiss / Recalculate Warning when Balance Updates (Real-time) ──
+    // ── Recalculate Low Balance Warning ─────────────────────────────────────
     useEffect(() => {
         if (!isOpen || !lowBalanceWarning?.show || !isMemberSession) return;
 
@@ -213,11 +231,9 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         const thresholdMinutes = 30;
 
         if (newRemainingBalance >= 0 && estimatedRemainingMinutes >= thresholdMinutes) {
-            // Balance is now sufficient! Auto-dismiss warning.
             setLowBalanceWarning(null);
             showAlert('Saldo Bertambah', 'Top-up berhasil terdeteksi. Silahkan lanjutkan pesanan.', { variant: 'success' });
         } else {
-            // Balance still critical, but maybe updated. Recalculate warning details.
             setLowBalanceWarning(prev => prev ? {
                 ...prev,
                 newBalance: newRemainingBalance,
@@ -284,7 +300,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             const dbCategories = catRes.data.filter((c: any) => c.isActive && c.type !== 'INGREDIENT');
 
             const dynamicCategories = [
-                { id: 'ALL', label: 'Semua', icon: getCategoryIcon('ALL') },
+                { id: 'ALL', label: 'Semua Menu', icon: getCategoryIcon('ALL') },
                 { id: 'BUNDLING', label: 'Paket Bundling', icon: getCategoryIcon('BUNDLING') },
                 ...dbCategories.map((c: any) => ({
                     id: c.id,
@@ -443,7 +459,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         const scPct = financeSettings.serviceChargePercentage;
         const vatPct = financeSettings.ppnPercentage;
 
-        // SMART BALANCE CUTOFF WARNING
         if (isMemberSession && !forceBypassWarning) {
             let playedMinutes = 0;
             if (activeTransaction.startTime) {
@@ -451,11 +466,11 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 playedMinutes = Math.max(1, Math.floor(diff / 60000));
             }
             const billiardOnly = Number(activeTransaction.billiardTotal || 0);
-            const pricePerMinute = (playedMinutes > 0 && billiardOnly > 0) ? (billiardOnly / playedMinutes) : 500; // Fallback to Rp30k/hr
+            const pricePerMinute = (playedMinutes > 0 && billiardOnly > 0) ? (billiardOnly / playedMinutes) : 500;
             
             const newRemainingBalance = remainingBalance - estimatedTotal;
             const estimatedRemainingMinutes = Math.floor(newRemainingBalance / pricePerMinute);
-            const thresholdMinutes = 30; // 30 minutes critical threshold
+            const thresholdMinutes = 30;
 
             if (newRemainingBalance >= 0 && estimatedRemainingMinutes < thresholdMinutes) {
                 setLowBalanceWarning({
@@ -464,7 +479,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     remainingMinutes: estimatedRemainingMinutes,
                     cartTotal: estimatedTotal
                 });
-                return; // Stop checkout and wait for confirmation
+                return;
             }
         }
 
@@ -538,222 +553,241 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     return (
         <div
-            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-md flex flex-col justify-end md:justify-center"
+            className="fixed inset-0 z-[110] bg-slate-950/65 backdrop-blur-sm flex flex-col justify-end md:justify-center animate-in fade-in duration-200"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="flex flex-col w-full h-[92vh] md:h-[90vh] md:w-[96vw] lg:w-[93vw] xl:w-[89vw] md:m-auto bg-[#FAFAF9] rounded-t-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.2)] animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 relative">
+            {/* Modal Sheet Container - Stopped comfortably below Dynamic Island / Status Bar on Mobile */}
+            <div className="flex flex-col w-full h-[82vh] max-h-[calc(100vh-max(3.75rem,env(safe-area-inset-top)+1.5rem))] md:h-[88vh] md:w-[94vw] lg:w-[92vw] xl:w-[88vw] md:m-auto bg-slate-50 rounded-t-[2.25rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-200/80 animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 relative">
 
                 {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
                 {isSubmitting && (
-                    <div className="absolute inset-0 z-[9000] bg-white/60 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[9000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
                         <div className="relative">
-                            <div className="w-20 h-20 border-4 border-stone-100 border-t-stone-800 rounded-full animate-spin shadow-2xl" />
+                            <div className="w-20 h-20 border-4 border-indigo-400/30 border-t-indigo-500 rounded-full animate-spin shadow-2xl" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <ShoppingCart className="w-8 h-8 text-stone-300 animate-pulse" />
+                                <Utensils className="w-8 h-8 text-indigo-400 animate-pulse" />
                             </div>
                         </div>
-                        <div className="flex flex-col items-center gap-1">
-                            <p className="text-stone-900 font-black uppercase tracking-[0.2em] text-lg">Mengirim Pesanan...</p>
-                            <p className="text-stone-400 text-xs font-bold uppercase tracking-widest">Sinkronisasi dapur sedang berjalan</p>
+                        <div className="flex flex-col items-center gap-1.5 text-center">
+                            <p className="text-white font-black uppercase tracking-[0.25em] text-lg">Mengirim Pesanan...</p>
+                            <p className="text-slate-300 text-xs font-semibold uppercase tracking-widest">Sistem POS sedang memproses ke dapur</p>
                         </div>
                     </div>
                 )}
 
-                {/* ── LOW BALANCE WARNING OVERLAY ────────────────────────────────────── */}
+                {/* ── LOW BALANCE WARNING OVERLAY ───────────────────────────── */}
                 {lowBalanceWarning?.show && (
-                    <div className="absolute inset-0 z-[9000] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
-                        <div className="bg-white rounded-[2rem] max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="absolute inset-0 z-[9000] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2rem] max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
                             <div className="bg-rose-50 p-6 flex flex-col items-center text-center border-b border-rose-100">
-                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg shadow-rose-500/20 mb-4">
-                                    <AlertTriangle className="w-8 h-8 text-rose-500" />
+                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20 mb-4 border border-rose-100">
+                                    <AlertTriangle className="w-8 h-8 text-rose-600" />
                                 </div>
-                                <h3 className="text-xl font-black text-rose-600 tracking-tight uppercase mb-2">Peringatan Saldo Kritis!</h3>
-                                <p className="text-sm font-medium text-rose-800/80 leading-relaxed">
-                                    Pesanan makanan sebesar <strong className="text-rose-900">Rp {lowBalanceWarning.cartTotal.toLocaleString()}</strong> akan memotong Virtual Balance member secara signifikan.
+                                <h3 className="text-xl font-black text-rose-600 tracking-tight uppercase mb-1">Peringatan Saldo Kritis!</h3>
+                                <p className="text-xs font-semibold text-rose-800 leading-relaxed">
+                                    Pesanan makanan sebesar <strong className="text-rose-950 font-black">Rp {lowBalanceWarning.cartTotal.toLocaleString()}</strong> akan mengurangi saldo member secara signifikan.
                                 </p>
                             </div>
-                            <div className="p-6 space-y-4 bg-stone-50">
-                                <div className="flex justify-between items-center p-4 bg-white rounded-2xl border border-stone-200">
-                                    <span className="text-[10px] font-black uppercase text-stone-500 tracking-wider">Sisa Saldo Akhir</span>
-                                    <span className="text-lg font-black text-stone-900">Rp {lowBalanceWarning.newBalance.toLocaleString()}</span>
+                            <div className="p-6 space-y-3 bg-slate-50">
+                                <div className="flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Sisa Saldo Akhir</span>
+                                    <span className="text-base font-black text-slate-900 tabular-nums">Rp {lowBalanceWarning.newBalance.toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center p-4 bg-rose-50 rounded-2xl border border-rose-200">
-                                    <span className="text-[10px] font-black uppercase text-rose-500 tracking-wider">Estimasi Sisa Main</span>
-                                    <span className="text-lg font-black text-rose-600 animate-pulse">Sisa {lowBalanceWarning.remainingMinutes} Menit Lagi</span>
+                                <div className="flex justify-between items-center p-4 bg-rose-100/60 rounded-2xl border border-rose-200 shadow-2xs">
+                                    <span className="text-[10px] font-black uppercase text-rose-600 tracking-wider">Estimasi Sisa Main</span>
+                                    <span className="text-base font-black text-rose-700 animate-pulse tabular-nums">Sisa {lowBalanceWarning.remainingMinutes} Menit</span>
                                 </div>
-                                <p className="text-[10px] font-bold text-center text-stone-400 uppercase tracking-widest mt-4">Apa yang ingin dilakukan?</p>
                             </div>
-                            <div className="p-4 bg-white grid gap-3 border-t border-stone-100">
+                            <div className="p-4 bg-white grid gap-2.5 border-t border-slate-100">
                                 <button
                                     onClick={() => {
                                         window.open(`/admin/members`, '_blank');
                                         setLowBalanceWarning(null);
                                     }}
-                                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
                                     <Plus className="w-4 h-4" />
-                                    Opsi 1: Top-Up Langsung
+                                    Top-Up Saldo Member
                                 </button>
                                 <button
                                     onClick={() => {
                                         setLowBalanceWarning({ ...lowBalanceWarning, show: false });
                                         handleCheckout(true);
                                     }}
-                                    className="w-full py-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-stone-200"
+                                    className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-slate-200"
                                 >
-                                    Opsi 2: Lanjutkan Tempo (Biar Mati)
+                                    Lanjutkan Pesanan (Tempo)
                                 </button>
                                 <button
                                     onClick={() => setLowBalanceWarning(null)}
-                                    className="w-full py-4 bg-white hover:bg-rose-50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-rose-200 mt-2"
+                                    className="w-full py-3 bg-white hover:bg-rose-50 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-rose-200"
                                 >
-                                    Opsi 3: Batalkan Order
+                                    Batal Order
                                 </button>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* ── DRAG HANDLE (mobile) ── */}
-                <div className="md:hidden flex justify-center pt-3 pb-2 shrink-0 bg-gradient-to-b from-white via-white to-transparent sticky top-0 z-[40]">
-                    <div className="w-12 h-1.5 bg-stone-200/80 rounded-full" />
+                {/* ── MOBILE ELEGANT DRAG HANDLE ────────────────────────────── */}
+                <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0 bg-white sticky top-0 z-[40]">
+                    <div className="w-11 h-1 bg-slate-300/90 rounded-full" />
                 </div>
 
                 {/* ── HEADER ────────────────────────────────────────────────── */}
-                <div className="bg-white/80 backdrop-blur-md px-4 pt-2 pb-3 md:px-6 md:pt-5 md:pb-4 border-b border-stone-100 shrink-0 z-30 sticky top-0">
-                    <div className="flex justify-between items-start md:items-center mb-4 gap-3">
+                <div className="bg-white px-3.5 sm:px-5 pt-1 pb-2.5 md:pt-4 md:pb-4 border-b border-slate-200/80 shrink-0 z-30 sticky top-0">
+                    <div className="flex justify-between items-center gap-2">
                         <div className="flex flex-col flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-stone-900 flex items-center justify-center shadow-lg shadow-stone-900/10 shrink-0">
-                                    <Utensils className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 flex items-center justify-center shadow-md shadow-slate-900/10 shrink-0 border border-slate-800">
+                                    <Utensils className="w-4 h-4 text-indigo-300" />
                                 </div>
-                                <h2 className="text-lg md:text-2xl font-black text-stone-900 tracking-tighter shrink-0">
-                                    Menu Pesanan
-                                </h2>
-                                <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
-                                    <div className="bg-stone-100 text-stone-600 px-2.5 py-1 md:px-3 md:py-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black tracking-widest uppercase">
-                                        {tableName || `Meja ${tableId}`}
+                                <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <h2 className="text-sm sm:text-base md:text-2xl font-black text-slate-900 tracking-tight truncate">
+                                            Menu Pesanan
+                                        </h2>
+                                        <div className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg text-[9px] md:text-xs font-black tracking-wider uppercase border border-indigo-100 shrink-0">
+                                            {tableName || `Meja ${tableId}`}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1.5 md:gap-2 bg-stone-50 md:bg-transparent px-2 md:px-0 py-1 md:py-0 rounded-lg border md:border-none border-stone-100">
-                                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
                                         <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-rose-600'}`}>
-                                            {connectionStatus === 'connected' ? 'LIVE' : connectionStatus === 'connecting' ? 'WAIT' : 'OFFLINE'}
+                                            {connectionStatus === 'connected' ? 'LIVE SYSTEM' : connectionStatus === 'connecting' ? 'WAIT' : 'OFFLINE'}
                                         </span>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Member Balance Metrics */}
                             {isMemberSession && (
-                                <div className="flex flex-col gap-1.5 mt-3">
-                                    <div className="flex items-center gap-3">
-                                        {/* PILLAR 1: TOTAL SALDO */}
-                                        <div className="flex flex-col px-3 py-1.5 rounded-xl border bg-stone-50 border-stone-100 h-full justify-center">
-                                            <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.1em]">Total Saldo</span>
-                                            <span className="text-xs font-black text-stone-800 tabular-nums">
+                                <div className="flex overflow-x-auto no-scrollbar gap-1.5 mt-2 pt-2 border-t border-slate-100 -mx-1 px-1">
+                                    <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80 shrink-0">
+                                        <CreditCard className="w-3 h-3 text-slate-400" />
+                                        <div className="flex flex-col">
+                                            <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Saldo</span>
+                                            <span className="text-[11px] font-black text-slate-800 tabular-nums">
                                                 Rp {totalMemberBalance.toLocaleString('id-ID')}
                                             </span>
                                         </div>
+                                    </div>
 
-                                        <div className="text-stone-300 font-light text-xl">−</div>
-
-                                        {/* PILLAR 2: HUTANG LIVE */}
-                                        <div className="flex flex-col px-3 py-1.5 rounded-xl border bg-rose-50/50 border-rose-100 h-full justify-center">
-                                            <span className="text-[9px] font-black text-rose-400 uppercase tracking-[0.1em]">Tagihan Meja</span>
-                                            <span className="text-xs font-black text-rose-500 tabular-nums">
+                                    <div className="flex items-center gap-1.5 bg-rose-50/60 px-2.5 py-1 rounded-xl border border-rose-100 shrink-0">
+                                        <Receipt className="w-3 h-3 text-rose-400" />
+                                        <div className="flex flex-col">
+                                            <span className="text-[7px] font-black text-rose-400 uppercase tracking-wider">Tagihan</span>
+                                            <span className="text-[11px] font-black text-rose-600 tabular-nums">
                                                 Rp {currentTableLiability.toLocaleString('id-ID')}
                                             </span>
                                         </div>
+                                    </div>
 
-                                        <div className="text-stone-300 font-light text-xl">=</div>
-
-                                        {/* PILLAR 3: SISA BUDGET (EFFECTIVE) */}
-                                        <div className={`flex flex-col px-4 py-1.5 rounded-xl border transition-all duration-300 h-full justify-center min-w-[120px] ${remainingBalance < 50000 ? 'bg-rose-50 border-rose-200 animate-pulse' : 'bg-indigo-600 border-indigo-500 shadow-lg shadow-indigo-100'}`}>
-                                            <span className={`text-[9px] font-black uppercase tracking-[0.1em] ${remainingBalance < 50000 ? 'text-rose-500' : 'text-indigo-100'}`}>
-                                                {remainingBalance < 0 ? 'Hutang Melebih Saldo' : 'Sisa Budget'}
+                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border shrink-0 transition-all ${remainingBalance < 50000 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-slate-900 border-slate-800 text-white shadow-2xs'}`}>
+                                        <ShieldCheck className={`w-3 h-3 ${remainingBalance < 50000 ? 'text-rose-500' : 'text-indigo-400'}`} />
+                                        <div className="flex flex-col">
+                                            <span className={`text-[7px] font-black uppercase tracking-wider ${remainingBalance < 50000 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                Sisa Budget
                                             </span>
-                                            <span className={`text-sm font-black tabular-nums ${remainingBalance < 50000 ? 'text-rose-600' : 'text-white'}`}>
+                                            <span className="text-[11px] font-black tabular-nums">
                                                 Rp {Math.max(0, remainingBalance).toLocaleString('id-ID')}
                                             </span>
                                         </div>
-
-                                        {cartTotal > 0 && (
-                                            <>
-                                                <div className="w-px h-6 bg-stone-200 mx-1" />
-                                                <div className="flex flex-col px-3 py-1.5 rounded-xl border bg-emerald-50 border-emerald-100 h-full justify-center">
-                                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.1em]">Estimasi Baru</span>
-                                                    <span className={`text-xs font-black tabular-nums ${remainingBalance < estimatedCartTotal ? 'text-rose-600 animate-pulse' : 'text-emerald-700'}`}>
-                                                        Rp {estimatedCartTotal.toLocaleString('id-ID')}
-                                                    </span>
-                                                </div>
-                                            </>
-                                        )}
                                     </div>
-                                    {potentialTotal < 0 && (
-                                        <div className="flex items-center gap-2 text-rose-500 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 w-fit">
-                                            <AlertTriangle className="w-3.5 h-3.5" />
-                                            <span className="text-[10px] font-black uppercase tracking-wider">Peringatan: Saldo Tidak Mencukupi</span>
+
+                                    {cartTotal > 0 && (
+                                        <div className="flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/80 shrink-0">
+                                            <Sparkles className="w-3 h-3 text-emerald-500" />
+                                            <div className="flex flex-col">
+                                                <span className="text-[7px] font-black text-emerald-600 uppercase tracking-wider">Estimasi</span>
+                                                <span className={`text-[11px] font-black tabular-nums ${remainingBalance < estimatedCartTotal ? 'text-rose-600' : 'text-emerald-700'}`}>
+                                                    Rp {estimatedCartTotal.toLocaleString('id-ID')}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 md:gap-2.5 shrink-0 ml-3">
+                        {/* Top Action Controls */}
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
                             <button
                                 onClick={() => { fetchAvailability(); fetchIngredients(); fetchMenu(); }}
-                                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-xl md:rounded-2xl text-stone-400 transition-all border border-stone-200 active:scale-90"
+                                className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 transition-all active:scale-95 border border-slate-200/60"
                                 title="Refresh Menu"
                             >
-                                <Clock className={`w-3.5 h-3.5 md:w-4 md:h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
+                                <Clock className={`w-3.5 h-3.5 transition-transform ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-stone-50 hover:bg-rose-50 hover:text-rose-500 rounded-xl md:rounded-2xl text-stone-400 shrink-0 transition-all border border-stone-200 active:scale-90"
+                                className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-slate-500 shrink-0 transition-all active:scale-95 border border-slate-200/60"
                             >
-                                <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                                <X className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     </div>
 
-                    <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-                        <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
-                            {categories.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => setActiveCategory(cat.id)}
-                                    className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all shrink-0 ${activeCategory === cat.id
-                                        ? 'bg-stone-900 text-white shadow-xl shadow-stone-900/20 translate-y-[-1px]'
-                                        : 'bg-white text-stone-500 border border-stone-200 hover:border-stone-400 hover:text-stone-800'
-                                        }`}
-                                >
-                                    {cat.icon}
-                                    {cat.label}
-                                </button>
-                            ))}
+                    {/* Filter & Search Bar */}
+                    <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center mt-2.5 pt-2 border-t border-slate-100">
+                        {/* Horizontal Categories */}
+                        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1 flex-1">
+                            {categories.map(cat => {
+                                const isActive = activeCategory === cat.id;
+                                return (
+                                    <button
+                                        key={cat.id}
+                                        onClick={() => setActiveCategory(cat.id)}
+                                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${isActive
+                                            ? 'bg-slate-900 text-white shadow-xs scale-[1.02]'
+                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 shadow-2xs'
+                                            }`}
+                                    >
+                                        <span className={isActive ? 'text-indigo-400' : 'text-slate-400'}>{cat.icon}</span>
+                                        <span>{cat.label}</span>
+                                    </button>
+                                );
+                            })}
                         </div>
-                        <div className="relative flex-1 md:max-w-[300px]">
-                            <InputField
-                                label=""
+
+                        {/* Search Bar Input */}
+                        <div className="relative w-full md:w-[240px] shrink-0">
+                            <input
+                                type="text"
                                 value={searchQuery}
-                                onChange={(val) => setSearchQuery(val)}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Cari menu favorit..."
-                                suffix={<Search className="w-4 h-4 text-stone-400" />}
-                                className="!py-3 !px-6 !bg-stone-50 !border-stone-200 focus:!bg-white focus:!border-stone-900 !rounded-2xl !text-xs !font-bold transition-all"
+                                className="w-full pl-8 pr-7 py-2 bg-slate-100/90 border border-slate-200 focus:bg-white focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 transition-all outline-none"
                             />
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-[9px] font-bold hover:bg-slate-400"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* ── BODY ──────────────────────────────────────────────────── */}
-                <div className="flex flex-1 min-h-0 overflow-hidden">
-                    {/* Menu Area */}
-                    <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 no-scrollbar bg-stone-50/10">
+                {/* ── BODY (MENU GRID & DESKTOP CART SIDEBAR) ───────────────── */}
+                <div className="flex flex-1 min-h-0 overflow-hidden bg-slate-100/60">
+                    {/* Menu Area Grid */}
+                    <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 sm:p-4 md:p-6 no-scrollbar">
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-stone-300">
-                                <div className="animate-spin rounded-full h-12 w-12 border-[3px] border-stone-100 border-t-stone-900" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Memuat Menu...</span>
+                            <div className="flex flex-col items-center justify-center h-full gap-2.5 text-slate-400 py-16">
+                                <div className="animate-spin rounded-full h-9 w-9 border-[3px] border-slate-200 border-t-slate-900" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Memuat Menu...</span>
+                            </div>
+                        ) : filteredMenu.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-2 text-slate-400 py-16">
+                                <Utensils className="w-10 h-10 text-slate-300 stroke-[1.5px]" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tidak ada menu ditemukan</p>
                             </div>
                         ) : (
-                            <div className={activeCategory === 'BUNDLING' ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5" : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"}>
+                            <div className={activeCategory === 'BUNDLING' ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3" : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3"}>
                                 {filteredMenu.map((item: any) => {
                                     const qty = cart.find(c => c.id === item.id)?.quantity || 0;
                                     const inCart = qty > 0;
@@ -763,7 +797,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                     const isOutOfStock = itemStock <= 0;
 
                                     const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
-                                    const catColor = getCategoryColor(catName);
+                                    const theme = getCategoryTheme(catName);
 
                                     const estimatedIfAdded = (() => { const s = itemPrice; const scPct = financeSettings.serviceChargePercentage / 100; const vPct = financeSettings.ppnPercentage / 100; const sc2 = Math.round(s * scPct); const v2 = Math.round((s + sc2) * vPct); return s + sc2 + v2; })();
                                     const isTooExpensive = isMemberSession && (estimatedCartTotal + estimatedIfAdded) > remainingBalance && qty === 0;
@@ -773,123 +807,112 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             key={item.id}
                                             disabled={isOutOfStock || isTooExpensive}
                                             onClick={() => addToCart(item)}
-                                            className={`group relative flex flex-col w-full text-left rounded-xl border transition-all duration-300 overflow-hidden ${isOutOfStock || isTooExpensive
-                                                ? 'bg-stone-50 border-stone-100 opacity-60'
+                                            className={`group relative flex flex-col justify-between w-full text-left rounded-2xl transition-all duration-200 overflow-hidden border p-2.5 sm:p-3 ${isOutOfStock || isTooExpensive
+                                                ? 'bg-slate-100/70 border-slate-200/60 opacity-60 cursor-not-allowed'
                                                 : inCart
-                                                    ? 'bg-stone-900 border-stone-800 shadow-lg ring-2 ring-stone-900/10 translate-y-[-2px]'
-                                                    : 'bg-white border-stone-100 hover:border-stone-400 hover:shadow-md hover:translate-y-[-1px]'
+                                                    ? 'bg-indigo-50/60 border-2 border-indigo-600 shadow-md ring-2 ring-indigo-600/10 -translate-y-0.5'
+                                                    : 'bg-white border-slate-200/80 hover:border-indigo-400 hover:shadow-md hover:-translate-y-0.5'
                                                 }`}
                                         >
-                                            {/* Category Color Bar */}
-                                            <div className={`absolute top-0 left-0 bottom-0 w-1 ${catColor} ${inCart ? 'opacity-100' : 'opacity-40'}`} />
-
-                                            <div className="p-2.5 pl-3.5 flex flex-col h-full flex-1">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div className="flex flex-col">
-                                                        <span className={`text-[7px] font-black uppercase tracking-widest ${inCart ? 'text-white/40' : 'text-stone-400'}`}>
-                                                            {catName}
-                                                        </span>
-                                                        <div className={`mt-0.5 flex items-center gap-1.5 transition-colors duration-300 ${inCart ? 'text-white' : 'text-stone-400'}`}>
-                                                            {isPromo ? <Tag className="w-2.5 h-2.5" /> : (typeof item.category === 'string' ? getCategoryIcon(item.category) : getCategoryIcon(item.category?.name || 'ALL'))}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-0.5">
-                                                        {isOutOfStock ? (
-                                                            <span className="bg-rose-50 text-rose-500 text-[6px] font-black px-1.5 py-0.5 rounded border border-rose-100 uppercase">SOLDOUT</span>
-                                                        ) : isTooExpensive ? (
-                                                            <span className="bg-rose-100 text-rose-600 text-[6px] font-black px-1.5 py-0.5 rounded uppercase animate-pulse">NO BAL</span>
-                                                        ) : (
-                                                            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border ${inCart ? 'bg-white/10 border-white/5 text-white/60' : (Number(itemStock) < 10 ? 'bg-rose-50 border-rose-100 text-rose-500 animate-pulse' : 'bg-stone-50 border-stone-100 text-stone-400')}`}>
-                                                                <span className="text-[6px] font-black uppercase">STK:</span>
-                                                                <span className="text-[7px] font-black tabular-nums">{itemStock}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                            {/* Header Row: Category Badge & Stock */}
+                                            <div className="flex justify-between items-center w-full min-w-0 mb-1.5 gap-1 overflow-hidden">
+                                                <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-tight border min-w-0 shrink ${theme.badge}`}>
+                                                    {isPromo ? <Tag className="w-2.5 h-2.5 text-amber-600 shrink-0" /> : getCategoryIcon(catName)}
+                                                    <span className="truncate max-w-[65px] sm:max-w-[85px]">{isPromo ? 'BUNDLING' : catName || 'MENU'}</span>
                                                 </div>
 
-                                                {isTooExpensive && (
-                                                    <div className="absolute top-0 right-0 z-50 overflow-hidden w-24 h-24 pointer-events-none">
-                                                        <div className="absolute top-4 -right-8 w-[140%] py-1 bg-rose-500 text-white text-[7px] font-black text-center uppercase tracking-widest rotate-45 shadow-lg animate-pulse">
-                                                            SALDO KURANG
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {isOutOfStock ? (
+                                                        <span className="bg-rose-50 text-rose-600 text-[7px] font-black px-1.5 py-0.5 rounded-md border border-rose-200 uppercase">HABIS</span>
+                                                    ) : isTooExpensive ? (
+                                                        <span className="bg-rose-100 text-rose-700 text-[7px] font-black px-1.5 py-0.5 rounded-md uppercase">SALDO</span>
+                                                    ) : (
+                                                        <div className={`px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase tabular-nums shrink-0 ${Number(itemStock) < 10 ? 'bg-amber-50 border-amber-200 text-amber-700 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+                                                            STK: {itemStock}
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    )}
 
-                                                <div className="flex-1 min-h-[32px]">
-                                                    <h4 className={`text-[11px] font-bold leading-tight mb-1 line-clamp-2 transition-colors duration-300 ${inCart ? 'text-white' : 'text-stone-800'}`}>
-                                                        {item.name}
-                                                    </h4>
-                                                </div>
-
-                                                <div className="flex items-baseline justify-between mt-auto mb-1">
-                                                    <div className={`flex items-baseline gap-0.5 ${inCart ? 'text-white' : 'text-stone-900'}`}>
-                                                        <span className={`text-[8px] font-black ${inCart ? 'text-white/40' : 'text-stone-400'}`}>Rp</span>
-                                                        <span className="text-[12px] font-black tabular-nums tracking-tighter">{itemPrice.toLocaleString()}</span>
-                                                    </div>
                                                     {inCart && (
-                                                        <div className="text-[10px] font-black tabular-nums bg-white/20 text-white px-1.5 rounded-lg">
+                                                        <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-xs border border-indigo-500 animate-in zoom-in-75 duration-150 shrink-0">
                                                             {qty}x
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Item Title */}
+                                            <div className="min-h-[2.25rem] my-1 flex items-center">
+                                                <h4 className="text-xs font-bold text-slate-900 leading-tight line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                                                    {item.name}
+                                                </h4>
+                                            </div>
+
+                                            {/* Price & Add Action Row */}
+                                            <div className="flex items-center justify-between mt-1.5 pt-2 border-t border-slate-100 gap-1">
+                                                <div className="flex flex-col justify-center min-w-0">
+                                                    <span className="text-[7px] font-black text-slate-400 uppercase leading-none">Rp</span>
+                                                    <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight tabular-nums leading-tight mt-0.5 truncate">{itemPrice.toLocaleString('id-ID')}</span>
+                                                </div>
+
+                                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${inCart ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105' : 'bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-700'}`}>
+                                                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={2.5} />
+                                                </div>
+                                            </div>
+
+                                            {/* Recipe / Ingredient Breakdown Toggle */}
+                                            {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
+                                                <div className="mt-1.5 pt-1.5 border-t border-dashed border-slate-200">
+                                                    <div
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); } }}
+                                                        className="flex items-center gap-1 text-[8px] font-black uppercase text-slate-400 hover:text-slate-600 tracking-wider transition-colors cursor-pointer"
+                                                    >
+                                                        <Info className="w-3 h-3 text-slate-400" />
+                                                        {showRecipeId === item.id ? 'Tutup Detail' : 'Stok Bahan'}
+                                                    </div>
+
+                                                    {showRecipeId === item.id && (
+                                                        <div className="mt-1 rounded-lg p-1.5 bg-slate-50 border border-slate-200 text-[8px] font-bold space-y-0.5">
+                                                            {item.recipes.map((re: any, idx: number) => {
+                                                                const ing = ingredients.find(i => i.id === re.ingredientId);
+                                                                const currentStock = ing ? Number(ing.stockQuantity) : 0;
+                                                                const isLow = currentStock < (Number(re.quantity) * 5);
+                                                                return (
+                                                                    <div key={idx} className="flex justify-between items-center text-slate-600">
+                                                                        <span className="uppercase truncate max-w-[80px]">{re.ingredient?.name || 'Bahan'}:</span>
+                                                                        <span className={`tabular-nums font-black ${isLow ? 'text-rose-600' : 'text-slate-800'}`}>
+                                                                            {currentStock.toFixed(1)} {re.ingredient?.unit || re.unit}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     )}
                                                 </div>
+                                            )}
 
-                                                {/* Recipe / Ingredient Breakdown */}
-                                                {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
-                                                    <div className="mt-2.5 pt-2 border-t border-dashed border-stone-100 flex flex-col gap-1.5">
-                                                        <div
-                                                            role="button"
-                                                            tabIndex={0}
-                                                            onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
-                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); } }}
-                                                            className={`flex items-center gap-1 text-[7px] font-black uppercase tracking-widest transition-colors cursor-pointer ${inCart ? 'text-white/60 hover:text-white' : 'text-stone-400 hover:text-stone-600'}`}
-                                                        >
-                                                            <Info className="w-2.5 h-2.5 text-stone-300" />
-                                                            {showRecipeId === item.id ? 'Tutup Detail' : 'Stok Bahan'}
-                                                        </div>
-
-                                                        {showRecipeId === item.id && (
-                                                            <div className={`rounded-lg p-2 border animate-in slide-in-from-top-1 duration-200 ${inCart ? 'bg-white/10 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
-                                                                {item.recipes.map((re: any, idx: number) => {
-                                                                    const ing = ingredients.find(i => i.id === re.ingredientId);
-                                                                    const currentStock = ing ? Number(ing.stockQuantity) : 0;
-                                                                    const isLow = currentStock < (Number(re.quantity) * 5);
-                                                                    return (
-                                                                        <div key={idx} className="flex justify-between text-[7px] font-black items-center py-0.5">
-                                                                            <span className={inCart ? 'text-white/50 uppercase tracking-tighter' : 'text-stone-400 uppercase tracking-tighter'}>{re.ingredient?.name || 'Bahan'}:</span>
-                                                                            <span className={`tabular-nums ${isLow ? 'text-rose-500' : inCart ? 'text-white/70' : 'text-stone-600'}`}>
-                                                                                {currentStock.toFixed(1)} <span className="text-[6px] opacity-70">{re.ingredient?.unit || re.unit}</span>
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {isPromo && item.items?.length > 0 && (
-                                                    <div className={`mt-2 pt-2 border-t border-dashed ${inCart ? 'border-white/10' : 'border-stone-100'}`}>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {item.items.slice(0, 3).map((sub: any, idx: number) => (
-                                                                <div key={idx} className={`px-2 py-0.5 rounded-lg text-[8px] font-bold border transition-colors ${inCart ? 'bg-white/10 border-white/5 text-white/60' : 'bg-stone-50 border-stone-100 text-stone-500'}`}>
-                                                                    {sub.quantity}x {sub.name}
-                                                                </div>
-                                                            ))}
-                                                            {item.items.length > 3 && <div className="text-[8px] text-stone-400 font-bold px-1">+{item.items.length - 3}</div>}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            {/* Promo items preview */}
+                                            {isPromo && item.items?.length > 0 && (
+                                                <div className="mt-1.5 pt-1 border-t border-dashed border-slate-200 flex flex-wrap gap-1">
+                                                    {item.items.slice(0, 2).map((sub: any, idx: number) => (
+                                                        <span key={idx} className="px-1 py-0.5 rounded bg-slate-100 text-slate-600 text-[7px] font-bold">
+                                                            {sub.quantity}x {sub.name}
+                                                        </span>
+                                                    ))}
+                                                    {item.items.length > 2 && <span className="text-[7px] text-slate-400 font-bold">+{item.items.length - 2}</span>}
+                                                </div>
+                                            )}
                                         </button>
-
                                     );
                                 })}
                             </div>
                         )}
                     </div>
 
-                    {/* Desktop Sidebar */}
-                    <div className="hidden md:flex flex-col w-[320px] lg:w-[350px] bg-white border-l border-stone-100 shrink-0 overflow-hidden relative">
+                    {/* Desktop Cart Sidebar View */}
+                    <div className="hidden md:flex flex-col w-[330px] lg:w-[360px] bg-white border-l border-slate-200/80 shrink-0 overflow-hidden relative shadow-lg">
                         <CartContent
                             cart={cart}
                             total={cartTotal}
@@ -908,67 +931,67 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     </div>
                 </div>
 
-                <div className="md:hidden shrink-0 z-20">
-                    <div className="bg-white/95 backdrop-blur-md border-t border-stone-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,16px)+12px)] flex items-center gap-2 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]">
-                        {cart.length > 0 ? (
-                            <>
-                                <button
-                                    onClick={() => setIsCartOpen(true)}
-                                    className="flex items-center gap-3 flex-1 h-[3.75rem] bg-stone-50 hover:bg-stone-100 border border-stone-100 rounded-[1.25rem] px-3.5 transition-all active:scale-95"
-                                >
-                                    <div className="relative shrink-0">
-                                        <div className="w-9 h-9 rounded-xl bg-white shadow-sm border border-stone-100 flex items-center justify-center">
-                                            <ShoppingCart className="w-4 h-4 text-stone-800" />
-                                        </div>
-                                        <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 bg-indigo-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">{totalItems}</span>
+                {/* ── MOBILE BOTTOM FLOATING BAR (Optimized for iOS Safe Area) ── */}
+                <div className="md:hidden shrink-0 z-30 bg-white/95 border-t border-slate-200/80 px-3 sm:px-4 pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))] shadow-[0_-10px_25px_rgba(0,0,0,0.08)] overflow-visible">
+                    {cart.length > 0 ? (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsCartOpen(true)}
+                                className="flex items-center gap-2.5 flex-1 h-12 sm:h-13 bg-slate-100/80 hover:bg-slate-100 border border-slate-200/70 rounded-2xl px-3 transition-all active:scale-[0.98] min-w-0"
+                            >
+                                <div className="relative shrink-0">
+                                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white shadow-2xs border border-slate-200/60 flex items-center justify-center">
+                                        <ShoppingBag className="w-4 h-4 text-slate-800" />
                                     </div>
-                                    <div className="flex-1 text-left min-w-0 flex flex-col justify-center">
-                                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em] truncate">Total Estimasi</p>
-                                        <p className="text-[13px] font-black text-stone-900 tabular-nums truncate leading-tight mt-0.5">Rp {estimatedCartTotal.toLocaleString()}</p>
-                                    </div>
-                                    <div className="w-7 h-7 rounded-full bg-stone-200/50 flex items-center justify-center shrink-0">
-                                        <ChevronDown className="w-3.5 h-3.5 text-stone-500 rotate-180" />
-                                    </div>
-                                </button>
-                                <button
-                                    onClick={() => handleCheckout()}
-                                    disabled={isBalanceInsufficient || isSubmitting}
-                                    className={`shrink-0 h-[3.75rem] px-6 rounded-[1.25rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg ${isBalanceInsufficient ? 'bg-rose-50 text-rose-500 cursor-not-allowed shadow-none border border-rose-100' : isSubmitting ? 'bg-stone-100 text-stone-300 shadow-none' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'}`}
-                                >
-                                    {isSubmitting ? <Clock className="w-4 h-4 animate-spin" /> : isBalanceInsufficient ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                                    <span>{isBalanceInsufficient ? 'Kurang' : 'Lanjut'}</span>
-                                </button>
-                            </>
-                        ) : (
-                            <div className="flex-1 h-[3.75rem] flex items-center justify-center text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] bg-stone-50 rounded-[1.25rem] border border-dashed border-stone-200">
-                                Pilih menu untuk memesan
-                            </div>
-                        )}
-                    </div>
+                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-indigo-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                                        {totalItems}
+                                    </span>
+                                </div>
+                                <div className="flex-1 text-left min-w-0 flex flex-col justify-center">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest truncate leading-none">TOTAL ESTIMASI</p>
+                                    <p className="text-xs sm:text-sm font-black text-slate-900 tabular-nums truncate leading-tight mt-0.5">Rp {estimatedCartTotal.toLocaleString('id-ID')}</p>
+                                </div>
+                                <div className="w-6 h-6 rounded-full bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
+                                    <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+                                </div>
+                            </button>
+                            
+                            <button
+                                onClick={() => handleCheckout()}
+                                disabled={isBalanceInsufficient || isSubmitting}
+                                className={`shrink-0 h-12 sm:h-13 px-5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md ${isBalanceInsufficient ? 'bg-rose-50 text-rose-600 border border-rose-200 shadow-none' : isSubmitting ? 'bg-slate-100 text-slate-300 shadow-none' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white shadow-indigo-600/25'}`}
+                            >
+                                {isSubmitting ? <Clock className="w-4 h-4 animate-spin" /> : isBalanceInsufficient ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                                <span>{isBalanceInsufficient ? 'KURANG' : 'LANJUT'}</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="h-12 flex items-center justify-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                            Pilih menu untuk memesan
+                        </div>
+                    )}
                 </div>
 
-                {/* ── CART DRAWER (MOBILE) ── */}
+                {/* ── MOBILE CART DRAWER (BOUNDED WITHIN SHEET) ───────────── */}
                 {isCartOpen && (
-                    <div className="md:hidden fixed inset-0 z-[120] bg-white flex flex-col animate-in slide-in-from-right duration-300">
-                        {/* Header for Mobile Cart */}
+                    <div className="md:hidden absolute inset-0 z-[120] bg-white flex flex-col animate-in slide-in-from-right duration-250 rounded-t-[2.25rem]">
                         <div 
-                            className="bg-white px-4 pb-3 flex items-center justify-between border-b border-stone-100 shadow-sm relative z-[130]" 
-                            style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}
+                            className="bg-white px-3.5 pt-3 pb-2.5 flex items-center justify-between border-b border-slate-200/80 shadow-2xs relative z-[130]" 
                         >
                             <button 
                                 onClick={() => setIsCartOpen(false)}
-                                className="flex items-center gap-2 px-3 py-2 -ml-1 bg-stone-100 hover:bg-stone-200 active:scale-95 rounded-xl text-stone-700 transition-all shadow-sm"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-xl text-slate-800 font-black text-[11px] uppercase tracking-wider transition-all"
                             >
-                                <ChevronDown className="w-4 h-4 rotate-90" />
-                                <span className="font-black text-[10px] uppercase tracking-widest">Pilih Menu</span>
+                                <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+                                <span>Pilih Menu</span>
                             </button>
-                            <div className="flex items-center gap-2">
-                                <ShoppingCart className="w-4 h-4 text-stone-400" />
-                                <span className="font-black text-stone-900 tracking-[0.2em] uppercase text-[10px]">Keranjang</span>
+                            <div className="flex items-center gap-1.5">
+                                <ShoppingCart className="w-4 h-4 text-indigo-600" />
+                                <span className="font-black text-slate-900 tracking-widest uppercase text-xs">KERANJANG</span>
                             </div>
-                            <div className="w-[88px]" /> {/* Spacer */}
+                            <div className="w-[78px]" />
                         </div>
-                        <div className="flex-1 flex flex-col min-h-0 bg-stone-50/50 overflow-hidden relative z-[125]">
+                        <div className="flex-1 flex flex-col min-h-0 bg-slate-50 overflow-hidden relative z-[125]">
                             <CartContent
                                 cart={cart}
                                 total={cartTotal}
@@ -992,7 +1015,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     );
 }
 
-/* ── CART CONTENT ────────────────────────────────────────────────────────── */
+/* ── CART SIDEBAR CONTENT COMPONENT ───────────────────────────────────────── */
 function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBalanceInsufficient, potentialBalance, scPercent, vatPercent, scAmount, vatAmount, grandEstimate, isSubmitting }: any) {
     const hasKitchenItems = cart.some((item: any) => {
         const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
@@ -1001,157 +1024,151 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
     });
 
     return (
-        <div className="flex-1 flex flex-col h-full min-h-0 bg-transparent relative">
-            {/* Header: Order Ticket Style (Hidden on mobile since we have the top bar now) */}
-            <div className="hidden md:block px-5 py-5 bg-white border-b border-stone-100 shrink-0 relative z-30">
-                <div className="flex justify-between items-center mb-1">
-                    <h2 className="text-[12px] font-black uppercase tracking-[0.2em] text-stone-900">Detail Pesanan</h2>
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 rounded-lg">
-                        <span className="text-[10px] font-black text-emerald-600">{cart.length} Item</span>
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)] animate-pulse" />
+        <div className="flex-1 flex flex-col h-full min-h-0 bg-white relative">
+            {/* Header Ticket POS */}
+            <div className="hidden md:flex px-4 py-3.5 bg-slate-900 text-white justify-between items-center shrink-0 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center border border-white/15">
+                        <Receipt className="w-3.5 h-3.5 text-indigo-300" />
+                    </div>
+                    <div className="flex flex-col">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-white">Detail Pesanan</h3>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" /> PESANAN BARU
+                        </p>
                     </div>
                 </div>
-                <p className="text-[9px] font-bold text-stone-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Clock className="w-3 h-3" />
-                    PESANAN BARU • {new Date().toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit' })}
-                </p>
+
+                <div className="bg-indigo-600/80 text-white px-2 py-0.5 rounded-lg text-xs font-black border border-indigo-400/40">
+                    {cart.reduce((a: number, b: any) => a + b.quantity, 0)} Item
+                </div>
             </div>
 
-            {/* Main Content Area (Scrollable) */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-5 z-10">
+            {/* Scrollable Cart Items List */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2.5 bg-slate-50/60">
                 {cart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-stone-300 gap-4 opacity-60">
-                        <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mb-2">
-                            <ShoppingCart className="w-8 h-8 text-stone-400 stroke-[1.5px]" />
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2.5 py-12">
+                        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center border border-slate-200/80 shadow-2xs">
+                            <ShoppingCart className="w-5 h-5 text-slate-300 stroke-[1.5px]" />
                         </div>
-                        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-center text-stone-500">Keranjang Kosong</p>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-center text-slate-400">Keranjang Kosong</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3">
-                        {cart.map((item: any) => {
-                            const isIncreaseDisabled = potentialBalance < Number(item.price);
-                            return (
-                                <div key={item.id} className="flex flex-col gap-3 bg-white p-4 rounded-[1.5rem] border border-stone-100 shadow-sm group">
-                                    <div className="flex justify-between items-start gap-3">
-                                        {/* Details */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-black text-stone-900 text-xs leading-tight mb-1 truncate">{item.name}</p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[11px] font-bold text-stone-400 tabular-nums">@ {Number(item.price).toLocaleString()}</span>
-                                                {item.isPromo && <span className="text-[9px] font-black bg-rose-50 text-rose-500 px-2 py-0.5 rounded flex items-center gap-1 border border-rose-100"><Tag className="w-2.5 h-2.5"/> PKG</span>}
-                                            </div>
-                                        </div>
-                                        {/* Subtotal */}
-                                        <div className="flex flex-col items-end shrink-0 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-100">
-                                            <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em] mb-0.5">Subtotal</span>
-                                            <span className="font-black text-stone-900 text-sm tabular-nums">{(item.price * item.quantity).toLocaleString()}</span>
+                    cart.map((item: any) => {
+                        const isIncreaseDisabled = potentialBalance < Number(item.price);
+                        return (
+                            <div key={item.id} className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2.5 group hover:border-indigo-200 transition-all">
+                                {/* Row 1: Name & Subtotal */}
+                                <div className="flex justify-between items-start gap-2">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-slate-900 text-xs leading-snug line-clamp-2">{item.name}</p>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-[10px] font-bold text-slate-400 tabular-nums">@ {Number(item.price).toLocaleString('id-ID')}</span>
+                                            {item.isPromo && (
+                                                <span className="text-[7px] font-black bg-amber-50 text-amber-700 px-1 py-0.5 rounded border border-amber-200">PROMO</span>
+                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Note & Controls Row */}
-                                    <div className="flex flex-col gap-3 mt-1 border-t border-dashed border-stone-100 pt-3">
-                                        <div className="flex items-center justify-between gap-3">
-                                            {/* Note Input */}
-                                            <div className="flex-1">
-                                                <InputField
-                                                    label=""
-                                                    value={item.note || ''}
-                                                    onChange={(val) => updateNote(item.id, val)}
-                                                    placeholder="Tambah catatan..."
-                                                    className="!py-2 !px-4 !text-[10px] !font-bold !bg-stone-50/50 hover:!bg-stone-50 focus:!bg-white !border-stone-100 focus:!border-stone-300 !rounded-[1rem] placeholder:!text-stone-300 transition-all"
-                                                />
-                                            </div>
+                                    {/* Subtotal Tag */}
+                                    <div className="bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200/80 text-right shrink-0">
+                                        <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 block leading-none">Subtotal</span>
+                                        <span className="text-[11px] font-black text-slate-900 tabular-nums">
+                                            {(item.price * item.quantity).toLocaleString('id-ID')}
+                                        </span>
+                                    </div>
+                                </div>
 
-                                            {/* Horizontal Qty Controls */}
-                                            <div className="flex items-center gap-2 shrink-0 bg-stone-100 p-1 rounded-[1rem] shadow-inner">
-                                                {item.quantity === 1 ? (
-                                                    <button
-                                                        onClick={() => updateQuantity(item.id, 0)}
-                                                        className="w-8 h-8 flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-500 bg-white rounded-[0.8rem] shadow-sm transition-all active:scale-95"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" strokeWidth={2.5} />
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                        className="w-8 h-8 flex items-center justify-center text-stone-600 hover:text-stone-900 bg-white rounded-[0.8rem] shadow-sm transition-all active:scale-95"
-                                                    >
-                                                        <Minus className="w-4 h-4" strokeWidth={3} />
-                                                    </button>
-                                                )}
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    min="0"
-                                                    value={item.quantity === 0 ? '' : item.quantity}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                                        updateQuantity(item.id, isNaN(val) ? 0 : val);
-                                                    }}
-                                                    className="w-12 text-center text-[13px] font-black text-stone-900 tabular-nums bg-transparent border-none p-0 m-0 focus:outline-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                                />
-                                                
+                                {/* Row 2: Note Field & Stepper Controls */}
+                                <div className="pt-1.5 border-t border-slate-100 flex flex-col gap-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex-1">
+                                            <InputField
+                                                label=""
+                                                value={item.note || ''}
+                                                onChange={(val) => updateNote(item.id, val)}
+                                                placeholder="Tambah catatan..."
+                                                className="!py-1 !px-2.5 !text-[10px] !font-semibold !bg-slate-50 hover:!bg-white focus:!bg-white !border-slate-200/80 focus:!border-indigo-400 !rounded-xl placeholder:!text-slate-400 transition-all"
+                                            />
+                                        </div>
+
+                                        {/* Stepper Buttons */}
+                                        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl shrink-0">
+                                            {item.quantity === 1 ? (
                                                 <button
-                                                    onClick={() => updateQuantity(item.id, Number(item.quantity) + 1)}
-                                                    disabled={isIncreaseDisabled}
-                                                    className={`w-8 h-8 flex items-center justify-center rounded-[0.8rem] shadow-sm transition-all ${isIncreaseDisabled ? 'bg-stone-50 text-stone-300 cursor-not-allowed' : 'bg-white text-stone-600 hover:text-stone-900 active:scale-95'}`}
+                                                    onClick={() => updateQuantity(item.id, 0)}
+                                                    className="w-6 h-6 flex items-center justify-center text-rose-600 hover:bg-rose-500 hover:text-white bg-white rounded-lg transition-all active:scale-90 shadow-2xs"
+                                                    title="Hapus Item"
                                                 >
-                                                    <Plus className="w-4 h-4" strokeWidth={3} />
+                                                    <Trash2 className="w-3 h-3" />
                                                 </button>
-                                            </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                    className="w-6 h-6 flex items-center justify-center text-slate-700 hover:bg-slate-200 bg-white rounded-lg transition-all active:scale-90 shadow-2xs"
+                                                >
+                                                    <Minus className="w-3 h-3" strokeWidth={2.5} />
+                                                </button>
+                                            )}
+
+                                            <span className="w-7 text-center text-xs font-black text-slate-900 tabular-nums">
+                                                {item.quantity}
+                                            </span>
+
+                                            <button
+                                                onClick={() => updateQuantity(item.id, Number(item.quantity) + 1)}
+                                                disabled={isIncreaseDisabled}
+                                                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-all shadow-2xs ${isIncreaseDisabled ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white hover:bg-slate-200 text-slate-800 active:scale-90'}`}
+                                            >
+                                                <Plus className="w-3 h-3" strokeWidth={2.5} />
+                                            </button>
                                         </div>
                                     </div>
 
                                     {item.isPromo && item.items?.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                        <div className="flex flex-wrap gap-1 mt-0.5">
                                             {item.items.map((sub: any, idx: number) => (
-                                                <span key={idx} className="text-[9px] font-bold text-stone-500 bg-stone-50 px-2 py-1 rounded border border-stone-100 flex items-center gap-1.5">
-                                                    <span className="text-stone-900 font-black">{sub.quantity}x</span> {sub.name}
+                                                <span key={idx} className="text-[7px] font-semibold text-slate-600 bg-slate-50 px-1 py-0.5 rounded border border-slate-200">
+                                                    {sub.quantity}x {sub.name}
                                                 </span>
                                             ))}
                                         </div>
                                     )}
                                 </div>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        );
+                    })
                 )}
             </div>
 
-            {/* Footer Summary */}
+            {/* Financial Summary & Action Footer */}
             {cart.length > 0 && (
                 <div 
-                    className="px-4 md:px-6 pt-5 pb-5 md:pt-6 md:pb-6 bg-white border-t border-stone-100 shrink-0 shadow-[0_-20px_40px_rgba(0,0,0,0.04)] z-30"
-                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 20px)' }}
+                    className="px-4 pt-3 pb-4 bg-white border-t border-slate-200/80 shrink-0 shadow-lg space-y-2.5 z-20"
+                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 16px)' }}
                 >
-                    <div className="space-y-3 mb-5 bg-stone-50/80 p-5 rounded-[1.5rem] border border-stone-100">
-                        <div className="flex flex-col gap-2.5">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none">Subtotal:</span>
-                                <span className="text-[11px] text-stone-600 font-bold tabular-nums">Rp {total.toLocaleString()}</span>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 space-y-1.5">
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Subtotal:</span>
+                            <span className="font-bold text-slate-800 tabular-nums">Rp {total.toLocaleString('id-ID')}</span>
+                        </div>
+
+                        {(scPercent > 0 || vatPercent > 0) && (
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-500 uppercase text-[9px] tracking-wider">Pajak & SC:</span>
+                                <span className="font-bold text-slate-800 tabular-nums">Rp {(scAmount + vatAmount).toLocaleString('id-ID')}</span>
                             </div>
-                            {(scPercent > 0 || vatPercent > 0) && (
-                                <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none">Pajak & SC:</span>
-                                    <span className="text-[11px] text-stone-600 font-bold tabular-nums">Rp {(scAmount + vatAmount).toLocaleString()}</span>
-                                </div>
-                            )}
-                            <div className={`flex justify-between items-center p-3.5 mt-1 rounded-[1rem] border transition-all ${isBalanceInsufficient
-                                ? 'bg-rose-50 border-rose-200 shadow-inner'
-                                : 'bg-white border-stone-200 shadow-sm'
-                                }`}>
-                                <span className={`text-[11px] font-black uppercase tracking-[0.2em] ${isBalanceInsufficient ? 'text-rose-500' : 'text-stone-900'}`}>Total Akhir</span>
-                                <div className="flex flex-col items-end">
-                                    <span className={`text-xl font-black tabular-nums ${isBalanceInsufficient ? 'text-rose-600' : 'text-stone-900'}`}>
-                                        Rp {grandEstimate.toLocaleString()}
-                                    </span>
-                                    {isBalanceInsufficient && (
-                                        <div className="flex items-center gap-1.5 mt-1 text-rose-500">
-                                            <AlertTriangle className="w-3 h-3 animate-pulse" />
-                                            <span className="text-[9px] font-black uppercase tracking-tighter">Saldo Tidak Mencukupi</span>
-                                        </div>
-                                    )}
-                                </div>
+                        )}
+
+                        <div className={`flex justify-between items-center p-2.5 rounded-xl border mt-1 ${isBalanceInsufficient ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-slate-900 text-white border-slate-800 shadow-xs'}`}>
+                            <span className="text-[9px] font-black uppercase tracking-widest">TOTAL AKHIR</span>
+                            <div className="flex flex-col items-end">
+                                <span className="text-sm sm:text-base font-black tabular-nums">
+                                    Rp {grandEstimate.toLocaleString('id-ID')}
+                                </span>
+                                {isBalanceInsufficient && (
+                                    <span className="text-[7px] font-black uppercase text-rose-600 tracking-tight">Saldo Tidak Cukup</span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1159,18 +1176,18 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                     <button
                         onClick={onCheckout}
                         disabled={isBalanceInsufficient || isSubmitting}
-                        className={`w-full py-4 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 md:gap-3 shadow-xl ${isBalanceInsufficient || isSubmitting
-                            ? 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-200 shadow-none'
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'}`}
+                        className={`w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-md ${isBalanceInsufficient || isSubmitting
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
+                            : 'bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-indigo-600/25'}`}
                     >
                         {isSubmitting ? (
                             <>
-                                <div className="w-4 h-4 md:w-5 md:h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" />
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 <span>Memproses...</span>
                             </>
                         ) : (
                             <>
-                                <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" />
+                                <ShieldCheck className="w-4 h-4" />
                                 <span>{isBalanceInsufficient ? 'Saldo Tidak Cukup' : (hasKitchenItems ? 'Kirim Pesanan Ke Dapur' : 'Simpan Pesanan')}</span>
                             </>
                         )}
