@@ -21,7 +21,8 @@ import {
     Filter,
     Gamepad2,
     MousePointer2,
-    Trash2
+    Trash2,
+    X
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
@@ -478,7 +479,14 @@ export default function WaiterAssignmentsPage() {
                         { label: 'Shift Aktif', value: shifts.length, icon: <Activity className="w-5 h-5 text-indigo-600" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                         { label: 'Total Meja Cafe', value: cafeTables.length, icon: <Coffee className="w-5 h-5 text-amber-600" />, gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
                         { label: 'Total Billiard', value: billiardTables.length, icon: <Gamepad2 className="w-5 h-5 text-slate-700" />, gradient: 'from-slate-600 to-slate-700', light: 'bg-slate-100', text: 'text-slate-700' },
-                        { label: 'Cakupan Area', value: `${Math.round((shifts.reduce((acc, s) => acc + (s.assignedTableIds?.length || 0), 0) / (cafeTables.length + billiardTables.length || 1)) * 100)}%`, icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { 
+                            label: 'Cakupan Area', 
+                            value: `${(cafeTables.length + billiardTables.length) > 0 ? Math.round((new Set(assignmentList.flatMap(a => (a.assignedTableIds || []).map(t => `${t.type}-${t.id}`))).size / (cafeTables.length + billiardTables.length)) * 100) : 0}%`, 
+                            icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, 
+                            gradient: 'from-emerald-500 to-emerald-600', 
+                            light: 'bg-emerald-50', 
+                            text: 'text-emerald-700' 
+                        },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
                             <div className="flex items-start justify-between mb-3">
@@ -654,10 +662,12 @@ export default function WaiterAssignmentsPage() {
                                         </button>
                                     </div>
                                     <button
+                                        type="button"
                                         onClick={() => setSelectedItem(null)}
                                         className="p-3 bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-2xl transition-all"
+                                        title="Tutup Panel"
                                     >
-                                        <RefreshCw className="w-5 h-5" />
+                                        <X className="w-5 h-5" />
                                     </button>
                             </div>
 
@@ -668,7 +678,7 @@ export default function WaiterAssignmentsPage() {
                                         <div className="flex justify-between items-center px-1">
                                             <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Peta Lokasi Interaktif</h3>
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => setLocalAssignments([])} className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase hover:bg-rose-100 transition-colors shadow-sm">
+                                                <button type="button" onClick={() => setLocalAssignments([])} className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase hover:bg-rose-100 transition-colors shadow-sm">
                                                     Kosongkan Semua
                                                 </button>
                                             </div>
@@ -696,6 +706,7 @@ export default function WaiterAssignmentsPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button 
+                                                type="button"
                                                 onClick={() => handleSelectAll('BILLIARD')}
                                                 className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm"
                                             >
@@ -779,6 +790,7 @@ export default function WaiterAssignmentsPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button 
+                                                type="button"
                                                 onClick={() => handleSelectAll('CAFE')}
                                                 className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm"
                                             >
@@ -801,6 +813,7 @@ export default function WaiterAssignmentsPage() {
 
                                             return (
                                                 <button
+                                                    type="button"
                                                     key={`c-${t.id}`}
                                                     onClick={() => toggleTable('CAFE', t.id)}
                                                     className={`p-5 rounded-3xl border-2 transition-all relative group flex flex-col items-center gap-3 h-32 justify-center overflow-hidden ${isAssigned
@@ -855,12 +868,14 @@ export default function WaiterAssignmentsPage() {
                                 </div>
                                 <div className="flex gap-3">
                                     <button
+                                        type="button"
                                         onClick={() => setSelectedItem(null)}
                                         className="px-6 py-3.5 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all text-sm"
                                     >
                                         Batal
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={handleSaveAssignments}
                                         disabled={updatingShift !== null || updatingUser !== null}
                                         className="px-10 py-3.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-600/20 active:scale-95 transition-all text-sm flex items-center gap-2 disabled:opacity-50"
@@ -931,12 +946,14 @@ export default function WaiterAssignmentsPage() {
 
                             <div className="p-6 border-t border-slate-100 bg-white flex gap-3">
                                 <button
+                                    type="button"
                                     onClick={() => setShowTargetModal(false)}
                                     className="flex-1 py-3.5 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all text-sm"
                                 >
                                     Batal
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={targetActionType === 'assign' ? executeAutoAssign : executeRotateArea}
                                     disabled={selectedTargetIds.length === 0}
                                     className="flex-1 py-3.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-600/20 active:scale-95 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"

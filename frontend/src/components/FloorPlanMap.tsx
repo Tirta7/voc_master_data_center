@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Gamepad2, Coffee, Layers } from 'lucide-react';
+import { Gamepad2, Coffee, Layers, Hand, MousePointer2 } from 'lucide-react';
 
 interface FloorElement {
     id: string;
@@ -38,6 +38,11 @@ export default function FloorPlanMap({ localAssignments, onToggleTable, tableOcc
     const [isLassoing, setIsLassoing] = useState(false);
     const [lassoStart, setLassoStart] = useState({ x: 0, y: 0 });
     const [lassoCurrent, setLassoCurrent] = useState({ x: 0, y: 0 });
+    
+    // Pan Mode States
+    const [interactionMode, setInteractionMode] = useState<'pan' | 'select'>('pan');
+    const [isPanning, setIsPanning] = useState(false);
+    const [panStart, setPanStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
     useEffect(() => {
         const fetchLayout = async () => {
@@ -93,6 +98,20 @@ export default function FloorPlanMap({ localAssignments, onToggleTable, tableOcc
 
     const handlePointerDown = (e: React.PointerEvent) => {
         if (!containerRef.current || !activeFloor) return;
+        
+        if (interactionMode === 'pan') {
+            if (!wrapperRef.current) return;
+            setIsPanning(true);
+            setPanStart({
+                x: e.clientX,
+                y: e.clientY,
+                scrollLeft: wrapperRef.current.scrollLeft,
+                scrollTop: wrapperRef.current.scrollTop
+            });
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            return;
+        }
+
         const rect = containerRef.current.getBoundingClientRect();
         const x = (e.clientX - rect.left) / zoom;
         const y = (e.clientY - rect.top) / zoom;
@@ -103,12 +122,26 @@ export default function FloorPlanMap({ localAssignments, onToggleTable, tableOcc
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
+        if (interactionMode === 'pan' && isPanning && wrapperRef.current) {
+            const dx = e.clientX - panStart.x;
+            const dy = e.clientY - panStart.y;
+            wrapperRef.current.scrollLeft = panStart.scrollLeft - dx;
+            wrapperRef.current.scrollTop = panStart.scrollTop - dy;
+            return;
+        }
+
         if (!isLassoing || !containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         setLassoCurrent({ x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom });
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
+        if (interactionMode === 'pan' && isPanning) {
+            setIsPanning(false);
+            (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+            return;
+        }
+
         if (!isLassoing) return;
         setIsLassoing(false);
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -173,6 +206,7 @@ export default function FloorPlanMap({ localAssignments, onToggleTable, tableOcc
                         <div className="pl-3 pr-1 text-slate-400"><Layers className="w-4 h-4" /></div>
                         {floors.map(f => (
                             <button
+                                type="button"
                                 key={f.id}
                                 onClick={() => setActiveFloorId(f.id)}
                                 className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeFloorId === f.id ? 'bg-white text-indigo-600 shadow-md scale-105' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
@@ -183,17 +217,40 @@ export default function FloorPlanMap({ localAssignments, onToggleTable, tableOcc
                     </div>
                 ) : <div />}
 
-                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl shadow-sm border border-slate-200 text-xs font-bold text-slate-600">
-                    <span>Zoom: {Math.round(zoom * 100)}%</span>
-                    <input 
-                        type="range" 
-                        min="0.3" 
-                        max="2" 
-                        step="0.1" 
-                        value={zoom} 
-                        onChange={(e) => setZoom(parseFloat(e.target.value))}
-                        className="w-24 accent-indigo-600"
-                    />
+                <div className="flex items-center gap-4 bg-white px-3 py-2 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                        <button
+                            type="button"
+                            onClick={() => setInteractionMode('pan')}
+                            className={`p-1.5 rounded-lg transition-all ${interactionMode === 'pan' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200'}`}
+                            title="Geser Peta (Pan)"
+                        >
+                            <Hand className="w-4 h-4" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setInteractionMode('select')}
+                            className={`p-1.5 rounded-lg transition-all ${interactionMode === 'select' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200'}`}
+                            title="Pilih Banyak Meja (Lasso Select)"
+                        >
+                            <MousePointer2 className="w-4 h-4" />
+                        </button>
+                    </div>
+                    
+                    <div className="w-px h-6 bg-slate-200" />
+                    
+                    <div className="flex items-center gap-3 text-xs font-bold text-slate-600 pr-2">
+                        <span>Zoom: {Math.round(zoom * 100)}%</span>
+                        <input 
+                            type="range" 
+                            min="0.3" 
+                            max="2" 
+                            step="0.1" 
+                            value={zoom} 
+                            onChange={(e) => setZoom(parseFloat(e.target.value))}
+                            className="w-24 accent-indigo-600"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -201,7 +258,7 @@ export default function FloorPlanMap({ localAssignments, onToggleTable, tableOcc
                 <div className="relative" style={{ width: dynamicWidth * zoom, height: dynamicHeight * zoom, minWidth: '100%', minHeight: '100%' }}>
                     <div 
                         ref={containerRef}
-                        className="absolute overflow-hidden touch-none"
+                        className={`absolute overflow-hidden ${interactionMode === 'select' ? 'touch-none cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
                         style={{ 
                             left: '50%',
                             top: '50%',
