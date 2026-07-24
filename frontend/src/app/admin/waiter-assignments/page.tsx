@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
+import { performKMeansClustering, rotateAssignments } from '@/utils/spatialClustering';
 import {
     Users,
     Shield,
@@ -18,11 +20,13 @@ import {
     UserCircle2,
     Filter,
     Gamepad2,
-    MousePointer2
+    MousePointer2,
+    Trash2
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import { useMqtt } from '@/context/MqttContext';
+import FloorPlanMap from '@/components/FloorPlanMap';
 
 // import { API_URL } from '@/utils/urlUtils';
 
@@ -67,12 +71,24 @@ export default function WaiterAssignmentsPage() {
     const [updatingShift, setUpdatingShift] = useState<number | null>(null);
     const [updatingUser, setUpdatingUser] = useState<number | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [mounted, setMounted] = useState(false);
+    
+    // Auto Assign States
+    const [autoAssigning, setAutoAssigning] = useState(false);
+    const [floorElements, setFloorElements] = useState<any[]>([]);
+
+    // Target Selection Modal States
+    const [showTargetModal, setShowTargetModal] = useState(false);
+    const [targetActionType, setTargetActionType] = useState<'assign' | 'rotate' | null>(null);
+    const [selectedTargetIds, setSelectedTargetIds] = useState<number[]>([]);
 
     // UI state for modal
     const [selectedItem, setSelectedItem] = useState<{ shift?: Shift, user: User } | null>(null);
     const [localAssignments, setLocalAssignments] = useState<{ type: 'CAFE' | 'BILLIARD'; id: number }[]>([]);
+    const [viewMode, setViewMode] = useState<'grid' | 'map'>('map');
 
     useEffect(() => {
+        setMounted(true);
         fetchData();
 
         // MQTT Listeners for Real-time Sync
@@ -90,12 +106,23 @@ export default function WaiterAssignmentsPage() {
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const [shiftRes, employeeRes, cafeRes, billiardRes] = await Promise.all([
+            const [shiftRes, employeeRes, cafeRes, billiardRes, settingsRes] = await Promise.all([
                 axios.get(`/finance/shifts/open`),
                 axios.get(`/users/employees`),
                 axios.get(`/cafe-table`),
-                axios.get(`/billiard/tables`)
+                axios.get(`/billiard/tables`),
+                axios.get(`/settings`)
             ]);
+
+            if (settingsRes.data?.floorPlanLayout) {
+                const parsed = typeof settingsRes.data.floorPlanLayout === 'string' 
+                    ? JSON.parse(settingsRes.data.floorPlanLayout) 
+                    : settingsRes.data.floorPlanLayout;
+                if (parsed.elements) setFloorElements(parsed.elements);
+                else if (parsed.floors && parsed.floors.length > 0) {
+                    setFloorElements(parsed.floors.flatMap((f: any) => f.elements || []));
+                }
+            }
 
             const sortTables = (tables: any[]) => {
                 return [...tables].sort((a, b) => {
@@ -280,6 +307,130 @@ export default function WaiterAssignmentsPage() {
         });
     }
 
+    const handleOpenTargetModal = (type: 'assign' | 'rotate') => {
+        setTargetActionType(type);
+        
+        // Filter only those who are strictly WAITERS for smart assignment
+        const eligibleWaiters = assignmentList.filter(item => {
+            const roleName = item.user.role?.name?.toUpperCase() || '';
+            return ['WAITER', 'WAITERS'].some(n => roleName.includes(n));
+        });
+        
+        // Select all by default
+        setSelectedTargetIds(eligibleWaiters.map(w => w.user.id));
+        setShowTargetModal(true);
+    };
+
+    const executeAutoAssign = async () => {
+        setShowTargetModal(false);
+        const targetWaiters = assignmentList.filter(a => selectedTargetIds.includes(a.user.id));
+        
+        if (targetWaiters.length === 0) {
+            showAlert('Peringatan', 'Tidak ada data waiter yang dipilih.', { variant: 'warning' });
+            return;
+        }
+        if (floorElements.length === 0) {
+            showAlert('Peringatan', 'Denah belum diatur. Silakan atur denah terlebih dahulu.', { variant: 'warning' });
+            return;
+        }
+
+        const points = floorElements
+            .filter(e => (e.type === 'BILLIARD' || e.type === 'CAFE') && e.tableId)
+            .map(e => ({
+                id: e.tableId,
+                type: e.type as 'BILLIARD' | 'CAFE',
+                x: e.x,
+                y: e.y
+            }));
+            
+        if (points.length === 0) {
+            showAlert('Peringatan', 'Tidak ada meja valid di denah.', { variant: 'warning' });
+            return;
+        }
+
+        setAutoAssigning(true);
+        try {
+            const clusters = performKMeansClustering(points, targetWaiters.length);
+            const promises = targetWaiters.map(async (waiterItem, index) => {
+                const tablesForWaiter = clusters[index] || [];
+                const assignedTableIds = tablesForWaiter.map(t => ({ type: t.type, id: t.id }));
+                await axios.post(`/finance/shifts/user/${waiterItem.user.id}/assignments`, { assignedTableIds });
+                if (waiterItem.shift) {
+                    await axios.post(`/finance/shifts/${waiterItem.shift.id}/assignments`, { assignedTableIds });
+                }
+            });
+
+            await Promise.all(promises);
+            showAlert('Sukses', 'Area penugasan berhasil dibagi secara cerdas!', { variant: 'success' });
+            fetchData();
+        } catch (error) {
+            console.error('Auto assign failed', error);
+            showAlert('Gagal', 'Terjadi kesalahan saat membagi area.', { variant: 'error' });
+        } finally {
+            setAutoAssigning(false);
+        }
+    };
+
+    const executeRotateArea = async () => {
+        setShowTargetModal(false);
+        const targetWaiters = assignmentList.filter(a => selectedTargetIds.includes(a.user.id));
+        
+        if (targetWaiters.length <= 1) {
+            showAlert('Peringatan', 'Butuh minimal 2 data waiter untuk rotasi.', { variant: 'warning' });
+            return;
+        }
+
+        setAutoAssigning(true);
+        try {
+            const currentAssignments = targetWaiters.map(w => w.assignedTableIds || []);
+            const rotatedAssignments = rotateAssignments(currentAssignments, 1);
+            
+            const promises = targetWaiters.map(async (waiterItem, index) => {
+                const newAssignedTables = rotatedAssignments[index];
+                await axios.post(`/finance/shifts/user/${waiterItem.user.id}/assignments`, { assignedTableIds: newAssignedTables });
+                if (waiterItem.shift) {
+                    await axios.post(`/finance/shifts/${waiterItem.shift.id}/assignments`, { assignedTableIds: newAssignedTables });
+                }
+            });
+
+            await Promise.all(promises);
+            showAlert('Sukses', 'Area penugasan berhasil dirotasi memutar!', { variant: 'success' });
+            fetchData();
+        } catch (error) {
+            console.error('Rotate failed', error);
+            showAlert('Gagal', 'Terjadi kesalahan saat merotasi area.', { variant: 'error' });
+        } finally {
+            setAutoAssigning(false);
+        }
+    };
+
+    const handleClearAllAreas = async () => {
+        if (!confirm('Anda yakin ingin MENGHAPUS SEMUA area penugasan dari seluruh waiter?')) return;
+        
+        const targetWaiters = assignmentList;
+        if (targetWaiters.length === 0) return;
+
+        setAutoAssigning(true);
+        try {
+            const promises = targetWaiters.map(async (waiterItem) => {
+                const emptyAssignments: any[] = [];
+                await axios.post(`/finance/shifts/user/${waiterItem.user.id}/assignments`, { assignedTableIds: emptyAssignments });
+                if (waiterItem.shift) {
+                    await axios.post(`/finance/shifts/${waiterItem.shift.id}/assignments`, { assignedTableIds: emptyAssignments });
+                }
+            });
+
+            await Promise.all(promises);
+            showAlert('Sukses', 'Seluruh penugasan berhasil dikosongkan!', { variant: 'success' });
+            fetchData();
+        } catch (error) {
+            console.error('Clear failed', error);
+            showAlert('Gagal', 'Terjadi kesalahan saat mengosongkan area.', { variant: 'error' });
+        } finally {
+            setAutoAssigning(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40">
             <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
@@ -338,6 +489,42 @@ export default function WaiterAssignmentsPage() {
                             <p className={`text-xl lg:text-2xl font-black ${s.text} leading-tight`}>{s.value}</p>
                         </div>
                     ))}
+                </div>
+
+                {/* ── Action Bar (AI & Tools) ── */}
+                <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-5 rounded-3xl border border-slate-100 shadow-md">
+                    <div className="flex items-center gap-3 flex-1">
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                            <Activity className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-bold text-slate-800">Manajemen Cerdas</h2>
+                            <p className="text-xs text-slate-500 font-medium">Bagi atau rotasi area kerja secara otomatis</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                        <button
+                            onClick={handleClearAllAreas}
+                            disabled={autoAssigning || loading}
+                            className="flex-shrink-0 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 border border-red-100"
+                        >
+                            <Trash2 className="w-4 h-4" /> Kosongkan
+                        </button>
+                        <button
+                            onClick={() => handleOpenTargetModal('rotate')}
+                            disabled={autoAssigning || loading}
+                            className="flex-shrink-0 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${autoAssigning ? 'animate-spin' : ''}`} /> Rotasi Area
+                        </button>
+                        <button
+                            onClick={() => handleOpenTargetModal('assign')}
+                            disabled={autoAssigning || loading}
+                            className="flex-shrink-0 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            <Activity className="w-4 h-4" /> Bagi Area Pintar
+                        </button>
+                    </div>
                 </div>
 
                 {/* Waiters List */}
@@ -435,10 +622,10 @@ export default function WaiterAssignmentsPage() {
                 }
 
                 {/* Assignment Modal */}
-                {selectedItem && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                {selectedItem && mounted && createPortal(
+                    <div className="fixed -inset-4 sm:inset-0 z-[9999] flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setSelectedItem(null)} />
-                        <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-white/20">
+                        <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-7xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-white/20">
                             {/* Modal Header */}
                             <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -452,17 +639,50 @@ export default function WaiterAssignmentsPage() {
                                         </p>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setSelectedItem(null)}
-                                    className="p-3 bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-2xl transition-all"
-                                >
-                                    <RefreshCw className="w-5 h-5" />
-                                </button>
+                                    <div className="bg-slate-100 p-1 rounded-xl flex items-center mr-4">
+                                        <button 
+                                            onClick={() => setViewMode('map')} 
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all \${viewMode === 'map' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Peta (Denah)
+                                        </button>
+                                        <button 
+                                            onClick={() => setViewMode('grid')} 
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all \${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Grid
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedItem(null)}
+                                        className="p-3 bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-2xl transition-all"
+                                    >
+                                        <RefreshCw className="w-5 h-5" />
+                                    </button>
                             </div>
 
                             {/* Modal Content */}
                             <div className="p-8 overflow-y-auto space-y-12 custom-scrollbar flex-1 bg-slate-50/20">
-                                {/* Billiard Section */}
+                                {viewMode === 'map' ? (
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center px-1">
+                                            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Peta Lokasi Interaktif</h3>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => setLocalAssignments([])} className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase hover:bg-rose-100 transition-colors shadow-sm">
+                                                    Kosongkan Semua
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <FloorPlanMap 
+                                            localAssignments={localAssignments} 
+                                            onToggleTable={toggleTable} 
+                                            tableOccupancy={tableOccupancy}
+                                            waiterColorClass="bg-indigo-600 border-indigo-700 text-white"
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Billiard Section */}
                                 <div className="space-y-6">
                                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
                                         <div className="flex items-center gap-3">
@@ -624,6 +844,8 @@ export default function WaiterAssignmentsPage() {
                                         })}
                                     </div>
                                 </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Modal Footer */}
@@ -649,7 +871,83 @@ export default function WaiterAssignmentsPage() {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
+                )}
+
+                {/* ── Target Selection Modal ── */}
+                {mounted && showTargetModal && createPortal(
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowTargetModal(false)} />
+                        <div className="bg-white rounded-3xl w-full max-w-md relative flex flex-col max-h-[90vh] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="p-6 border-b border-slate-100">
+                                <h3 className="text-xl font-black text-slate-800">
+                                    {targetActionType === 'assign' ? 'Pilih Target Auto-Assign' : 'Pilih Target Rotasi'}
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-1">Centang waiter yang akan diatur areanya. Agar tidak kacau, pastikan Anda hanya memilih waiter dalam satu shift yang sama (misal: Shift 1 saja).</p>
+                            </div>
+                            
+                            <div className="p-6 overflow-y-auto space-y-3 flex-1 bg-slate-50/50">
+                                {assignmentList.filter(item => {
+                                    const roleName = item.user.role?.name?.toUpperCase() || '';
+                                    return ['WAITER', 'WAITERS'].some(n => roleName.includes(n));
+                                }).map(item => {
+                                    const isSelected = selectedTargetIds.includes(item.user.id);
+                                    return (
+                                        <button
+                                            key={item.user.id}
+                                            onClick={() => setSelectedTargetIds(prev => isSelected ? prev.filter(id => id !== item.user.id) : [...prev, item.user.id])}
+                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:border-indigo-100'}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-black ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                                    {item.user.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className={`font-bold ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{item.user.name}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className="text-[10px] font-semibold tracking-widest text-slate-400 uppercase">
+                                                            {item.shift ? (
+                                                                <span className="text-emerald-500">DALAM SHIFT: {item.shift.shiftName}</span>
+                                                            ) : (
+                                                                <span>OFF DUTY</span>
+                                                            )}
+                                                        </p>
+                                                        {(item.user as any).baseShift && (
+                                                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest ${isSelected ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+                                                                {(item.user as any).baseShift}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 border border-slate-200'}`}>
+                                                {isSelected && <CheckCircle2 className="w-4 h-4" />}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="p-6 border-t border-slate-100 bg-white flex gap-3">
+                                <button
+                                    onClick={() => setShowTargetModal(false)}
+                                    className="flex-1 py-3.5 bg-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-200 transition-all text-sm"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={targetActionType === 'assign' ? executeAutoAssign : executeRotateArea}
+                                    disabled={selectedTargetIds.length === 0}
+                                    className="flex-1 py-3.5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-600/20 active:scale-95 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {targetActionType === 'assign' ? <Activity className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+                                    Mulai Proses
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
                 )}
             </div>
         </div>

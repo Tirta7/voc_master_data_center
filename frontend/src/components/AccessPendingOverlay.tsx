@@ -52,125 +52,108 @@ const AccessPendingOverlay = () => {
     const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     return (
-        <div className="fixed inset-0 bg-[#0F172A] z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-hidden overscroll-contain">
-            {/* Animated Background */}
-            <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" />
-            <div className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[60%] bg-rose-600/10 rounded-full blur-[120px] animate-pulse delay-700" />
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-6 overflow-hidden overscroll-contain font-sans animate-in fade-in duration-300">
+            {/* Darker, smooth backdrop */}
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
-            <div className="w-full max-w-[400px] relative z-10 flex flex-col items-center">
+            <div className="w-full max-w-[400px] relative z-10 flex flex-col items-center justify-end sm:justify-center h-full sm:h-auto">
                 
-                {/* Main Content Card */}
-                <div className="w-full bg-white/[0.02] backdrop-blur-3xl rounded-[2.5rem] p-8 sm:p-10 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
+                {/* Main Content Card - Premium Clean iOS Sheet (Light) */}
+                <div className="w-full bg-[#f9f9fb]/95 backdrop-blur-3xl sm:rounded-[36px] rounded-[36px] sm:rounded-b-[36px] rounded-b-none p-8 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8 text-center shadow-[0_-8px_40px_rgba(0,0,0,0.15)] border-t border-black/[0.04] relative overflow-hidden animate-in slide-in-from-bottom-[100%] duration-500 ease-out">
+                    
+                    {/* iOS drag handle indicator */}
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-black/15 rounded-full sm:hidden" />
 
-                    {/* Status Icon Compact */}
-                    <div className="mb-6 mx-auto relative flex justify-center">
+                    {/* Status Animation Area */}
+                    <div className="mt-4 mb-6 flex justify-center">
                         {status === 'PENDING' && (
-                            <div className="relative">
-                                <div className="w-20 h-20 bg-indigo-500/10 rounded-3xl flex items-center justify-center animate-pulse">
-                                    <Clock className="w-10 h-10 text-indigo-400" />
-                                </div>
-                                <div className="absolute -top-2 -right-2 w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/40 animate-bounce">
-                                    <Loader2 className="w-4 h-4 text-white animate-spin" />
+                            <div className="w-20 h-20 flex items-center justify-center relative">
+                                <div className="absolute inset-0 border-2 border-indigo-500/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+                                <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                    <Loader2 className="w-8 h-8 text-white animate-spin" strokeWidth={2.5} />
                                 </div>
                             </div>
                         )}
                         {status === 'APPROVED' && (
-                            <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-500/40 scale-110 transition-transform">
-                                <ShieldCheck className="w-10 h-10 text-white" />
+                            <div className="w-20 h-20 flex items-center justify-center">
+                                <div className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-emerald-400 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-in zoom-in duration-300">
+                                    <ShieldCheck className="w-8 h-8 text-white" strokeWidth={2.5} />
+                                </div>
                             </div>
                         )}
                         {status === 'DENIED' && (
-                            <div className="w-20 h-20 bg-rose-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-500/40 scale-110 transition-transform">
-                                <XCircle className="w-10 h-10 text-white" />
+                            <div className="w-20 h-20 flex items-center justify-center">
+                                <div className="w-16 h-16 bg-gradient-to-tr from-rose-500 to-rose-400 rounded-full flex items-center justify-center shadow-lg shadow-rose-500/30 animate-in zoom-in duration-300">
+                                    <XCircle className="w-8 h-8 text-white" strokeWidth={2.5} />
+                                </div>
                             </div>
                         )}
                     </div>
 
                     {status === 'PENDING' && (
-                        <>
-                            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tighter mb-2 uppercase">Verifikasi Akses</h2>
-                            <p className="text-slate-400 text-xs sm:text-sm font-medium mb-8 leading-relaxed">
-                                Permintaan login Anda sedang dalam antrean. <br />
-                                <span className="text-indigo-400">Silakan hubungi Kasir / Admin.</span>
-                            </p>
+                        <div className="space-y-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800 tracking-tight mb-1.5">Verifikasi Akses</h2>
+                                <p className="text-slate-500 text-[14px] font-normal leading-relaxed max-w-[280px] mx-auto">
+                                    Login memerlukan persetujuan.<br/>Silakan hubungi Admin.
+                                </p>
+                            </div>
 
-                            {/* Info Stack */}
-                            <div className="flex flex-col gap-3 mb-8">
-                                <div className="bg-white/[0.03] rounded-2xl p-4 flex items-center gap-4 text-left transition-colors hover:bg-white/[0.05]">
-                                    <div className="w-11 h-11 bg-white/[0.05] rounded-xl flex items-center justify-center shrink-0">
-                                        <UserCheck className="w-5 h-5 text-indigo-400" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Identitas Pegawai</p>
-                                        <p className="text-base sm:text-lg font-black text-white truncate">{pendingAccessData.employeeName}</p>
-                                    </div>
+                            {/* Minimalist Info List */}
+                            <div className="bg-white/60 backdrop-blur-md rounded-3xl p-5 shadow-sm border border-black/[0.03]">
+                                <div className="flex justify-between items-center border-b border-black/[0.04] pb-3 mb-3">
+                                    <span className="text-[13px] text-slate-400 font-medium">Pegawai</span>
+                                    <span className="text-[15px] font-semibold text-slate-700">{pendingAccessData.employeeName}</span>
                                 </div>
-
-                                <div className="bg-white/[0.03] rounded-2xl p-4 flex items-center gap-4 text-left transition-colors hover:bg-white/[0.05]">
-                                    <div className="w-11 h-11 bg-white/[0.05] rounded-xl flex items-center justify-center shrink-0">
-                                        <Clock className="w-5 h-5 text-indigo-400" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Waktu Sistem Saat Ini</p>
-                                        <p className="text-base sm:text-lg font-black text-white tracking-tight">{formattedTime}</p>
-                                    </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[13px] text-slate-400 font-medium">Waktu</span>
+                                    <span className="text-[15px] font-semibold text-slate-700 tracking-tight">{formattedTime}</span>
                                 </div>
                             </div>
 
-                            {/* Shift Warning */}
+                            {/* Refined Shift Warning */}
                             {pendingAccessData.isOutOfShift ? (
-                                <div className="bg-rose-500/[0.05] rounded-2xl p-5 mb-8 flex flex-col items-center gap-3 animate-in fade-in slide-in-from-bottom-5 text-center">
-                                    <div className="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center shrink-0">
-                                        <AlertTriangle className="w-5 h-5 text-rose-500" />
-                                    </div>
+                                <div className="bg-rose-50 rounded-2xl p-4 flex items-start gap-3 text-left border border-rose-100">
+                                    <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" strokeWidth={2} />
                                     <div>
-                                        <h3 className="text-rose-500 font-black text-sm mb-1 uppercase tracking-wider">Login Luar Jam Kerja</h3>
-                                        <p className="text-rose-400/80 font-bold text-[11px] mb-1">
-                                            Shift Anda: <span className="text-rose-400">{pendingAccessData.shiftName || 'Belum Diatur'}</span> ({pendingAccessData.shiftTimeRange || '--:--'})
-                                        </p>
-                                        <p className="text-[10px] text-rose-400/50 max-w-[250px] mx-auto italic font-medium leading-tight">
-                                            Aktivitas ini direkam dan butuh persetujuan khusus Admin.
+                                        <h3 className="text-rose-600 font-semibold text-[13px] mb-0.5">Luar Jam Kerja</h3>
+                                        <p className="text-rose-500/80 text-[12px] leading-tight font-medium">
+                                            Shift: {pendingAccessData.shiftName || 'Belum Diatur'} ({pendingAccessData.shiftTimeRange || '--:--'})
                                         </p>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="bg-emerald-500/[0.05] rounded-2xl p-5 mb-8 flex flex-col items-center gap-3 text-center">
-                                    <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center shrink-0">
-                                        <ShieldAlert className="w-5 h-5 text-emerald-500" />
-                                    </div>
+                                <div className="bg-emerald-50 rounded-2xl p-4 flex items-center gap-3 text-left border border-emerald-100">
+                                    <ShieldAlert className="w-5 h-5 text-emerald-500 shrink-0" strokeWidth={2} />
                                     <div>
-                                        <h3 className="text-emerald-500 font-black text-sm mb-1 uppercase tracking-wider">Shift Terdeteksi</h3>
-                                        <p className="text-emerald-400 font-bold text-xs">
-                                            Sesuai Jadwal ({pendingAccessData.shiftTimeRange})
+                                        <h3 className="text-emerald-600 font-semibold text-[13px] mb-0.5">Sesuai Jadwal</h3>
+                                        <p className="text-emerald-500/80 text-[12px] leading-tight font-medium">
+                                            Shift aktif: {pendingAccessData.shiftTimeRange}
                                         </p>
                                     </div>
                                 </div>
                             )}
-                        </>
+                        </div>
                     )}
 
                     {status === 'APPROVED' && (
-                        <div className="py-6 animate-in zoom-in-95 duration-500">
-                            <h2 className="text-3xl font-black text-emerald-400 tracking-tighter mb-3 uppercase">Diizinkan</h2>
-                            <p className="text-slate-400 text-sm font-medium mb-8">Selamat bekerja! Sistem sedang menginisialisasi lingkungan kerja.</p>
-                            <div className="flex items-center justify-center gap-3 text-emerald-500 font-black text-xs uppercase tracking-widest">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Memuat...</span>
-                            </div>
+                        <div className="py-8">
+                            <h2 className="text-2xl font-semibold text-emerald-500 tracking-tight mb-2">Akses Diberikan</h2>
+                            <p className="text-slate-500 text-[15px] font-normal">Sistem sedang memuat ruang kerja Anda...</p>
                         </div>
                     )}
 
                     {status === 'DENIED' && (
-                        <div className="py-6 animate-in zoom-in-95 duration-500">
-                            <h2 className="text-3xl font-black text-rose-500 tracking-tighter mb-3 uppercase">Ditolak</h2>
-                            <p className="text-slate-400 text-sm font-medium mb-10">Maaf, permintaan akses tidak disetujui.</p>
+                        <div className="py-8 space-y-8">
+                            <div>
+                                <h2 className="text-2xl font-semibold text-rose-500 tracking-tight mb-2">Akses Ditolak</h2>
+                                <p className="text-slate-500 text-[15px] font-normal">Permintaan login tidak disetujui.</p>
+                            </div>
                             <button
                                 onClick={cancelPendingAccess}
-                                className="bg-white/5 hover:bg-white/10 text-white font-black px-6 py-4 rounded-2xl flex items-center justify-center gap-2 w-full transition-all active:scale-95 text-xs uppercase tracking-widest"
+                                className="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-4 rounded-2xl w-full transition-all active:scale-95 text-[15px] shadow-md shadow-slate-200"
                             >
-                                <ChevronRight className="w-4 h-4 rotate-180" />
-                                Kembali Login
+                                Kembali
                             </button>
                         </div>
                     )}
@@ -178,19 +161,11 @@ const AccessPendingOverlay = () => {
                     {status === 'PENDING' && (
                         <button
                             onClick={cancelPendingAccess}
-                            className="text-slate-500 hover:text-white font-black transition-colors uppercase tracking-[0.15em] text-[10px] w-full pt-2"
+                            className="mt-6 text-rose-500 hover:text-rose-600 font-semibold transition-colors text-[14px] w-full py-2 active:opacity-70"
                         >
                             Batalkan Permintaan
                         </button>
                     )}
-                </div>
-
-                {/* Footer system status */}
-                <div className="mt-8 flex items-center justify-center gap-6 opacity-40">
-                    <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981]" />
-                        <span className="text-white text-[9px] font-black tracking-widest uppercase">Encryption Active</span>
-                    </div>
                 </div>
             </div>
         </div>

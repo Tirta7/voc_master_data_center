@@ -185,7 +185,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
     const modalContent = (
         <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
             <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={handleStop} />
-            <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3.5rem] w-full max-w-sm max-h-[85vh] sm:max-h-[90vh] overflow-y-auto custom-scrollbar shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+            <div className="relative bg-white rounded-t-[1.5rem] sm:rounded-2xl w-full sm:max-w-sm max-h-[90vh] overflow-y-auto custom-scrollbar shadow-[0_-4px_24px_rgba(0,0,0,0.12)] sm:shadow-xl flex flex-col animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                 {/* Drag Handle */}
                 <div className="w-full flex justify-center pt-4 sm:hidden shrink-0 absolute top-0 z-20">
                     <div className="w-12 h-1.5 bg-slate-200 rounded-full" />

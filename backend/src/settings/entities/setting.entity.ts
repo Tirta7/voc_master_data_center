@@ -247,4 +247,9 @@ export class Setting {
 
   @Column({ type: 'boolean', default: true })
   notifyManualLight: boolean;
+
+  // Visual Floor Plan Layout Map (JSON array of elements)
+  @Column({ type: 'json', nullable: true })
+  floorPlanLayout: any;
 }
+

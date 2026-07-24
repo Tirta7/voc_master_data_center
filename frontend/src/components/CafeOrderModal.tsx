@@ -113,9 +113,43 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     const totalItems = cart.reduce((a, b) => a + b.quantity, 0);
     const activeTransactionMember = activeTransaction?.member;
     const isMemberSession = !!activeTransactionMember;
-    const currentTableLiability = isMemberSession && activeTransaction
-        ? Number(activeTransaction.grandTotal || 0)
+
+    // ✅ FIX: Calculate TRUE pending liability (avoid double-counting already-paid billiard)
+    // member.balance is already deducted when billiard session was paid via MEMBER payment.
+    // We subtract the already-paid MEMBER amounts from grandTotal to get what's still owed.
+    //
+    // TransactionPayment entity field: totalPaid (NOT amount!)
+    const alreadyPaidByMember = isMemberSession && activeTransaction
+        ? (activeTransaction.payments || [])
+            .filter((p: any) => p.paymentMethod === 'MEMBER' || p.paymentMethod === 'MEMBERSHIP')
+            .reduce((sum: number, p: any) => sum + Number(p.totalPaid || 0), 0)
         : 0;
+
+    // pendingCafeTotal = unpaid cafe order items total (before tax/SC)
+    const pendingCafeItemsTotal = isMemberSession && activeTransaction
+        ? (activeTransaction.orderItems || [])
+            .filter((item: any) =>
+                item.status !== 'CANCELLED' &&
+                item.status !== 'CANCEL_REQUESTED' &&
+                !item.isPaid
+            )
+            .reduce((sum: number, item: any) => {
+                const price = Number(item.priceAtOrder || item.price || 0);
+                const qty = Number(item.quantity || 1);
+                const discount = Number(item.discountAmount || 0);
+                return sum + Math.max(0, price * qty - discount);
+            }, 0)
+        : 0;
+
+    // currentTableLiability = what member STILL NEEDS to pay
+    // = grandTotal - alreadyPaidByMember (remaining unpaid portion of this session)
+    // For Duration mode (fully pre-paid): grandTotal=31000, alreadyPaid=31000 → liability=0 ✅
+    // For Open mode (mid-session): alreadyPaid=0, liability=running total ✅
+    // For Open mode (partially paid): liability=remaining ✅
+    const currentTableLiability = isMemberSession && activeTransaction
+        ? Math.max(0, Number(activeTransaction.grandTotal || 0) - alreadyPaidByMember)
+        : 0;
+
     const totalMemberBalance = isMemberSession ? Number(activeTransactionMember.balance || 0) : 999999999;
     const remainingBalance = totalMemberBalance - currentTableLiability;
     const estimatedCartTotal = (() => {

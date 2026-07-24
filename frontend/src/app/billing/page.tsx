@@ -26,7 +26,7 @@ function BillingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { showAlert, showConfirm } = useAlert();
-    const { user, terminalId } = useAuth();
+    const { user, terminalId, activeShift } = useAuth();
     const { publish, isConnected } = useMqtt();
     const tableId = searchParams.get('tableId');
     const tableType = searchParams.get('type');
@@ -158,6 +158,7 @@ function BillingContent() {
                 change: changeAmt,
                 changeAmount: changeAmt, 
                 customerName: transaction.customerName || (transaction.member ? transaction.member.name : ''),
+                cashierName: user?.name || '',
                 status: 'BILLING_IN_PROGRESS',
                 terminalId: terminalId, // Route specifically to terminal display if linked
                 lastUpdate: new Date().toISOString(),
@@ -975,6 +976,7 @@ function BillingContent() {
                 tx={transaction} 
                 settings={settings} 
                 paymentMethodOverride={paymentMethod}
+                cashierName={user?.name ? `${user?.name}${activeShift?.shiftName ? ` (${activeShift.shiftName})` : ''}` : (activeShift?.shiftName || 'ADMIN')}
             />
         </div>
     </>

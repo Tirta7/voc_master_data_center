@@ -2470,7 +2470,7 @@ function SmartDisplayContent() {
                                     <div className="flex-1 bg-white/5 p-6 2xl:p-10 rounded-3xl border border-white/10 flex flex-col items-center gap-4 2xl:gap-8 transition-all hover:bg-white/10 hover:border-white/20">
                                         <div className="text-center">
                                             <p className="text-[10px] md:text-xs 2xl:text-sm font-black text-slate-400 uppercase tracking-widest mb-1.5 2xl:mb-3">Kasir (Cashier)</p>
-                                            <p className="text-lg md:text-xl 2xl:text-3xl font-bold text-white truncate max-w-[200px] 2xl:max-w-[300px]">{tx?.createdBy?.name || 'Kasir'}</p>
+                                            <p className="text-lg md:text-xl 2xl:text-3xl font-bold text-white truncate max-w-[200px] 2xl:max-w-[300px]">{paymentState?.cashierName || tx?.createdBy?.name || 'Kasir'}</p>
                                         </div>
                                         <div className="flex gap-2.5 2xl:gap-3 bg-black/30 p-3.5 2xl:p-5 rounded-2xl 2xl:rounded-3xl">
                                             {[1, 2, 3, 4, 5].map((star) => (

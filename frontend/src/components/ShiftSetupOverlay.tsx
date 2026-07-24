@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
     Clock, 
     AlertTriangle,
@@ -34,6 +34,7 @@ import { useAlert } from './ui/AlertProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import { useRouter } from 'next/navigation';
+import FloorPlanMap from './FloorPlanMap';
 
 export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?: boolean }) {
     const { user, activeShift, refetchShift, refetchProfile, logout, hasPermission } = useAuth();
@@ -66,6 +67,29 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const [shiftMismatchWarning, setShiftMismatchWarning] = useState<{show: boolean, selectedShift: any, expectedShift: any}>({show: false, selectedShift: null, expectedShift: null});
     const [coverNote, setCoverNote] = useState<string>('');
     const [emergencyWarning, setEmergencyWarning] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'grid' | 'map'>('map');
+    // Fresh assignment data fetched directly from API (not from stale user context)
+    const [myAssignedTableIds, setMyAssignedTableIds] = useState<any[]>(user?.assignedTableIds || []);
+    // Ref: always holds latest myAssignedTableIds (for use inside fetchData without stale closure)
+    const myAssignedTableIdsRef = useRef<any[]>(user?.assignedTableIds || []);
+    useEffect(() => {
+        myAssignedTableIdsRef.current = myAssignedTableIds;
+    }, [myAssignedTableIds]);
+    // Ref: explicitly tracks ONLY tables approved via admin permission (NOT auto-selected from assignment)
+    // This is the source of truth for "extra" selections. fetchData uses this to rebuild cleanly.
+    const permissionApprovedTablesRef = useRef<{type: 'CAFE'|'BILLIARD', id: number}[]>([]);
+
+    // ✅ SAFETY NET: Whenever official assignments change, immediately clean up selectedTables.
+    // This catches any edge case where fetchData's setSelectedTables was stale or missed.
+    useEffect(() => {
+        if (!isWaiter || myAssignedTableIds.length === 0) return;
+        setSelectedTables(prev => prev.filter(t =>
+            // Keep: currently officially assigned tables
+            myAssignedTableIds.some((a: any) => a.type === t.type && a.id === t.id) ||
+            // Keep: explicitly permission-approved tables (never in official list)
+            permissionApprovedTablesRef.current.some(a => a.type === t.type && a.id === t.id)
+        ));
+    }, [myAssignedTableIds, isWaiter]);
 
     const fetchData = useCallback(async () => {
         setFetchingData(true);
@@ -99,9 +123,13 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
             setOpenShifts(openShiftsRes.data || []);
             setEmployees(employeesRes.data || []);
 
-            const assignedTableIds = user?.assignedTableIds || [];
             if (isWaiter) {
-                const occupiedSet = new Set();
+                // ✅ Get fresh assignments from API (not stale user context)
+                const currentEmployee = (employeesRes.data || []).find((e: any) => e.id === user?.id);
+                const freshAssignedTableIds: any[] = currentEmployee?.assignedTableIds || user?.assignedTableIds || [];
+                setMyAssignedTableIds(freshAssignedTableIds);
+
+                const occupiedSet = new Set<string>();
                 openShiftsRes.data.forEach((os: any) => {
                     if (os.userId === user?.id) return;
                     (os.assignedTableIds || []).forEach((t: any) => {
@@ -109,26 +137,28 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                     });
                 });
 
-                const freeAssignments = assignedTableIds.filter((t: any) =>
+                // Official tables from new assignment that are still free
+                const freeAssignments = freshAssignedTableIds.filter((t: any) =>
                     !occupiedSet.has(`${t.type}_${t.id}`)
                 );
 
-                setSelectedTables(prev => {
-                    // On first load, use all free assignments
-                    if (prev.length === 0) return freeAssignments;
-                    
-                    // On subsequent refreshes (due to MQTT/Socket sync):
-                    // 1. Keep current selections that are still free (not occupied by others)
-                    // 2. This preserves manually approved tables
-                    return prev.filter(t => !occupiedSet.has(`${t.type}_${t.id}`));
-                });
+                // ✅ CLEAN REBUILD: Always rebuild selectedTables from scratch.
+                //    = official free assignments + permission-approved tables (still free)
+                //    Tables removed from admin assignment are NOT preserved — they go back to Tersedia.
+                const stillFreePermApproved = permissionApprovedTablesRef.current.filter(t =>
+                    !occupiedSet.has(`${t.type}_${t.id}`)
+                );
+                // Update ref to remove occupied permission-approved tables
+                permissionApprovedTablesRef.current = stillFreePermApproved;
+
+                setSelectedTables([...freeAssignments, ...stillFreePermApproved]);
             }
         } catch (error) {
             console.error('Failed to fetch shift data', error);
         } finally {
             setFetchingData(false);
         }
-    }, [user, isWaiter]);
+    }, [user?.id, user?.assignedTableIds, isWaiter]);
 
     useEffect(() => {
         if (activeShift && activeShift.id) {
@@ -152,16 +182,20 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
             subscribe('billiard/shift/ended', fetchData),
             subscribe('billiard/assignments/updated', fetchData),
             subscribe('billiard/user/+/status', fetchData),
+            // ✅ Listen for user-specific assignment updates (fired when admin saves assignments)
+            subscribe(`billiard/user/${user?.id}/assignments`, fetchData),
         ];
         return () => unsubs.forEach(u => u());
-    }, [subscribe, fetchData]);
+    }, [subscribe, fetchData, user?.id]);
 
     useEffect(() => {
         if (!socket) return;
-        const handler = (data: { userId: number }) => {
+        // ✅ FIX: Make handler async so we await profile refresh before fetching data
+        // This ensures fetchData sees the latest assignedTableIds from the server
+        const handler = async (data: { userId: number }) => {
             if (data.userId === user?.id) {
-                refetchProfile();
-                fetchData();
+                await refetchProfile(); // Wait for profile (including new assignedTableIds) to load
+                fetchData();           // Then fetch table data with fresh user context
             }
         };
 
@@ -172,7 +206,13 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                 
                 if (payload.status === 'APPROVED') {
                     showAlert('Akses Disetujui', `Izin akses ${tableName} telah diberikan.`, { variant: 'info' });
-                    setSelectedTables(prev => [...prev, { type: tableType, id: tableId }]);
+                    const approvedTable = { type: tableType as 'CAFE'|'BILLIARD', id: tableId };
+                    // Track in ref so fetchData can preserve it across assignment syncs
+                    permissionApprovedTablesRef.current = [
+                        ...permissionApprovedTablesRef.current.filter(t => !(t.type === tableType && t.id === tableId)),
+                        approvedTable
+                    ];
+                    setSelectedTables(prev => [...prev, approvedTable]);
                 } else if (payload.status === 'REJECTED') {
                     showAlert('Akses Ditolak', `Permintaan akses ${tableName} tidak diizinkan.`, { variant: 'error' });
                 }
@@ -368,137 +408,144 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[9999] flex flex-col lg:flex-row bg-[#0A0F1E] overflow-hidden overscroll-contain font-sans"
+                    className="fixed inset-0 z-[9999] flex flex-col lg:flex-row bg-[#F2F2F7] overflow-hidden overscroll-contain font-sans"
                 >
                     {/* ══════════════════════════════════════════════════════
                         MOBILE: Stacked layout (top header + scrollable body)
                         DESKTOP: Side-by-side (sidebar + content)
                     ══════════════════════════════════════════════════════ */}
 
-                    {/* ── SIDEBAR / TOP HEADER (Mobile Hero & Desktop Sidebar) ─────────────────────────── */}
+                    {/* ── TOP NAVIGATION BAR (iOS-style) ─────────────────────────── */}
                     <motion.div
-                        initial={{ y: -20, opacity: 0 }}
+                        initial={{ y: -10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        transition={{ duration: 0.45, ease: 'easeOut' }}
-                        className="relative w-full lg:w-[340px] xl:w-[380px] shrink-0
-                                   bg-[#0A0F1E] lg:bg-gradient-to-br lg:from-[#0F1B35] lg:via-[#111827] lg:to-[#0A0F1E]
-                                   border-b border-white/5 lg:border-b-0 lg:border-r lg:border-white/5
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="relative w-full lg:w-[300px] xl:w-[320px] shrink-0
+                                   bg-white/95 lg:bg-white
+                                   border-b border-slate-200/80 lg:border-b-0 lg:border-r lg:border-slate-200/80
                                    flex flex-col lg:justify-between
-                                   px-5 pb-6 lg:px-10 lg:pb-10 overflow-hidden"
-                        style={{ paddingTop: 'max(72px, env(safe-area-inset-top))' }}
+                                   overflow-hidden"
+                        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
                     >
-                        {/* Premium Background Glow for Mobile */}
-                        <div className="absolute top-[-50%] left-[-20%] w-[140%] h-[150%] bg-gradient-to-b from-indigo-600/20 via-indigo-900/5 to-transparent blur-3xl lg:hidden pointer-events-none" />
+                        {/* ── MOBILE HEADER (iOS Navigation Bar style) ── */}
+                        <div className="lg:hidden">
+                            {/* Status bar spacer — minimal, just enough for device notch */}
+                            <div className="h-3" />
 
-                        {/* ── MOBILE HEADER (Centered Hero Layout) ── */}
-                        <div className="lg:hidden relative z-10 flex flex-col items-center justify-center text-center gap-3">
-                            <div className="relative">
-                                <div className="absolute inset-0 bg-indigo-500 rounded-full blur-md opacity-50 animate-pulse" />
-                                <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-black text-2xl border-2 border-indigo-400/50 shadow-xl">
-                                    {user?.name?.charAt(0).toUpperCase()}
+                            {/* iOS-style nav bar */}
+                            <div className="relative flex items-center justify-between px-5 py-2.5 border-b border-slate-100">
+                                {/* Left: Logout */}
+                                <button
+                                    type="button"
+                                    onClick={logout}
+                                    className="flex items-center gap-1.5 text-rose-500 active:opacity-60 transition-opacity"
+                                >
+                                    <LogOut className="w-4 h-4" strokeWidth={2} />
+                                    <span className="text-[14px] font-medium">Keluar</span>
+                                </button>
+
+                                {/* Center: Title */}
+                                <div className="absolute left-0 right-0 flex flex-col items-center pointer-events-none">
+                                    <span className="text-[17px] font-semibold text-slate-900 tracking-tight">Persiapan Shift</span>
                                 </div>
+
+                                {/* Right: Refresh */}
+                                <button
+                                    type="button"
+                                    onClick={() => { refetchProfile(); fetchData(); }}
+                                    className="text-blue-500 active:opacity-60 transition-opacity"
+                                >
+                                    <RefreshCw className={`w-5 h-5 ${fetchingData ? 'animate-spin' : ''}`} strokeWidth={2} />
+                                </button>
                             </div>
-                            <div className="flex flex-col items-center">
-                                <div className="flex items-center gap-1.5 justify-center">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-                                    <h1 className="text-lg font-bold text-white tracking-tight leading-none">{user?.name}</h1>
+
+                            {/* User identity card */}
+                            <div className="px-5 py-4 flex items-center gap-4">
+                                <div className="relative shrink-0">
+                                    <div className="w-14 h-14 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-xl shadow-sm">
+                                        {user?.name?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white" />
                                 </div>
-                                <p className="text-[10px] font-black text-indigo-300/80 uppercase tracking-[0.2em] mt-1.5">{user?.role}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[18px] font-semibold text-slate-900 leading-tight truncate">{user?.name}</p>
+                                    <p className="text-[13px] text-slate-500 mt-0.5">{user?.role}</p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* ── DESKTOP HEADER (Left Aligned Sidebar) ── */}
-                        <div className="hidden lg:flex flex-col items-start gap-8 w-full z-10">
+                        {/* ── DESKTOP SIDEBAR ── */}
+                        <div className="hidden lg:flex flex-col h-full px-7 py-8">
                             {/* Brand */}
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-900/40">
-                                    <ShieldCheck className="w-6 h-6 text-white" />
+                            <div className="flex items-center gap-3 mb-8">
+                                <div className="w-10 h-10 bg-blue-600 rounded-[14px] flex items-center justify-center shadow-sm">
+                                    <ShieldCheck className="w-5 h-5 text-white" strokeWidth={2} />
                                 </div>
                                 <div>
-                                    <h1 className="text-sm font-bold tracking-tight text-white leading-none">Management System</h1>
-                                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">Internal Staff Portal</p>
+                                    <h1 className="text-[15px] font-semibold text-slate-900 leading-none">Billiard System</h1>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Staff Portal</p>
                                 </div>
                             </div>
+
+                            {/* Divider */}
+                            <div className="h-px w-full bg-slate-100 mb-6" />
 
                             {/* User info */}
-                            <div className="space-y-6 w-full">
-                                <div className="h-px w-full bg-white/5" />
-                                <div className="space-y-1.5">
-                                    <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.25em]">Current Session</p>
-                                    <h2 className="text-3xl font-semibold tracking-tight text-white leading-tight">{user?.name}</h2>
-                                    <div className="flex items-center gap-2 pt-1">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-                                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{user?.role}</span>
-                                    </div>
+                            <div className="space-y-1 mb-4">
+                                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">Sesi Aktif</p>
+                                <h2 className="text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">{user?.name}</h2>
+                                <div className="flex items-center gap-2 pt-1">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    <span className="text-[13px] font-medium text-slate-500">{user?.role}</span>
                                 </div>
-                                <p className="text-sm text-slate-500 leading-relaxed">
-                                    Konfigurasi modal dan pilih area penugasan untuk memulai operasional hari ini.
-                                </p>
                             </div>
-                        </div>
 
-                        {/* ── DESKTOP BOTTOM ACTIONS ── */}
-                        <div className="hidden lg:flex flex-col gap-2 w-full z-10">
-                            <button
-                                onClick={() => { refetchProfile(); fetchData(); }}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/8 border border-white/8 transition-all group"
-                            >
-                                <RefreshCw className={`w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors ${fetchingData ? 'animate-spin' : ''}`} />
-                                <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-200 transition-colors">Sinkronisasi Data</span>
-                            </button>
-                            <button
-                                onClick={logout}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all group"
-                            >
-                                <LogOut className="w-4 h-4 text-slate-600 group-hover:text-rose-400 transition-colors" />
-                                <span className="text-xs font-semibold text-slate-500 group-hover:text-rose-300 transition-colors">Keluar Sesi</span>
-                            </button>
-                            <div className="flex items-center justify-center gap-2 pt-3">
-                                <span className="w-1 h-1 rounded-full bg-slate-700" />
-                                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">v2.4.0 Final Release</span>
-                                <span className="w-1 h-1 rounded-full bg-slate-700" />
+                            <p className="text-[13px] text-slate-400 leading-relaxed">
+                                Lengkapi detail di samping untuk memulai sesi operasional Anda hari ini.
+                            </p>
+
+                            {/* Spacer */}
+                            <div className="flex-1" />
+
+                            {/* Bottom actions */}
+                            <div className="space-y-1">
+                                <button
+                                    onClick={() => { refetchProfile(); fetchData(); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-100 transition-colors group"
+                                >
+                                    <RefreshCw className={`w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors ${fetchingData ? 'animate-spin' : ''}`} strokeWidth={2} />
+                                    <span className="text-[14px] font-medium text-slate-500 group-hover:text-slate-800 transition-colors">Sinkronisasi Data</span>
+                                </button>
+                                <button
+                                    onClick={logout}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rose-50 transition-colors group"
+                                >
+                                    <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-500 transition-colors" strokeWidth={2} />
+                                    <span className="text-[14px] font-medium text-slate-500 group-hover:text-rose-500 transition-colors">Keluar Sesi</span>
+                                </button>
                             </div>
+
+                            <p className="text-center text-[11px] text-slate-300 mt-4">v2.4.0</p>
                         </div>
                     </motion.div>
 
                     {/* ── MAIN SCROLLABLE CONTENT ───────────────────────── */}
-                    <div className="flex-1 overflow-y-auto overscroll-contain bg-[#F0F4F8] lg:bg-[#F1F5F9]">
+                    <div className="flex-1 overflow-y-auto overscroll-contain bg-[#F2F2F7]">
                         <div 
-                            className="max-w-2xl lg:max-w-4xl mx-auto px-4 pt-8 sm:px-6 sm:pt-10 lg:px-12 lg:pt-14"
-                            style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))', paddingTop: 'max(72px, env(safe-area-inset-top))' }}
+                            className="max-w-2xl lg:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8"
+                            style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))', paddingTop: '10px' }}
                         >
                             <motion.form
-                                initial={{ y: 16, opacity: 0 }}
+                                initial={{ y: 10, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.1, duration: 0.5 }}
+                                transition={{ delay: 0.05, duration: 0.35 }}
                                 onSubmit={handleStart}
-                                className="space-y-6 sm:space-y-8"
+                                className="space-y-4"
                             >
-                                {/* ── Page Header ── */}
-                                <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-200">
-                                    <div>
-                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Persiapan Operasional</h3>
-                                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Lengkapi detail berikut untuk mengaktifkan sesi kerja.</p>
-                                    </div>
-                                    {/* Mobile: compact action buttons */}
-                                    <div className="flex items-center gap-1.5 lg:hidden shrink-0">
-                                        <button
-                                            type="button"
-                                            onClick={() => { refetchProfile(); fetchData(); }}
-                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-all"
-                                            title="Sinkronisasi"
-                                        >
-                                            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${fetchingData ? 'animate-spin' : ''}`} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={logout}
-                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-500 transition-all"
-                                            title="Keluar"
-                                        >
-                                            <LogOut className="w-3.5 h-3.5 text-slate-500" />
-                                        </button>
-                                    </div>
+                                {/* ── Page Header (Desktop only, mobile uses sidebar) ── */}
+                                <div className="hidden lg:block pb-4 border-b border-slate-200">
+                                    <h3 className="text-[22px] font-semibold text-slate-900 tracking-tight">Persiapan Operasional</h3>
+                                    <p className="text-[14px] text-slate-500 mt-1">Lengkapi detail berikut untuk mengaktifkan sesi kerja.</p>
                                 </div>
 
                                 {/* ── Emergency Cover Warning ── */}
@@ -540,16 +587,11 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                 )}
 
                                 {!isWaiter && (
-                                    <section className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-5 h-5 rounded-md bg-indigo-100 flex items-center justify-center">
-                                                <Wallet className="w-3 h-3 text-indigo-600" />
-                                            </div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Modal Tunai Awal</h4>
-                                        </div>
-                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all overflow-hidden">
+                                    <section className="space-y-2">
+                                        <p className="text-[13px] font-medium text-slate-500 px-1">Modal Tunai Awal</p>
+                                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
                                             <div className="flex items-center gap-3 px-5 py-4">
-                                                <span className="text-sm font-bold text-slate-400 shrink-0">IDR</span>
+                                                <span className="text-[15px] font-medium text-slate-400 shrink-0">IDR</span>
                                                 <input
                                                     type="text"
                                                     required
@@ -558,18 +600,18 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                         const val = e.target.value.replace(/\D/g, '');
                                                         setCashStart(val === '' ? 0 : parseInt(val));
                                                     }}
-                                                    className="w-full bg-transparent text-3xl sm:text-4xl font-black text-slate-900 placeholder:text-slate-200 focus:outline-none tracking-tight"
+                                                    className="w-full bg-transparent text-[34px] font-semibold text-slate-900 placeholder:text-slate-300 focus:outline-none tracking-tight"
                                                     placeholder="0"
                                                 />
                                             </div>
                                             {/* Quick presets */}
-                                            <div className="border-t border-slate-100 px-4 py-2.5 flex gap-2 flex-wrap">
+                                            <div className="border-t border-slate-100 px-4 py-3 flex gap-2 flex-wrap">
                                                 {[200000, 300000, 500000, 1000000].map(v => (
                                                     <button
                                                         key={v}
                                                         type="button"
                                                         onClick={() => setCashStart(v)}
-                                                        className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${Number(cashStart) === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                                        className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all ${Number(cashStart) === v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                                                     >
                                                         {(v / 1000).toFixed(0)}rb
                                                     </button>
@@ -580,17 +622,12 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                 )}
 
                                 {/* ── 2. Pilih Shift ── */}
-                                <section className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 rounded-md bg-indigo-100 flex items-center justify-center">
-                                            <Clock className="w-3 h-3 text-indigo-600" />
-                                        </div>
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Pilih Jadwal Shift</h4>
-                                    </div>
+                                <section className="space-y-2">
+                                    <p className="text-[13px] font-medium text-slate-500 px-1">Jadwal Shift</p>
 
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                         {fetchingData && availableShifts.length === 0 ? (
-                                            [1, 2, 3].map(i => <div key={i} className="h-16 bg-white rounded-xl animate-pulse border border-slate-100" />)
+                                            [1, 2, 3].map(i => <div key={i} className="h-16 bg-white rounded-2xl animate-pulse border border-slate-200/60" />)
                                         ) : (
                                             <>
                                                 {availableShifts.map((s: any) => (
@@ -598,20 +635,20 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                         key={s.name}
                                                         type="button"
                                                         onClick={() => handleShiftSelect(s)}
-                                                        className={`relative p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.97] ${shiftName === s.name
-                                                            ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-200'
-                                                            : 'bg-white border-slate-150 hover:border-indigo-200'
+                                                        className={`relative p-4 rounded-2xl text-left transition-all active:scale-[0.97] border ${shiftName === s.name
+                                                            ? 'bg-blue-600 border-blue-600 shadow-md shadow-blue-600/20'
+                                                            : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-sm'
                                                         }`}
                                                     >
                                                         {shiftName === s.name && (
-                                                            <div className="absolute top-2 right-2 w-4 h-4 bg-white/25 rounded-full flex items-center justify-center">
-                                                                <CheckCircle2 className="w-3 h-3 text-white" />
+                                                            <div className="absolute top-2.5 right-2.5">
+                                                                <CheckCircle2 className="w-4 h-4 text-white" strokeWidth={2.5} />
                                                             </div>
                                                         )}
-                                                        <h5 className={`font-bold text-xs leading-tight ${shiftName === s.name ? 'text-white' : 'text-slate-800'}`}>{s.name}</h5>
-                                                        <div className={`flex items-center gap-1 mt-1.5 ${shiftName === s.name ? 'text-indigo-200' : 'text-slate-400'}`}>
-                                                            <History className="w-2.5 h-2.5" />
-                                                            <p className="text-[9px] font-medium">{s.startTime} — {s.endTime}</p>
+                                                        <h5 className={`font-semibold text-[14px] leading-tight pr-5 ${shiftName === s.name ? 'text-white' : 'text-slate-800'}`}>{s.name}</h5>
+                                                        <div className={`flex items-center gap-1 mt-1.5 ${shiftName === s.name ? 'text-blue-200' : 'text-slate-400'}`}>
+                                                            <History className="w-3 h-3" strokeWidth={2} />
+                                                            <p className="text-[12px] font-medium">{s.startTime} — {s.endTime}</p>
                                                         </div>
                                                     </button>
                                                 ))}
@@ -619,13 +656,13 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                 <button
                                                     type="button"
                                                     onClick={() => setShiftName('CUSTOM')}
-                                                    className={`p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.97] ${shiftName === 'CUSTOM' || (!availableShifts.some((as: any) => as.name === shiftName) && shiftName !== '')
-                                                        ? 'bg-slate-900 border-slate-900 shadow-lg'
-                                                        : 'bg-white border-slate-150 hover:border-slate-300'
+                                                    className={`p-4 rounded-2xl text-left transition-all active:scale-[0.97] border ${shiftName === 'CUSTOM' || (!availableShifts.some((as: any) => as.name === shiftName) && shiftName !== '')
+                                                        ? 'bg-slate-800 border-slate-800 shadow-md'
+                                                        : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-sm'
                                                     }`}
                                                 >
-                                                    <h5 className={`font-bold text-xs ${shiftName === 'CUSTOM' ? 'text-white' : 'text-slate-800'}`}>Shift Khusus</h5>
-                                                    <p className={`text-[9px] font-medium mt-1.5 ${shiftName === 'CUSTOM' ? 'text-slate-400' : 'text-slate-400'}`}>Nama kustom</p>
+                                                    <h5 className={`font-semibold text-[14px] ${shiftName === 'CUSTOM' ? 'text-white' : 'text-slate-800'}`}>Khusus</h5>
+                                                    <p className={`text-[12px] font-medium mt-1.5 ${shiftName === 'CUSTOM' ? 'text-slate-400' : 'text-slate-400'}`}>Nama kustom</p>
                                                 </button>
                                             </>
                                         )}
@@ -644,14 +681,14 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                     required
                                                     value={shiftName === 'CUSTOM' ? '' : shiftName}
                                                     onChange={(e) => setShiftName(e.target.value)}
-                                                    className="w-full mt-2 px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-900 text-sm"
+                                                    className="w-full mt-2 px-4 py-3.5 rounded-2xl bg-white border border-slate-200/80 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-900 text-[15px]"
                                                     placeholder="Contoh: Shift Lembur / Ramadhan..."
                                                 />
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
 
-                                    {/* Cover Note: optional note for any shift (emergency or regular) */}
+                                    {/* Cover Note */}
                                     {shiftName && !isWaiter && (
                                         <AnimatePresence>
                                             <motion.div
@@ -660,16 +697,16 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="overflow-hidden"
                                             >
-                                                <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-sm">
-                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                                        📝 Catatan Shift (Opsional)
+                                                <div className="mt-2 bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+                                                    <label className="text-[12px] font-medium text-slate-400 px-4 pt-3 flex items-center gap-1.5">
+                                                        📝 Catatan Shift <span className="text-slate-300">(Opsional)</span>
                                                     </label>
                                                     <textarea
                                                         value={coverNote}
                                                         onChange={(e) => setCoverNote(e.target.value)}
                                                         rows={2}
-                                                        className="w-full px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 focus:outline-none focus:border-indigo-400 text-xs font-medium text-slate-700 resize-none transition-colors"
-                                                        placeholder="Contoh: Cover menunggu kasir pengganti, atau shift lembur karena event..."
+                                                        className="w-full px-4 pb-3 pt-1.5 bg-transparent focus:outline-none text-[14px] font-medium text-slate-700 resize-none"
+                                                        placeholder="Contoh: Cover menunggu kasir pengganti..."
                                                     />
                                                 </div>
                                             </motion.div>
@@ -679,47 +716,113 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
 
                                 {/* ── 3. Penugasan Area Kerja ── */}
                                 {isAssignmentRequired && (
-                                    <section className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-400/50">
-                                                    <Briefcase className="w-3.5 h-3.5 text-white" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-800 leading-none">Area Penugasan</h4>
-                                                    <p className="text-[9px] font-bold text-slate-400 mt-1">Pilih meja yang akan dikelola</p>
+                                    <section className="space-y-2">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <p className="text-[13px] font-medium text-slate-500">Area Penugasan</p>
+                                                <div className="bg-white border border-slate-200 p-0.5 rounded-lg flex items-center shadow-sm">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setViewMode('map')} 
+                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${viewMode === 'map' ? 'bg-slate-100 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                    >
+                                                        Peta (Denah)
+                                                    </button>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setViewMode('grid')} 
+                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${viewMode === 'grid' ? 'bg-slate-100 text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                    >
+                                                        Grid
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full shadow-sm">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-                                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Live Sync</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                <span className="text-[12px] font-medium text-emerald-600">Live Sync</span>
                                             </div>
                                         </div>
 
-                                        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] border border-white/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden">
-                                            <div className="divide-y divide-slate-100/50">
+                                        {/* ✨ COLOR LEGEND — Explains what each card color means */}
+                                        <div className="bg-white rounded-2xl border border-slate-200/80 px-4 py-3 shadow-sm">
+                                            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest mb-3">Keterangan Warna</p>
+                                            <div className="grid grid-cols-2 gap-y-2.5 gap-x-4">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-7 h-7 rounded-[10px] bg-emerald-500 flex items-center justify-center shrink-0 shadow-sm">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[13px] font-semibold text-slate-700 leading-none">Penugasan Anda</p>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5">Otomatis terpilih</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-7 h-7 rounded-[10px] bg-blue-600 flex items-center justify-center shrink-0 shadow-sm">
+                                                        <ShieldCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[13px] font-semibold text-slate-700 leading-none">Tambahan Izin</p>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5">Dipilih via persetujuan</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-7 h-7 rounded-[10px] bg-white border border-slate-300 shrink-0 shadow-sm" />
+                                                    <div>
+                                                        <p className="text-[13px] font-semibold text-slate-700 leading-none">Tersedia</p>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5">Bisa diminta izin</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-7 h-7 rounded-[10px] bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center shadow-sm">
+                                                        <Users className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[13px] font-semibold text-slate-700 leading-none">Dipakai</p>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5">Waiter lain aktif</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white lg:bg-white/80 lg:backdrop-blur-xl sm:rounded-[2rem] rounded-[24px] shadow-sm border border-slate-200/60 overflow-hidden">
+                                            {viewMode === 'map' ? (
+                                                <div className="p-4 sm:p-6">
+                                                    <FloorPlanMap 
+                                                        localAssignments={selectedTables} 
+                                                        onToggleTable={toggleTable} 
+                                                        tableOccupancy={tableOccupancy}
+                                                        waiterColorClass="bg-emerald-500 border-emerald-600 text-white"
+                                                    />
+                                                </div>
+                                            ) : (
+                                            <div className="divide-y divide-slate-100">
                                                 {/* Billiard Section */}
                                                 {billiardTables.length > 0 && (
                                                     <div className="p-5 sm:p-6 space-y-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-9 h-9 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-md">
-                                                                <Activity className="w-4 h-4 text-white" />
+                                                            <div className="w-10 h-10 bg-slate-900 rounded-[14px] flex items-center justify-center shadow-sm">
+                                                                <Activity className="w-5 h-5 text-white" strokeWidth={1.5} />
                                                             </div>
                                                             <div className="flex-1">
-                                                                <h5 className="text-sm font-bold text-slate-800 leading-tight">Meja Billiard</h5>
-                                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">IoT Real-Time Control</p>
+                                                                <h5 className="text-[15px] font-semibold text-slate-900 tracking-tight leading-tight">Meja Billiard</h5>
+                                                                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest mt-0.5">IoT Real-Time Control</p>
                                                             </div>
-                                                            <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
+                                                            <span className="px-3 py-1 bg-slate-100/80 rounded-full text-[11px] font-semibold text-slate-500">
                                                                 {billiardTables.length} Unit
                                                             </span>
                                                         </div>
 
-                                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-2.5">
+                                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                                             {billiardTables.map(table => {
                                                                 const isSelected = selectedTables.some(t => t.type === 'BILLIARD' && t.id === table.id);
                                                                 const occupants = tableOccupancy.BILLIARD[table.id] || [];
                                                                 const isActivelyOccupied = occupants.some(o => o.isActive);
-                                                                const isOfficial = (user?.assignedTableIds || []).some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
+                                                                // ✅ Use fresh myAssignedTableIds (updated by fetchData, not stale context)
+                                                                const isOfficial = myAssignedTableIds.some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
+                                                                // isOfficialSelected = official AND in selection (auto-selected by system)
+                                                                // isExtraSelected = NOT official BUT selected (via izin)
+                                                                const isOfficialSelected = isOfficial && isSelected;
+                                                                const isExtraSelected = !isOfficial && isSelected;
                                                                 const isPending = !!pendingRequests[`BILLIARD_${table.id}`];
 
                                                                 return (
@@ -727,45 +830,51 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                                         key={table.id}
                                                                         type="button"
                                                                         onClick={() => !isActivelyOccupied && toggleTable('BILLIARD', table.id)}
-                                                                        className={`relative h-[4.5rem] rounded-2xl transition-all duration-300 active:scale-95 flex flex-col items-center justify-center gap-1 p-2 overflow-hidden group
-                                                                            ${isSelected
-                                                                                ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-lg shadow-indigo-600/30 border-0'
-                                                                                : isOfficial
-                                                                                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30 border-0'
-                                                                                    : isPending
-                                                                                        ? 'bg-amber-50 border-2 border-dashed border-amber-300 animate-pulse'
-                                                                                        : 'bg-white border-2 border-slate-100/80 hover:border-indigo-200 hover:shadow-md'
-                                                                            } ${isActivelyOccupied ? 'opacity-60 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'}`}
+                                                                        className={`relative h-[5.5rem] rounded-[18px] transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 p-2 overflow-hidden
+                                                                            ${isActivelyOccupied
+                                                                                ? 'opacity-50 cursor-not-allowed bg-slate-100 border border-slate-200 shadow-none'
+                                                                                : isOfficialSelected
+                                                                                    ? 'bg-emerald-500 shadow-md shadow-emerald-500/25 border border-emerald-400 cursor-default'
+                                                                                    : isExtraSelected
+                                                                                        ? 'bg-blue-600 shadow-md shadow-blue-600/25 border border-blue-500 cursor-pointer'
+                                                                                        : isPending
+                                                                                            ? 'bg-amber-50 border border-amber-300 animate-pulse cursor-pointer'
+                                                                                            : 'bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 shadow-sm cursor-pointer'
+                                                                            }`}
                                                                     >
-                                                                        {/* Top Indicator */}
-                                                                        <div className="absolute top-1.5 right-1.5 flex items-center justify-center">
+                                                                        {/* Status icon */}
+                                                                        <div className="absolute top-2 right-2">
                                                                             {isActivelyOccupied ? (
-                                                                                <Users className="w-3 h-3 text-slate-400" />
-                                                                            ) : isSelected ? (
-                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
-                                                                            ) : isOfficial ? (
-                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                                                                                <Users className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />
+                                                                            ) : isOfficialSelected ? (
+                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                                                                            ) : isExtraSelected ? (
+                                                                                <ShieldCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
                                                                             ) : isPending ? (
-                                                                                <Lock className="w-3 h-3 text-amber-500" />
+                                                                                <Lock className="w-3 h-3 text-amber-500" strokeWidth={2} />
                                                                             ) : (
-                                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-indigo-300 transition-colors" />
+                                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
                                                                             )}
                                                                         </div>
-                                                                        
-                                                                        {/* Main Label */}
-                                                                        <span className={`text-[11px] font-semibold tracking-wide leading-none mt-1 truncate w-full text-center px-1 ${isSelected || isOfficial ? 'text-white' : isActivelyOccupied ? 'text-slate-400' : 'text-slate-700 group-hover:text-indigo-600'}`}>
-                                                                            {table.tableName?.replace('Meja ', '') || table.id}
+
+                                                                        {/* Table number */}
+                                                                        <span className={`text-[11px] font-bold tracking-wide leading-none mt-2 w-full text-center px-1
+                                                                            ${isActivelyOccupied ? 'text-slate-400' : (isOfficialSelected || isExtraSelected) ? 'text-white' : 'text-slate-700'}`}>
+                                                                            {table.tableName?.replace(/meja\s*/i, '') || table.id}
                                                                         </span>
-                                                                        
-                                                                        {/* Status Badge */}
-                                                                        <div className={`text-[9px] font-medium px-2 py-[2px] rounded-full truncate max-w-[95%] text-center tracking-wide ${
-                                                                            isSelected ? 'bg-black/20 text-indigo-50' :
-                                                                            isOfficial ? 'bg-black/20 text-emerald-50' :
-                                                                            isPending ? 'bg-amber-100 text-amber-600' :
-                                                                            isActivelyOccupied ? 'bg-slate-200 text-slate-500' :
-                                                                            'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
-                                                                        }`}>
-                                                                            {isSelected ? user?.name?.split(' ')[0] : isPending ? 'Izin...' : occupants.length > 0 ? occupants[0].name.split(' ')[0] : isOfficial ? 'Utama' : 'Bebas'}
+
+                                                                        {/* Status label */}
+                                                                        <div className={`text-[10px] font-medium px-2 py-[2px] rounded-full truncate max-w-[95%] text-center mt-0.5
+                                                                            ${isOfficialSelected ? 'bg-white/20 text-emerald-50' :
+                                                                            isExtraSelected ? 'bg-white/20 text-blue-100' :
+                                                                            isPending ? 'bg-amber-100 text-amber-700' :
+                                                                            isActivelyOccupied ? 'text-slate-400' :
+                                                                            'bg-slate-100 text-slate-500'}`}>
+                                                                            {isOfficialSelected ? 'Penugasan' :
+                                                                             isExtraSelected ? user?.name?.split(' ')[0] :
+                                                                             isPending ? 'Menunggu...' :
+                                                                             occupants.length > 0 ? occupants[0].name.split(' ')[0] :
+                                                                             'Bebas'}
                                                                         </div>
                                                                     </button>
                                                                 );
@@ -778,24 +887,27 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                 {cafeTables.length > 0 && (
                                                     <div className="p-5 sm:p-6 space-y-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-md">
-                                                                <LayoutDashboard className="w-4 h-4 text-white" />
+                                                            <div className="w-10 h-10 bg-orange-500 rounded-[14px] flex items-center justify-center shadow-sm">
+                                                                <LayoutDashboard className="w-5 h-5 text-white" strokeWidth={1.5} />
                                                             </div>
                                                             <div className="flex-1">
-                                                                <h5 className="text-sm font-bold text-slate-800 leading-tight">Area Cafe & Resto</h5>
-                                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">F&B Management</p>
+                                                                <h5 className="text-[15px] font-semibold text-slate-900 tracking-tight leading-tight">Area Cafe & Resto</h5>
+                                                                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest mt-0.5">F&B Management</p>
                                                             </div>
-                                                            <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
+                                                            <span className="px-3 py-1 bg-slate-100/80 rounded-full text-[11px] font-semibold text-slate-500">
                                                                 {cafeTables.length} Unit
                                                             </span>
                                                         </div>
 
-                                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-2.5">
+                                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                                             {cafeTables.map(table => {
                                                                 const isSelected = selectedTables.some(t => t.type === 'CAFE' && t.id === table.id);
                                                                 const occupants = tableOccupancy.CAFE[table.id] || [];
                                                                 const isActivelyOccupied = occupants.some(o => o.isActive);
-                                                                const isOfficial = (user?.assignedTableIds || []).some((t: any) => t.type === 'CAFE' && t.id === table.id);
+                                                                // ✅ Use fresh myAssignedTableIds
+                                                                const isOfficial = myAssignedTableIds.some((t: any) => t.type === 'CAFE' && t.id === table.id);
+                                                                const isOfficialSelected = isOfficial && isSelected;
+                                                                const isExtraSelected = !isOfficial && isSelected;
                                                                 const isPending = !!pendingRequests[`CAFE_${table.id}`];
 
                                                                 return (
@@ -803,45 +915,51 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                                         key={table.id}
                                                                         type="button"
                                                                         onClick={() => !isActivelyOccupied && toggleTable('CAFE', table.id)}
-                                                                        className={`relative h-[4.5rem] rounded-2xl transition-all duration-300 active:scale-95 flex flex-col items-center justify-center gap-1 p-2 overflow-hidden group
-                                                                            ${isSelected
-                                                                                ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-lg shadow-indigo-600/30 border-0'
-                                                                                : isOfficial
-                                                                                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30 border-0'
-                                                                                    : isPending
-                                                                                        ? 'bg-amber-50 border-2 border-dashed border-amber-300 animate-pulse'
-                                                                                        : 'bg-white border-2 border-slate-100/80 hover:border-amber-200 hover:shadow-md'
-                                                                            } ${isActivelyOccupied ? 'opacity-60 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'}`}
+                                                                        className={`relative h-[5.5rem] rounded-[18px] transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-1 p-2 overflow-hidden
+                                                                            ${isActivelyOccupied
+                                                                                ? 'opacity-50 cursor-not-allowed bg-slate-100 border border-slate-200 shadow-none'
+                                                                                : isOfficialSelected
+                                                                                    ? 'bg-emerald-500 shadow-md shadow-emerald-500/25 border border-emerald-400 cursor-default'
+                                                                                    : isExtraSelected
+                                                                                        ? 'bg-blue-600 shadow-md shadow-blue-600/25 border border-blue-500 cursor-pointer'
+                                                                                        : isPending
+                                                                                            ? 'bg-amber-50 border border-amber-300 animate-pulse cursor-pointer'
+                                                                                            : 'bg-white border border-slate-200/80 hover:bg-slate-50 hover:border-slate-300 shadow-sm cursor-pointer'
+                                                                            }`}
                                                                     >
-                                                                        {/* Top Indicator */}
-                                                                        <div className="absolute top-1.5 right-1.5 flex items-center justify-center">
+                                                                        {/* Status icon */}
+                                                                        <div className="absolute top-2 right-2">
                                                                             {isActivelyOccupied ? (
-                                                                                <Users className="w-3 h-3 text-slate-400" />
-                                                                            ) : isSelected ? (
-                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
-                                                                            ) : isOfficial ? (
-                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                                                                                <Users className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />
+                                                                            ) : isOfficialSelected ? (
+                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+                                                                            ) : isExtraSelected ? (
+                                                                                <ShieldCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
                                                                             ) : isPending ? (
-                                                                                <Lock className="w-3 h-3 text-amber-500" />
+                                                                                <Lock className="w-3 h-3 text-amber-500" strokeWidth={2} />
                                                                             ) : (
-                                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-amber-300 transition-colors" />
+                                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
                                                                             )}
                                                                         </div>
-                                                                        
-                                                                        {/* Main Label */}
-                                                                        <span className={`text-[11px] font-semibold tracking-wide leading-none mt-1 truncate w-full text-center px-1 ${isSelected || isOfficial ? 'text-white' : isActivelyOccupied ? 'text-slate-400' : 'text-slate-700 group-hover:text-amber-600'}`}>
-                                                                            {table.tableName?.replace('Meja Cafe ', '').replace('Meja ', '') || table.id}
+
+                                                                        {/* Table number */}
+                                                                        <span className={`text-[11px] font-bold tracking-wide leading-none mt-2 w-full text-center px-1
+                                                                            ${isActivelyOccupied ? 'text-slate-400' : (isOfficialSelected || isExtraSelected) ? 'text-white' : 'text-slate-700'}`}>
+                                                                            {table.tableName?.replace(/meja\s*(cafe\s*)?/i, '') || table.id}
                                                                         </span>
-                                                                        
-                                                                        {/* Status Badge */}
-                                                                        <div className={`text-[9px] font-medium px-2 py-[2px] rounded-full truncate max-w-[95%] text-center tracking-wide ${
-                                                                            isSelected ? 'bg-black/20 text-indigo-50' :
-                                                                            isOfficial ? 'bg-black/20 text-emerald-50' :
-                                                                            isPending ? 'bg-amber-100 text-amber-600' :
-                                                                            isActivelyOccupied ? 'bg-slate-200 text-slate-500' :
-                                                                            'bg-slate-100 text-slate-500 group-hover:bg-amber-50 group-hover:text-amber-600'
-                                                                        }`}>
-                                                                            {isSelected ? user?.name?.split(' ')[0] : isPending ? 'Izin...' : occupants.length > 0 ? occupants[0].name.split(' ')[0] : isOfficial ? 'Area Utama' : 'Bebas'}
+
+                                                                        {/* Status label */}
+                                                                        <div className={`text-[10px] font-medium px-2 py-[2px] rounded-full truncate max-w-[95%] text-center mt-0.5
+                                                                            ${isOfficialSelected ? 'bg-white/20 text-emerald-50' :
+                                                                            isExtraSelected ? 'bg-white/20 text-blue-100' :
+                                                                            isPending ? 'bg-amber-100 text-amber-700' :
+                                                                            isActivelyOccupied ? 'text-slate-400' :
+                                                                            'bg-slate-100 text-slate-500'}`}>
+                                                                            {isOfficialSelected ? 'Penugasan' :
+                                                                             isExtraSelected ? user?.name?.split(' ')[0] :
+                                                                             isPending ? 'Menunggu...' :
+                                                                             occupants.length > 0 ? occupants[0].name.split(' ')[0] :
+                                                                             'Bebas'}
                                                                         </div>
                                                                     </button>
                                                                 );
@@ -850,18 +968,19 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                     </div>
                                                 )}
                                             </div>
+                                            )}
 
                                             {/* Summary bar */}
-                                            <div className="border-t border-slate-100/50 px-6 py-4 flex items-center justify-between bg-slate-50/50 backdrop-blur-sm">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ringkasan Area</span>
+                                            <div className="border-t border-slate-100/80 px-6 py-4 flex items-center justify-between bg-slate-50/50">
+                                                <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Ringkasan Area</span>
                                                 <div className="flex items-center gap-3">
                                                     <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
-                                                        <Activity className="w-3 h-3 text-slate-800" />
-                                                        <span className="text-[10px] font-black text-slate-800">{selectedTables.filter(t => t.type === 'BILLIARD').length}</span>
+                                                        <Activity className="w-3 h-3 text-slate-600" />
+                                                        <span className="text-[11px] font-bold text-slate-700">{selectedTables.filter(t => t.type === 'BILLIARD').length}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
-                                                        <LayoutDashboard className="w-3 h-3 text-amber-600" />
-                                                        <span className="text-[10px] font-black text-slate-800">{selectedTables.filter(t => t.type === 'CAFE').length}</span>
+                                                        <LayoutDashboard className="w-3 h-3 text-orange-500" />
+                                                        <span className="text-[11px] font-bold text-slate-700">{selectedTables.filter(t => t.type === 'CAFE').length}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -870,7 +989,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                 )}
 
                                 {/* ── Action Footer ── */}
-                                <div className="pt-2 flex flex-col gap-3">
+                                <div className="pt-4 flex flex-col gap-3">
                                     {activeShift && activeShift.id ? (
                                         <div className="flex flex-col gap-3">
                                             {Number(cashStart) !== Number(activeShift.cashStart || 0) && (
@@ -889,34 +1008,33 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                         }
                                                     }}
                                                     disabled={loading}
-                                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-600/20 active:scale-[0.98]"
+                                                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white h-14 rounded-[20px] font-semibold text-[15px] transition-all flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]"
                                                 >
-                                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-4 h-4" /><span>Simpan Perubahan Modal</span></>}
+                                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" strokeWidth={2} /><span>Simpan Perubahan Modal</span></>}
                                                 </button>
                                             )}
                                             <button
                                                 type="button"
                                                 onClick={() => { setIsManualOpen(false); if (forcedOpen) router.push('/'); }}
-                                                className="w-full bg-slate-900 hover:bg-black text-white h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg active:scale-[0.98]"
+                                                className="w-full bg-slate-900 hover:bg-black text-white h-14 rounded-[20px] font-semibold text-[15px] transition-all flex items-center justify-center gap-2 shadow-md active:scale-[0.98]"
                                             >
-                                                <LayoutDashboard className="w-4 h-4" />
+                                                <LayoutDashboard className="w-5 h-5" strokeWidth={2} />
                                                 <span>Buka Dashboard Operasional</span>
-                                                <ChevronRight className="w-4 h-4" />
+                                                <ChevronRight className="w-5 h-5 opacity-60" strokeWidth={2} />
                                             </button>
                                         </div>
                                     ) : (
                                         <button
                                             type="submit"
                                             disabled={loading || !shiftName || shiftName === 'CUSTOM'}
-                                            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed text-white h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-indigo-600/25 active:scale-[0.98]"
+                                            className="w-full bg-[#E5E5EA] disabled:bg-[#F2F2F7] disabled:text-slate-400 hover:bg-blue-600 hover:text-white text-blue-600 h-14 rounded-[20px] font-semibold text-[15px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                                         >
                                             {loading ? (
                                                 <Loader2 className="w-5 h-5 animate-spin" />
                                             ) : (
                                                 <>
-                                                    <Zap className="w-4 h-4" />
-                                                    <span>AKTIFKAN SESI SHIFT</span>
-                                                    <ArrowRight className="w-4 h-4" />
+                                                    <Zap className="w-4 h-4" strokeWidth={2.5} />
+                                                    <span>Aktifkan Sesi Shift</span>
                                                 </>
                                             )}
                                         </button>
