@@ -117,6 +117,18 @@ let BilliardController = class BilliardController {
     async createTable(tableData) {
         return this.billiardService.createTable(tableData);
     }
+    /**
+   * Bulk update IoT config (MAC, relayPin, hardwareType, categoryId) for multiple tables at once.
+   * Body: { updates: Array<{ id: number; macAddress?: string; relayPin?: number; hardwareType?: string; categoryId?: number; espnowGatewayMac?: string; floorNumber?: number; productionZone?: string }> }
+   */ async bulkUpdateTables(body) {
+        return this.billiardService.bulkUpdateTables(body.updates);
+    }
+    /**
+   * Auto-generate N tables in one shot.
+   * Body: { count: number; prefix: string; startIndex: number; hardwareType: string; categoryId?: number; floorNumber?: number; productionZone?: string; macAddress?: string; espnowGatewayMac?: string }
+   */ async bulkGenerateTables(body) {
+        return this.billiardService.bulkGenerateTables(body);
+    }
     async updateTable(id, data) {
         return this.billiardService.updateTable(id, data);
     }
@@ -354,6 +366,26 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "createTable", null);
+_ts_decorate([
+    (0, _common.Patch)('tables/bulk-update'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "bulkUpdateTables", null);
+_ts_decorate([
+    (0, _common.Post)('tables/bulk-generate'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "bulkGenerateTables", null);
 _ts_decorate([
     (0, _common.Patch)('tables/:id'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

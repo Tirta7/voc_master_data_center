@@ -48,8 +48,10 @@ import { DetailedPayrollAuditModal } from "./components/DetailedPayrollAuditModa
 import { ViolationModal, ViolationType } from "./components/ViolationModal";
 import { RegisterModal } from "./components/RegisterModal";
 import { RoleModal } from "./components/RoleModal";
+import { ImportExcelEmployeeModal } from "./components/ImportExcelEmployeeModal";
 import { EmployeeTable } from "./components/EmployeeTable";
 import { EmployeeMobileList } from "./components/EmployeeMobileList";
+import * as xlsx from "xlsx";
 
 import { getApiUrl } from '@/utils/urlUtils';
 const API_URL = `${getApiUrl()}/api`;
@@ -99,6 +101,9 @@ interface User {
     payrollConfig?: PayrollConfig;
     baseShift?: string;
     phone?: string;
+    jobTitle?: string;
+    gender?: string;
+    address?: string;
     currentActivePage?: string;
     fingerprintData?: string;
     rfid?: string;
@@ -210,6 +215,7 @@ export default function EmployeePage() {
     const [roles, setRoles] = useState<Role[]>([]);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showRoleModal, setShowRoleModal] = useState(false);
+    const [showImportEmployeeModal, setShowImportEmployeeModal] = useState(false);
     const [availableShifts, setAvailableShifts] = useState<
         { name: string; startTime: string; endTime: string }[]
     >([]);
@@ -262,7 +268,7 @@ export default function EmployeePage() {
     const [isScanningRFID, setIsScanningRFID] = useState(false);
     const registrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    useBodyScrollLock(showRegisterModal || showRoleModal || showDetailedModal);
+    useBodyScrollLock(showRegisterModal || showRoleModal || showDetailedModal || showImportEmployeeModal);
 
     // Tab Permission Matrix
     const tabPermissions: Record<string, string> = {
@@ -1144,7 +1150,114 @@ export default function EmployeePage() {
         }
     };
 
+    const handleExportExcel = () => {
+        try {
+            const wb = xlsx.utils.book_new();
 
+            // 1. Sheet Role Matrix
+            const roleData = [
+                ['Nama Role', 'Level Approval', 'Deskripsi', 'Permissions'],
+                ...roles.map(r => [
+                    r.name,
+                    r.approvalLevel?.toString() || '1',
+                    r.description || '',
+                    r.permissions.join(',')
+                ])
+            ];
+            const wsRole = xlsx.utils.aoa_to_sheet(roleData);
+            wsRole['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 90 }];
+            xlsx.utils.book_append_sheet(wb, wsRole, 'Role Matrix');
+
+            // 2. Sheet Karyawan
+            const empHeader = [
+                'Nama Lengkap', 'Username', 'Password', 'Role', 'PIN', 'RFID',
+                'Telepon', 'Email', 'Jabatan', 'Shift', 'Jenis Kelamin',
+                'Alamat', 'Mode Keamanan', 'Tanggal Bergabung'
+            ];
+            const empDataRows = employees.map(emp => [
+                emp.name,
+                emp.username,
+                "", // Password blank for security
+                emp.role?.name || 'KASIR',
+                emp.pin || '',
+                emp.rfid || '',
+                emp.phone || '',
+                emp.email || '',
+                emp.jobTitle || '',
+                emp.baseShift || 'SHIFT 1',
+                emp.gender || '',
+                emp.address || '',
+                emp.securityMode || 'HYBRID',
+                emp.joinedAt || ''
+            ]);
+            const wsEmp = xlsx.utils.aoa_to_sheet([empHeader, ...empDataRows]);
+            wsEmp['!cols'] = [
+                { wch: 22 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
+                { wch: 14 }, { wch: 25 }, { wch: 22 }, { wch: 10 }, { wch: 14 },
+                { wch: 30 }, { wch: 16 }, { wch: 18 },
+            ];
+            xlsx.utils.book_append_sheet(wb, wsEmp, 'Karyawan');
+
+            // 3. Sheet Panduan
+            const guideData = [
+                ['PANDUAN PENGISIAN - TEMPLATE IMPORT DATA SDM'],
+                [''],
+                ['SHEET 1: Role Matrix'],
+                ['Kolom', 'Keterangan', 'Contoh'],
+                ['Nama Role', 'Nama role (UPPERCASE, unik)', 'KASIR'],
+                ['Level Approval', '1=Staff, 2=Kasir, 3=Manager, 4=Owner', '2'],
+                ['Deskripsi', 'Deskripsi singkat role', 'Operator kasir harian'],
+                ['Permissions', 'Daftar permission dipisah koma', 'DASHBOARD_TABLE,START_TABLE'],
+                [''],
+                ['DAFTAR PERMISSION YANG TERSEDIA:'],
+                ['DASHBOARD_TABLE', 'Akses dashboard & monitoring meja'],
+                ['START_TABLE', 'Mulai sesi meja billiard'],
+                ['END_TABLE', 'Akhiri sesi meja billiard'],
+                ['USER_MANAGE', 'Kelola data karyawan'],
+                ['USER_ROLE', 'Kelola role & permission'],
+                ['INVENTORY_VIEW', 'Lihat inventory'],
+                ['INV_ADD_ITEM', 'Tambah/edit bahan baku'],
+                ['INVENTORY_WASTE', 'Deklarasi waste'],
+                ['TRANSACTION_VIEW', 'Lihat histori transaksi'],
+                ['FINANCE_VIEW', 'Akses laporan keuangan'],
+                ['REPORT_VIEW', 'Akses laporan bisnis'],
+                ['CAFE_ORDER', 'Input order cafe'],
+                ['AUDIT_TRAIL', 'Lihat audit log'],
+                [''],
+                ['SHEET 2: Karyawan'],
+                ['Kolom', 'Keterangan', 'Wajib?'],
+                ['Nama Lengkap', 'Nama lengkap karyawan', 'Ya'],
+                ['Username', 'Username login (huruf kecil, tanpa spasi)', 'Ya'],
+                ['Password', 'Kosongkan jika ingin password = username', 'Opsional'],
+                ['Role', 'Nama Role dari Sheet 1', 'Ya'],
+                ['PIN', 'PIN 4-6 digit untuk akses cepat', 'Opsional'],
+                ['RFID', 'Kode RFID kartu karyawan', 'Opsional'],
+                ['Telepon', 'Nomor HP aktif', 'Opsional'],
+                ['Email', 'Alamat email karyawan', 'Opsional'],
+                ['Jabatan', 'Judul jabatan/posisi', 'Opsional'],
+                ['Shift', 'SHIFT 1 / SHIFT 2 / SHIFT 3', 'Opsional'],
+                ['Jenis Kelamin', 'Laki-laki / Perempuan', 'Opsional'],
+                ['Alamat', 'Alamat lengkap', 'Opsional'],
+                ['Mode Keamanan', 'HYBRID / RFID_ONLY / FINGERPRINT_ONLY / DUAL', 'Opsional'],
+                ['Tanggal Bergabung', 'Format: YYYY-MM-DD', 'Opsional'],
+                [''],
+                ['CATATAN PENTING:'],
+                ['- Sistem UPSERT: username sudah ada = data diperbarui, belum ada = data baru dibuat.'],
+                ['- Password karyawan BARU dapat disetel di kolom Password (atau = Username jika kosong).'],
+                ['- Role pada Sheet 2 harus sudah ada di Sheet 1 atau sudah ada di sistem.'],
+            ];
+            const wsGuide = xlsx.utils.aoa_to_sheet(guideData);
+            wsGuide['!cols'] = [{ wch: 25 }, { wch: 60 }, { wch: 12 }];
+            xlsx.utils.book_append_sheet(wb, wsGuide, 'Panduan');
+
+            const fileName = `Data_Karyawan_${new Date().toISOString().split("T")[0]}.xlsx`;
+            xlsx.writeFile(wb, fileName);
+            showToast("Export Berhasil", "Data karyawan berhasil diunduh", "success");
+        } catch (error) {
+            console.error("Export error", error);
+            showToast("Export Gagal", "Gagal mengekspor data karyawan", "error");
+        }
+    };
 
     const filteredEmployees = useMemo(() => {
         return employees
@@ -1224,6 +1337,24 @@ export default function EmployeePage() {
                                 >
                                     <Shield className="w-4 h-4" />
                                     <span className="whitespace-nowrap">Roles</span>
+                                </button>
+                            )}
+                            {hasPermission("USER_MANAGE") && (
+                                <button
+                                    onClick={() => setShowImportEmployeeModal(true)}
+                                    className="flex-1 lg:flex-none bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-sm border border-emerald-400/40 text-emerald-100 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                                    <span className="whitespace-nowrap">Import Excel</span>
+                                </button>
+                            )}
+                            {hasPermission("USER_MANAGE") && (
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="flex-1 lg:flex-none bg-indigo-500/20 hover:bg-indigo-500/30 backdrop-blur-sm border border-indigo-400/40 text-indigo-100 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    <span className="whitespace-nowrap">Export</span>
                                 </button>
                             )}
                             {hasPermission("USER_MANAGE") && (
@@ -2568,6 +2699,16 @@ export default function EmployeePage() {
                     roleLoading={roleLoading}
                     toggleGroup={toggleGroup}
                     togglePermission={togglePermission}
+                />
+
+                {/* ── Import Excel Employee Modal ── */}
+                <ImportExcelEmployeeModal
+                    isOpen={showImportEmployeeModal}
+                    onClose={() => setShowImportEmployeeModal(false)}
+                    onSuccess={() => {
+                        setShowImportEmployeeModal(false);
+                        fetchData(true);
+                    }}
                 />
 
                 <RegisterModal

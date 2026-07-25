@@ -9,7 +9,10 @@ import {
   Query,
   UseGuards,
   Request,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from './user.service';
 import { UserStatus } from './entities/user.entity';
@@ -80,6 +83,16 @@ export class UserController {
   @Delete('employees/:id')
   async remove(@Param('id') id: string) {
     return this.userService.deleteEmployee(+id);
+  }
+
+  @Post('import')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(FileInterceptor('file'))
+  async importFromExcel(@UploadedFile() file: any) {
+    if (!file) {
+      throw new Error('No file uploaded');
+    }
+    return this.userService.importFromExcel(file.buffer);
   }
 
   @Post('roles')

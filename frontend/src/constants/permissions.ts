@@ -105,6 +105,7 @@ export const PERMISSION_GROUPS = [
             { id: 'INVENTORY_SUPPLIER_MANAGE', label: 'Manajemen Data Supplier' },
             { id: 'STOCK_TRANSFER', label: 'Transfer Stok Antar Gudang' },
             { id: 'STOCK_OPNAME', label: 'Akses Menu Stock Opname' },
+            { id: 'INV_EXPORT', label: 'Export Data Inventory (Excel)' },
         ]
     },
     {
@@ -142,6 +143,7 @@ export const PERMISSION_GROUPS = [
             { id: 'SHIFT_MANAGE', label: 'Manajemen / Edit Shift' },
             { id: 'APPROVAL_OVERRIDE', label: 'Otoritas Bypass / Super-User' },
             { id: 'USER_ROLE_EDIT', label: 'Edit & Hapus Role Karyawan' },
+            { id: 'USER_EXPORT', label: 'Export Data Karyawan (Excel)' },
         ]
     },
     {
@@ -173,6 +175,7 @@ export const PERMISSION_GROUPS = [
             { id: 'SETTING_DISPLAY', label: 'Display & Digital Marketing' },
             { id: 'SETTING_GAMIFICATION', label: 'Gamifikasi & Poin' },
             { id: 'SETTING_PREFERENCES', label: 'Preferensi & Kustomisasi UI' },
+            { id: 'SETTING_LAYOUT', label: 'Desain Layout Ruangan' },
         ]
     },
     {

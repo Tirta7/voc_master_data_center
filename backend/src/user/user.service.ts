@@ -25,6 +25,8 @@ import type { EventsGateway } from '../socket/events.gateway';
 import { ShiftService } from '../finance/shift.service';
 import { Cashflow, CashflowType } from '../finance/entities/cashflow.entity';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import * as xlsx from 'xlsx';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class UserService {
@@ -69,6 +71,7 @@ export class UserService {
       return SettingsService;
     }))
     private readonly settingsService: any,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findByUsername(username: string): Promise<User | null> {
@@ -1474,5 +1477,151 @@ export class UserService {
       where: { id },
       relations: ['user'],
     });
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // BULK IMPORT: Import Karyawan & Role Matrix dari Excel
+  // ─────────────────────────────────────────────────────────
+  async importFromExcel(buffer: Buffer): Promise<{ stats: { roles: number; employees: number } }> {
+    const workbook = xlsx.read(buffer, { type: 'buffer' });
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    const stats = { roles: 0, employees: 0 };
+
+    try {
+      // ── Sheet 1: Role Matrix ──────────────────────────────
+      const roleSheetName = workbook.SheetNames.find((n) =>
+        n.toLowerCase().includes('role'),
+      ) || workbook.SheetNames[0];
+
+      if (roleSheetName) {
+        const rows = xlsx.utils.sheet_to_json<any>(workbook.Sheets[roleSheetName]);
+        for (const row of rows) {
+          const name = (row['Nama Role'] || row['Nama'] || '').toString().trim().toUpperCase();
+          if (!name) continue;
+
+          const permissions = (row['Permissions'] || '')
+            .toString()
+            .split(',')
+            .map((p: string) => p.trim())
+            .filter(Boolean);
+
+          const approvalLevel = Number(row['Level Approval']) || 1;
+          const description = (row['Deskripsi'] || '').toString().trim();
+
+          let role = await queryRunner.manager.findOne(Role, { where: { name } });
+          if (!role) {
+            role = queryRunner.manager.create(Role, {
+              name,
+              permissions,
+              approvalLevel,
+              description,
+            });
+          } else {
+            role.permissions = permissions.length ? permissions : role.permissions;
+            role.approvalLevel = approvalLevel || role.approvalLevel;
+            role.description = description || role.description;
+          }
+          await queryRunner.manager.save(Role, role);
+          stats.roles++;
+        }
+      }
+
+      // ── Sheet 2: Karyawan ────────────────────────────────
+      const empSheetName = workbook.SheetNames.find((n) =>
+        n.toLowerCase().includes('karyawan') || n.toLowerCase().includes('emp'),
+      ) || workbook.SheetNames[1];
+
+      if (empSheetName) {
+        const rows = xlsx.utils.sheet_to_json<any>(workbook.Sheets[empSheetName]);
+        for (const row of rows) {
+          const username = (row['Username'] || '').toString().trim().toLowerCase();
+          if (!username) continue;
+
+          const name = (row['Nama Lengkap'] || row['Nama'] || username).toString().trim();
+          const rawPassword = (row['Password'] || '').toString().trim();
+          const roleName = (row['Role'] || 'KASIR').toString().trim().toUpperCase();
+          const pin = (row['PIN'] || '').toString().trim();
+          const rfid = (row['RFID'] || '').toString().trim() || null;
+          const phone = (row['Telepon'] || '').toString().trim();
+          const email = (row['Email'] || '').toString().trim() || null;
+          const jobTitle = (row['Jabatan'] || '').toString().trim();
+          const baseShift = (row['Shift'] || 'SHIFT 1').toString().trim().toUpperCase();
+          const gender = (row['Jenis Kelamin'] || '').toString().trim();
+          const address = (row['Alamat'] || '').toString().trim();
+          const securityMode = (row['Mode Keamanan'] || 'HYBRID').toString().trim().toUpperCase() as any;
+          const joinedAt = (row['Tanggal Bergabung'] || '').toString().trim();
+
+          // Resolve role
+          let role = await queryRunner.manager.findOne(Role, { where: { name: roleName } });
+          if (!role) {
+            // Create a basic role if not found
+            role = queryRunner.manager.create(Role, {
+              name: roleName,
+              permissions: [],
+              approvalLevel: 1,
+            });
+            await queryRunner.manager.save(Role, role);
+          }
+
+          let user = await queryRunner.manager.findOne(User, { where: { username } });
+          if (!user) {
+            // New employee — set password from Excel or default to username
+            const passwordToHash = rawPassword || username;
+            const hashedPassword = await bcrypt.hash(passwordToHash, 10);
+            user = queryRunner.manager.create(User, {
+              username,
+              name,
+              password: hashedPassword,
+              pin: pin || null,
+              rfid: rfid || null,
+              phone: phone || null,
+              email: email || null,
+              jobTitle: jobTitle || null,
+              baseShift: baseShift || 'SHIFT 1',
+              gender: gender || null,
+              address: address || null,
+              securityMode,
+              role,
+              joinedAt: joinedAt || null,
+              status: UserStatus.OFFLINE,
+              isVerified: true,
+            });
+          } else {
+            // Update existing
+            if (rawPassword) {
+              user.password = await bcrypt.hash(rawPassword, 10);
+            }
+            if (name) user.name = name;
+            if (pin) user.pin = pin;
+            if (rfid) user.rfid = rfid;
+            if (phone) user.phone = phone;
+            if (email) user.email = email;
+            if (jobTitle) user.jobTitle = jobTitle;
+            if (baseShift) user.baseShift = baseShift;
+            if (gender) user.gender = gender;
+            if (address) user.address = address;
+            if (securityMode) user.securityMode = securityMode;
+            if (joinedAt) user.joinedAt = joinedAt;
+            user.role = role;
+          }
+
+          await queryRunner.manager.save(User, user);
+          stats.employees++;
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return { stats };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error('importFromExcel failed', err);
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

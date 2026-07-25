@@ -9,6 +9,7 @@ Object.defineProperty(exports, "UserController", {
     }
 });
 const _common = require("@nestjs/common");
+const _platformexpress = require("@nestjs/platform-express");
 const _passport = require("@nestjs/passport");
 const _userservice = require("./user.service");
 function _ts_decorate(decorators, target, key, desc) {
@@ -55,6 +56,12 @@ let UserController = class UserController {
     }
     async remove(id) {
         return this.userService.deleteEmployee(+id);
+    }
+    async importFromExcel(file) {
+        if (!file) {
+            throw new Error('No file uploaded');
+        }
+        return this.userService.importFromExcel(file.buffer);
     }
     async createRole(data) {
         return this.userService.createRole(data.name, data.permissions, data.description, data.approvalLevel);
@@ -179,6 +186,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], UserController.prototype, "remove", null);
+_ts_decorate([
+    (0, _common.Post)('import'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    (0, _common.UseInterceptors)((0, _platformexpress.FileInterceptor)('file')),
+    _ts_param(0, (0, _common.UploadedFile)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "importFromExcel", null);
 _ts_decorate([
     (0, _common.Post)('roles'),
     _ts_param(0, (0, _common.Body)()),

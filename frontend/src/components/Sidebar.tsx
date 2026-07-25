@@ -132,9 +132,9 @@ export default function Sidebar() {
                 { name: 'Master Kategori', icon: Box, path: '/admin/settings/categories', permission: 'SETTING_TABLES' },
                 { name: t('sidebar.billiardPricing'), icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
                 { name: t('sidebar.promoBundling'), icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
-                { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },
-                { name: 'Layout Ruangan', icon: LayoutDashboard, path: '/admin/settings/floor-plan', permission: 'SYSTEM_CONFIG' },
-                { name: 'Hardware Health', icon: Activity, path: '/admin/hardware', permission: 'SETTING_HARDWARE' },
+                { name: 'Panel Kontrol Meja', icon: Settings, path: '/admin/settings/tables', permission: 'SETTING_TABLES' },
+                { name: 'Layout Ruangan', icon: LayoutDashboard, path: '/admin/settings/floor-plan', permission: 'SETTING_LAYOUT' },
+                { name: 'Hardware Health', icon: Activity, path: '/admin/settings/hardware', permission: 'SETTING_HARDWARE' },
                 { name: 'Kelola Voucher', icon: Receipt, path: '/admin/settings/vouchers', permission: 'PROMO_MANAGE' },
                 { name: t('sidebar.settings'), icon: Settings, path: '/admin/settings', permission: ['USER_MANAGE', 'SETTING_IDENTITY', 'SETTING_POLICY', 'SETTING_OPERATION', 'SETTING_APPROVAL', 'SETTING_HARDWARE', 'SETTING_FIRMWARE', 'SETTING_WHATSAPP', 'SETTING_LICENSE', 'SETTING_INVOICE', 'SETTING_DATABASE', 'SETTING_GAMIFICATION', 'SETTING_DISPLAY', 'SETTING_PREFERENCES'] },
             ]

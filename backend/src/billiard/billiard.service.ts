@@ -1039,7 +1039,7 @@ export class BilliardService implements OnModuleInit {
       const newTable = this.tableRepository.create({
         tableName,
         hardwareType: hardwareType as HardwareType,
-        categoryId: categoryId || null,
+        categoryId: categoryId || undefined,
         floorNumber: floorNumber || 1,
         productionZone: productionZone || '',
         macAddress: normalizedMac,

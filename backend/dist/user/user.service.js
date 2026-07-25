@@ -24,6 +24,7 @@ const _bcrypt = /*#__PURE__*/ _interop_require_wildcard(require("bcrypt"));
 const _shiftservice = require("../finance/shift.service");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
+const _xlsx = /*#__PURE__*/ _interop_require_wildcard(require("xlsx"));
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -1351,7 +1352,149 @@ let UserService = class UserService {
             ]
         });
     }
-    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, attendanceRepository, eventsGateway, shiftService, whatsAppService, approvalService, settingsService){
+    // ─────────────────────────────────────────────────────────
+    // BULK IMPORT: Import Karyawan & Role Matrix dari Excel
+    // ─────────────────────────────────────────────────────────
+    async importFromExcel(buffer) {
+        const workbook = _xlsx.read(buffer, {
+            type: 'buffer'
+        });
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        const stats = {
+            roles: 0,
+            employees: 0
+        };
+        try {
+            // ── Sheet 1: Role Matrix ──────────────────────────────
+            const roleSheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('role')) || workbook.SheetNames[0];
+            if (roleSheetName) {
+                const rows = _xlsx.utils.sheet_to_json(workbook.Sheets[roleSheetName]);
+                for (const row of rows){
+                    const name = (row['Nama Role'] || row['Nama'] || '').toString().trim().toUpperCase();
+                    if (!name) continue;
+                    const permissions = (row['Permissions'] || '').toString().split(',').map((p)=>p.trim()).filter(Boolean);
+                    const approvalLevel = Number(row['Level Approval']) || 1;
+                    const description = (row['Deskripsi'] || '').toString().trim();
+                    let role = await queryRunner.manager.findOne(_roleentity.Role, {
+                        where: {
+                            name
+                        }
+                    });
+                    if (!role) {
+                        role = queryRunner.manager.create(_roleentity.Role, {
+                            name,
+                            permissions,
+                            approvalLevel,
+                            description
+                        });
+                    } else {
+                        role.permissions = permissions.length ? permissions : role.permissions;
+                        role.approvalLevel = approvalLevel || role.approvalLevel;
+                        role.description = description || role.description;
+                    }
+                    await queryRunner.manager.save(_roleentity.Role, role);
+                    stats.roles++;
+                }
+            }
+            // ── Sheet 2: Karyawan ────────────────────────────────
+            const empSheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('karyawan') || n.toLowerCase().includes('emp')) || workbook.SheetNames[1];
+            if (empSheetName) {
+                const rows = _xlsx.utils.sheet_to_json(workbook.Sheets[empSheetName]);
+                for (const row of rows){
+                    const username = (row['Username'] || '').toString().trim().toLowerCase();
+                    if (!username) continue;
+                    const name = (row['Nama Lengkap'] || row['Nama'] || username).toString().trim();
+                    const rawPassword = (row['Password'] || '').toString().trim();
+                    const roleName = (row['Role'] || 'KASIR').toString().trim().toUpperCase();
+                    const pin = (row['PIN'] || '').toString().trim();
+                    const rfid = (row['RFID'] || '').toString().trim() || null;
+                    const phone = (row['Telepon'] || '').toString().trim();
+                    const email = (row['Email'] || '').toString().trim() || null;
+                    const jobTitle = (row['Jabatan'] || '').toString().trim();
+                    const baseShift = (row['Shift'] || 'SHIFT 1').toString().trim().toUpperCase();
+                    const gender = (row['Jenis Kelamin'] || '').toString().trim();
+                    const address = (row['Alamat'] || '').toString().trim();
+                    const securityMode = (row['Mode Keamanan'] || 'HYBRID').toString().trim().toUpperCase();
+                    const joinedAt = (row['Tanggal Bergabung'] || '').toString().trim();
+                    // Resolve role
+                    let role = await queryRunner.manager.findOne(_roleentity.Role, {
+                        where: {
+                            name: roleName
+                        }
+                    });
+                    if (!role) {
+                        // Create a basic role if not found
+                        role = queryRunner.manager.create(_roleentity.Role, {
+                            name: roleName,
+                            permissions: [],
+                            approvalLevel: 1
+                        });
+                        await queryRunner.manager.save(_roleentity.Role, role);
+                    }
+                    let user = await queryRunner.manager.findOne(_userentity.User, {
+                        where: {
+                            username
+                        }
+                    });
+                    if (!user) {
+                        // New employee — set password from Excel or default to username
+                        const passwordToHash = rawPassword || username;
+                        const hashedPassword = await _bcrypt.hash(passwordToHash, 10);
+                        user = queryRunner.manager.create(_userentity.User, {
+                            username,
+                            name,
+                            password: hashedPassword,
+                            pin: pin || null,
+                            rfid: rfid || null,
+                            phone: phone || null,
+                            email: email || null,
+                            jobTitle: jobTitle || null,
+                            baseShift: baseShift || 'SHIFT 1',
+                            gender: gender || null,
+                            address: address || null,
+                            securityMode,
+                            role,
+                            joinedAt: joinedAt || null,
+                            status: _userentity.UserStatus.OFFLINE,
+                            isVerified: true
+                        });
+                    } else {
+                        // Update existing
+                        if (rawPassword) {
+                            user.password = await _bcrypt.hash(rawPassword, 10);
+                        }
+                        if (name) user.name = name;
+                        if (pin) user.pin = pin;
+                        if (rfid) user.rfid = rfid;
+                        if (phone) user.phone = phone;
+                        if (email) user.email = email;
+                        if (jobTitle) user.jobTitle = jobTitle;
+                        if (baseShift) user.baseShift = baseShift;
+                        if (gender) user.gender = gender;
+                        if (address) user.address = address;
+                        if (securityMode) user.securityMode = securityMode;
+                        if (joinedAt) user.joinedAt = joinedAt;
+                        user.role = role;
+                    }
+                    await queryRunner.manager.save(_userentity.User, user);
+                    stats.employees++;
+                }
+            }
+            await queryRunner.commitTransaction();
+            return {
+                stats
+            };
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            this.logger.error('importFromExcel failed', err);
+            throw err;
+        } finally{
+            await queryRunner.release();
+        }
+    }
+    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, attendanceRepository, eventsGateway, shiftService, whatsAppService, approvalService, settingsService, dataSource){
         this.payrollRepository = payrollRepository;
         this.violationRepository = violationRepository;
         this.transactionRepository = transactionRepository;
@@ -1366,6 +1509,7 @@ let UserService = class UserService {
         this.whatsAppService = whatsAppService;
         this.approvalService = approvalService;
         this.settingsService = settingsService;
+        this.dataSource = dataSource;
         this.logger = new _common.Logger(UserService.name);
     }
 };
@@ -1408,7 +1552,8 @@ UserService = _ts_decorate([
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
         Object,
-        Object
+        Object,
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], UserService);
 

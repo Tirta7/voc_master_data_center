@@ -50,6 +50,7 @@ import { useMqtt } from '@/context/MqttContext';
 import useSWR, { mutate } from 'swr';
 import { useSearchParams } from 'next/navigation';
 import { fetcher } from '@/lib/fetcher';
+import * as xlsx from 'xlsx';
 
 import { inventorySocket, socket } from '@/lib/socket';
 import { Ingredient, Category, MenuItem } from './types';
@@ -685,6 +686,56 @@ function InventoryContent() {
         setShowRecipeModal(true);
     };
 
+    const handleExportExcel = () => {
+        try {
+            const wb = xlsx.utils.book_new();
+
+            // Sheet 1: Kategori
+            const catData = [
+                ['Nama Kategori', 'Tipe', 'Target Produksi'],
+                ...(categories || []).map(c => [
+                    c.name, c.type, c.productionTarget
+                ])
+            ];
+            const wsCat = xlsx.utils.aoa_to_sheet(catData);
+            xlsx.utils.book_append_sheet(wb, wsCat, 'Kategori');
+
+            // Sheet 2: Bahan Baku
+            const ingData = [
+                ['Nama Bahan', 'SKU', 'Kategori', 'Satuan', 'Harga Beli', 'Stok Awal', 'Min Stok', 'Departemen'],
+                ...(ingredients || []).map(i => [
+                    i.name, i.sku, i.category, i.unit, i.costPrice, i.stockQuantity, i.minStockLevel, i.department || 'KITCHEN'
+                ])
+            ];
+            const wsIng = xlsx.utils.aoa_to_sheet(ingData);
+            xlsx.utils.book_append_sheet(wb, wsIng, 'Bahan Baku');
+
+            // Sheet 3: Menu & Resep
+            const menuData = [
+                ['Nama Menu', 'SKU', 'Kategori', 'Harga Jual', 'Departemen', 'Resep Baku'],
+                ...(menuItems || []).map(m => {
+                    const catName = categories?.find(c => c.id === m.categoryId)?.name || '';
+                    const recipeStr = (m.recipes || []).map((r: any) => {
+                        const ingName = r.ingredient ? r.ingredient.name : (r.subMenuItem ? r.subMenuItem.name : 'Unknown');
+                        return `${ingName}: ${r.quantity}`;
+                    }).join(', ');
+                    return [
+                        m.name, m.sku, catName, m.price, m.department || 'KITCHEN', recipeStr
+                    ];
+                })
+            ];
+            const wsMenu = xlsx.utils.aoa_to_sheet(menuData);
+            xlsx.utils.book_append_sheet(wb, wsMenu, 'Menu dan Resep');
+
+            const fileName = `Data_Inventory_${new Date().toISOString().split("T")[0]}.xlsx`;
+            xlsx.writeFile(wb, fileName);
+            alert("Export Berhasil: Data Inventory berhasil diunduh.");
+        } catch (error) {
+            console.error("Export error", error);
+            alert("Export Gagal: Terjadi kesalahan saat mengunduh data.");
+        }
+    };
+
     const filteredIngredients = (ingredients || []).filter(i => {
         const matchesSearch = i.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCategory = selectedIngCategory === 'ALL' || i.category === selectedIngCategory;
@@ -1006,6 +1057,14 @@ function InventoryContent() {
                                             <Database className="w-4 h-4" />
                                             <span className="hidden sm:inline">Import Excel</span>
                                             <span className="sm:hidden">Import</span>
+                                        </button>
+                                        <button
+                                            onClick={handleExportExcel}
+                                            className="flex-1 sm:flex-none bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                                        >
+                                            <Database className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Export Excel</span>
+                                            <span className="sm:hidden">Export</span>
                                         </button>
                                         <button
                                             onClick={openAddIngredientModal}

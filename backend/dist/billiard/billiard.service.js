@@ -839,6 +839,157 @@ let BilliardService = class BilliardService {
         });
         return savedTable;
     }
+    /**
+   * Bulk update IoT configuration for multiple tables at once.
+   * Skips tables that are currently in_use to prevent disruption.
+   */ async bulkUpdateTables(updates) {
+        if (!updates || updates.length === 0) {
+            throw new _common.BadRequestException('Daftar update tidak boleh kosong.');
+        }
+        const skipped = [];
+        let updated = 0;
+        await this.dataSource.transaction(async (em)=>{
+            for (const item of updates){
+                const table = await em.findOne(_tableentity.Table, {
+                    where: {
+                        id: item.id,
+                        deletedAt: (0, _typeorm1.IsNull)()
+                    }
+                });
+                if (!table) {
+                    skipped.push({
+                        id: item.id,
+                        reason: 'Meja tidak ditemukan.'
+                    });
+                    continue;
+                }
+                // Skip meja aktif
+                if (table.status === _tableentity.TableStatus.IN_USE) {
+                    skipped.push({
+                        id: item.id,
+                        reason: `Meja ${table.tableName} sedang aktif (IN USE). Konfigurasi tidak diubah.`
+                    });
+                    continue;
+                }
+                // Normalize MAC
+                const macAddress = item.macAddress !== undefined ? item.macAddress === '' ? '' : item.macAddress.replace(/[:\-]/g, '').toUpperCase() : table.macAddress;
+                const hardwareType = item.hardwareType || table.hardwareType;
+                const relayPin = item.relayPin !== undefined ? item.relayPin : table.relayPin;
+                // PCF uniqueness check
+                if (macAddress && hardwareType === _tableentity.HardwareType.PCF8575) {
+                    const conflict = await em.findOne(_tableentity.Table, {
+                        where: {
+                            macAddress,
+                            relayPin,
+                            deletedAt: (0, _typeorm1.IsNull)()
+                        }
+                    });
+                    if (conflict && conflict.id !== item.id) {
+                        skipped.push({
+                            id: item.id,
+                            reason: `Kombinasi MAC ${macAddress} + Channel ${relayPin} sudah dipakai oleh ${conflict.tableName}.`
+                        });
+                        continue;
+                    }
+                }
+                Object.assign(table, {
+                    ...item.macAddress !== undefined && {
+                        macAddress
+                    },
+                    ...item.relayPin !== undefined && {
+                        relayPin
+                    },
+                    ...item.hardwareType !== undefined && {
+                        hardwareType
+                    },
+                    ...item.categoryId !== undefined && {
+                        categoryId: item.categoryId
+                    },
+                    ...item.espnowGatewayMac !== undefined && {
+                        espnowGatewayMac: item.espnowGatewayMac?.replace(/[:\-]/g, '').toUpperCase()
+                    },
+                    ...item.floorNumber !== undefined && {
+                        floorNumber: item.floorNumber
+                    },
+                    ...item.productionZone !== undefined && {
+                        productionZone: item.productionZone
+                    },
+                    ...item.stationType !== undefined && {
+                        stationType: item.stationType
+                    }
+                });
+                // TypeORM fix: detach relation when FK changes
+                if (item.categoryId !== undefined) {
+                    table.categoryId = item.categoryId;
+                    delete table.categoryRelation;
+                }
+                await em.save(_tableentity.Table, table);
+                updated++;
+            }
+        });
+        await this.clearAllTablesCache();
+        this.clearMacCache();
+        this.billiardGateway.server?.emit('billiard/tables/update', {
+            type: 'billiard',
+            _action: 'BULK_UPDATE'
+        });
+        return {
+            updated,
+            skipped
+        };
+    }
+    /**
+   * Auto-generate N tables with preset IoT configuration.
+   * Skips names that already exist in the DB.
+   */ async bulkGenerateTables(params) {
+        const { count, prefix, startIndex, hardwareType, categoryId, floorNumber, productionZone, macAddress, espnowGatewayMac, stationType, autoPin } = params;
+        if (!count || count < 1 || count > 200) throw new _common.BadRequestException('Jumlah meja harus antara 1 dan 200.');
+        if (!prefix?.trim()) throw new _common.BadRequestException('Prefix nama meja wajib diisi.');
+        const created = [];
+        const skippedNames = [];
+        const normalizedMac = macAddress ? macAddress.replace(/[:\-]/g, '').toUpperCase() : '';
+        const normalizedGw = espnowGatewayMac ? espnowGatewayMac.replace(/[:\-]/g, '').toUpperCase() : '';
+        for(let i = 0; i < count; i++){
+            const index = startIndex + i;
+            const tableName = `${prefix.trim()} ${index}`;
+            // Check if name already exists
+            const existing = await this.tableRepository.createQueryBuilder('table').where('LOWER(table.tableName) = LOWER(:tableName)', {
+                tableName
+            }).andWhere('table.deletedAt IS NULL').getOne();
+            if (existing) {
+                skippedNames.push(`${tableName} (sudah ada)`);
+                continue;
+            }
+            // Calculate pin
+            const pinValue = autoPin ? i : undefined;
+            const newTable = this.tableRepository.create({
+                tableName,
+                hardwareType: hardwareType,
+                categoryId: categoryId || undefined,
+                floorNumber: floorNumber || 1,
+                productionZone: productionZone || '',
+                macAddress: normalizedMac,
+                espnowGatewayMac: normalizedGw,
+                relayPin: pinValue,
+                stationType: stationType || _tableentity.StationType.BILLIARD,
+                status: _tableentity.TableStatus.AVAILABLE
+            });
+            const saved = await this.tableRepository.save(newTable);
+            created.push(saved);
+        }
+        await this.clearAllTablesCache();
+        this.clearMacCache();
+        if (created.length > 0) {
+            this.billiardGateway.server?.emit('billiard/tables/update', {
+                type: 'billiard',
+                _action: 'BULK_GENERATE'
+            });
+        }
+        return {
+            created: created.length,
+            skipped: skippedNames
+        };
+    }
     async updateTableStatus(id, status) {
         const table = await this.getTableById(id);
         if (table) {
