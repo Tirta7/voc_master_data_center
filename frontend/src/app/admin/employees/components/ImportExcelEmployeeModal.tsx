@@ -31,27 +31,35 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             ['Nama Role', 'Level Approval', 'Deskripsi', 'Permissions'],
             [
                 'SUPER_ADMIN', 4, 'Akses penuh ke seluruh sistem',
-                'DASHBOARD_TABLE,START_TABLE,END_TABLE,USER_MANAGE,USER_ROLE,INVENTORY_VIEW,INV_ADD_ITEM,INVENTORY_WASTE,TRANSACTION_VIEW,FINANCE_VIEW,REPORT_VIEW,AUDIT_TRAIL'
+                'BILLIARD_VIEW,BILLIARD_START,BILLIARD_STOP,BILLIARD_PAY,BILLIARD_ORDER,CAFE_VIEW,CAFE_START,CAFE_ORDER,CAFE_PAY,INV_VIEW,FIN_REVENUE,USER_MANAGE,USER_ROLE,AUDIT_VIEW,SHIFT_START,SHIFT_MANAGE,REPORT_EXPORT,SETTING_TABLES,SETTING_IDENTITY,SETTING_HARDWARE'
             ],
             [
                 'MANAGER', 3, 'Manajer operasional harian',
-                'DASHBOARD_TABLE,START_TABLE,END_TABLE,INVENTORY_VIEW,TRANSACTION_VIEW,FINANCE_VIEW,REPORT_VIEW'
+                'BILLIARD_VIEW,BILLIARD_START,BILLIARD_STOP,BILLIARD_PAY,BILLIARD_ORDER,CAFE_VIEW,CAFE_START,CAFE_ORDER,CAFE_PAY,INV_VIEW,FIN_REVENUE,FIN_DEBTS,BUSINESS_DAY_VIEW,SHIFT_START,SHIFT_MANAGE,REPORT_EXPORT,APPROVAL_VIEW,APPROVAL_ACTION'
             ],
             [
                 'KASIR', 2, 'Kasir & operator transaksi',
-                'DASHBOARD_TABLE,START_TABLE,END_TABLE,TRANSACTION_VIEW'
+                'BILLIARD_VIEW,BILLIARD_CARD_VIEW,BILLIARD_START,BILLIARD_EXTEND,BILLIARD_STOP,BILLIARD_PAY,BILLIARD_ORDER,BILLIARD_CANCEL_ITEM,BILLIARD_PREVIEW,CAFE_VIEW,CAFE_CARD_VIEW,CAFE_START,CAFE_ORDER,CAFE_PAY,CAFE_CANCEL_ITEM,PAYMENT_PROCESS,SHIFT_START,START_TABLE,WAITING_LIST_VIEW'
             ],
             [
                 'WAITER', 1, 'Pelayan & order cafe',
-                'DASHBOARD_TABLE,CAFE_ORDER'
+                'BILLIARD_VIEW,BILLIARD_CARD_VIEW,BILLIARD_START,BILLIARD_STOP,BILLIARD_ORDER,BILLIARD_PAY,BILLIARD_PREVIEW,CAFE_VIEW,CAFE_CARD_VIEW,CAFE_START,CAFE_ORDER,CAFE_PAY,SHIFT_START,START_TABLE,DASHBOARD_TABLE'
+            ],
+            [
+                'KITCHEN', 1, 'Dapur / Kitchen Display',
+                'ACCESS_KDS,KDS_VIEW,KDS_PROCESS,KDS_SET_READY,KDS_HISTORY,SHIFT_START'
+            ],
+            [
+                'BARTENDER', 1, 'Bar Display / Bartender',
+                'ACCESS_BDS,BDS_VIEW,BDS_PROCESS,BDS_SET_READY,BDS_HISTORY,SHIFT_START'
             ],
             [
                 'SECURITY', 1, 'Keamanan & monitoring',
-                'DASHBOARD_TABLE'
+                'DASHBOARD_TABLE,USER_MONITOR,AUDIT_VIEW'
             ],
         ];
         const wsRole = xlsx.utils.aoa_to_sheet(roleData);
-        wsRole['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 90 }];
+        wsRole['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 35 }, { wch: 120 }];
         xlsx.utils.book_append_sheet(wb, wsRole, 'Role Matrix');
 
         // ── Sheet 2: Karyawan ─────────────────────────────────────────────────
@@ -104,22 +112,104 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             ['Nama Role', 'Nama role (UPPERCASE, unik)', 'KASIR'],
             ['Level Approval', '1=Staff, 2=Kasir, 3=Manager, 4=Owner', '2'],
             ['Deskripsi', 'Deskripsi singkat role', 'Operator kasir harian'],
-            ['Permissions', 'Daftar permission dipisah koma', 'DASHBOARD_TABLE,START_TABLE'],
+            ['Permissions', 'Daftar permission dipisah koma (lihat daftar di bawah)', 'BILLIARD_VIEW,CAFE_VIEW,SHIFT_START'],
             [''],
-            ['DAFTAR PERMISSION YANG TERSEDIA:'],
-            ['DASHBOARD_TABLE', 'Akses dashboard & monitoring meja'],
-            ['START_TABLE', 'Mulai sesi meja billiard'],
-            ['END_TABLE', 'Akhiri sesi meja billiard'],
-            ['USER_MANAGE', 'Kelola data karyawan'],
-            ['USER_ROLE', 'Kelola role & permission'],
-            ['INVENTORY_VIEW', 'Lihat inventory'],
-            ['INV_ADD_ITEM', 'Tambah/edit bahan baku'],
-            ['INVENTORY_WASTE', 'Deklarasi waste'],
-            ['TRANSACTION_VIEW', 'Lihat histori transaksi'],
-            ['FINANCE_VIEW', 'Akses laporan keuangan'],
-            ['REPORT_VIEW', 'Akses laporan bisnis'],
-            ['CAFE_ORDER', 'Input order cafe'],
-            ['AUDIT_TRAIL', 'Lihat audit log'],
+            ['━━━ DAFTAR SEMUA PERMISSION YANG TERSEDIA ━━━'],
+            [''],
+            ['[ Dashboard & Analytics ]'],
+            ['DASHBOARD_STATS_VIEW', 'Lihat Angka Statistik (Total Rev, Omzet)'],
+            ['DASHBOARD_CHART_VIEW', 'Lihat Grafik Pendapatan & Tren'],
+            ['DASHBOARD_TABLE', 'Lihat Status Meja di Dashboard'],
+            [''],
+            ['[ Antrean & Waiting List ]'],
+            ['WAITING_LIST_VIEW', 'Lihat Daftar Antrean Side-Bar'],
+            ['WAITING_LIST_MANAGE', 'Kelola Antrean (Tambah/Hapus)'],
+            [''],
+            ['[ Membership & CRM ]'],
+            ['MEMBER_VIEW', 'Akses Halaman Data Membership'],
+            ['MEMBER_MANAGE', 'Tambah/Edit/Hapus Member'],
+            ['MEMBER_TOPUP', 'Fitur Topup Saldo E-Wallet Member'],
+            [''],
+            ['[ Billing Billiard (Rental Station) ]'],
+            ['BILLIARD_VIEW', 'Akses Halaman Billing Billiard (wajib untuk Rental Station muncul di sidebar)'],
+            ['BILLIARD_CARD_VIEW', 'Lihat Kartu Meja Billiard'],
+            ['BILLIARD_START', 'Buka Sesi Meja (Mulai)'],
+            ['BILLIARD_EXTEND', 'Tambah Durasi / Perpanjang Sesi'],
+            ['BILLIARD_STOP', 'Stop Sesi (Checkout Sementara)'],
+            ['BILLIARD_PAY', 'Proses Bayar (Final)'],
+            ['BILLIARD_MOVE', 'Pindah Sesi ke Meja Lain'],
+            ['BILLIARD_ORDER', 'Tambah Pesanan F&B ke Meja'],
+            ['BILLIARD_CANCEL_ITEM', 'Batalkan Item Pesanan'],
+            ['BILLIARD_PREVIEW', 'Lihat Preview Nota Sementara'],
+            ['BILLIARD_PRICING', 'Kelola Harga & Tarif Billiard'],
+            [''],
+            ['[ Cafe POS (Meja Cafe) ]'],
+            ['CAFE_VIEW', 'Akses Dashboard Meja Cafe (wajib untuk Meja Cafe muncul di sidebar)'],
+            ['CAFE_CARD_VIEW', 'Lihat Kartu Meja Cafe'],
+            ['CAFE_START', 'Buka Meja Cafe Baru'],
+            ['CAFE_ORDER', 'Input / Tambah Pesanan Cafe'],
+            ['CAFE_PAY', 'Proses Pembayaran Cafe'],
+            ['CAFE_CANCEL_ITEM', 'Batalkan Item Pesanan Cafe'],
+            [''],
+            ['[ Order Control & VOID ]'],
+            ['PAYMENT_PROCESS', 'Finalisasi Pembayaran'],
+            ['ORDER_CANCEL', 'Batalkan Pesanan'],
+            ['ORDER_VOID', 'VOID Pesanan (Setelah Proses)'],
+            ['ORDER_DISCOUNT', 'Berikan Diskon Item / Bill'],
+            [''],
+            ['[ Kitchen & Bar (KDS/BDS) ]'],
+            ['ACCESS_KDS', 'Masuk Menu KDS (Kitchen) - wajib untuk Kitchen muncul di sidebar'],
+            ['ACCESS_BDS', 'Masuk Menu BDS (Bar) - wajib untuk Bartender muncul di sidebar'],
+            ['KDS_VIEW', 'Pantau Antrean Kitchen'],
+            ['KDS_PROCESS', 'Proses Pesanan Kitchen'],
+            ['KDS_SET_READY', 'Selesaikan Pesanan Kitchen'],
+            ['BDS_VIEW', 'Pantau Antrean Bar'],
+            ['BDS_PROCESS', 'Proses Pesanan Bar'],
+            ['BDS_SET_READY', 'Selesaikan Pesanan Bar'],
+            [''],
+            ['[ Inventory & Stock ]'],
+            ['INV_VIEW', 'Lihat Daftar Stok & Inventaris'],
+            ['INV_ADD_ITEM', 'Tambah Bahan Baku Baru'],
+            ['INV_EDIT_ITEM', 'Edit Detail Bahan Baku'],
+            ['INV_DELETE_ITEM', 'Hapus Bahan Baku'],
+            ['INV_RECIPE', 'Kelola Formula Resep'],
+            ['INV_ADD_MENU', 'Tambah Menu Baru'],
+            ['INV_EDIT_MENU', 'Edit Detail Menu'],
+            ['INVENTORY_STOCK_IN', 'Penerimaan / Tambah Stok (+)'],
+            ['INVENTORY_WASTE', 'Deklarasi Waste / Pembuangan'],
+            ['INV_EXPORT', 'Export Data Inventory (Excel)'],
+            [''],
+            ['[ Keuangan & Laporan ]'],
+            ['FIN_REVENUE', 'Lihat Laporan Omzet & Pendapatan'],
+            ['FIN_DEBTS', 'Manajemen Hutang / Piutang Bon'],
+            ['FIN_EXPENSES_VIEW', 'Lihat Riwayat Pengeluaran'],
+            ['FIN_EXPENSES_ADD', 'Input Pengeluaran Baru'],
+            ['FIN_LEDGER', 'Akses Buku Besar & Profit'],
+            ['BUSINESS_DAY_VIEW', 'Lihat History Business Day'],
+            ['BUSINESS_DAY_CLOSE', 'Lakukan Tutup Buku (Close Day)'],
+            ['REPORT_EXPORT', 'Ekspor Laporan (Excel/PDF)'],
+            [''],
+            ['[ SDM & Keamanan ]'],
+            ['USER_MANAGE', 'Kelola Akun & Hak Akses'],
+            ['USER_ROLE', 'Konfigurasi Role & Matrix'],
+            ['USER_MONITOR', 'Monitor Aktivitas (Audit Trail)'],
+            ['USER_EXPORT', 'Export Data Karyawan (Excel)'],
+            ['AUDIT_VIEW', 'Lihat Audit Log Aktivitas'],
+            ['PAYROLL_VIEW', 'Lihat Laporan Gaji & Komisi'],
+            ['SHIFT_START', 'Mulai Shift (Buka Kasir)'],
+            ['SHIFT_MANAGE', 'Manajemen / Edit Shift'],
+            ['APPROVAL_VIEW', 'Akses Halaman Approval Center'],
+            ['APPROVAL_ACTION', 'Lakukan Setuju/Tolak Pengajuan'],
+            [''],
+            ['[ Pengaturan Sistem ]'],
+            ['SETTING_TABLES', 'Akses Halaman Manajemen Meja'],
+            ['TABLE_CREATE', 'Tambah Meja Baru'],
+            ['TABLE_EDIT', 'Edit Konfigurasi Meja'],
+            ['TABLE_BULK_CONFIG', 'Akses Fitur Bulk Config & Auto-Generate Meja'],
+            ['SETTING_IDENTITY', 'Edit Profil & Identitas Bisnis'],
+            ['SETTING_HARDWARE', 'Konfigurasi IoT, IP & Printer'],
+            ['SETTING_LAYOUT', 'Desain Layout Ruangan'],
+            ['LOCKER_MANAGE', 'Manajemen Locker'],
             [''],
             ['SHEET 2: Karyawan'],
             ['Kolom', 'Keterangan', 'Wajib?'],
@@ -142,9 +232,12 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             ['- Sistem UPSERT: username sudah ada = data diperbarui, belum ada = data baru dibuat.'],
             ['- Password karyawan BARU dapat disetel di kolom Password (atau = Username jika kosong).'],
             ['- Role pada Sheet 2 harus sudah ada di Sheet 1 atau sudah ada di sistem.'],
+            ['- BILLIARD_VIEW wajib agar menu "Rental Station" muncul di sidebar.'],
+            ['- CAFE_VIEW wajib agar menu "Meja Cafe" muncul di sidebar.'],
+            ['- Setelah import, karyawan harus Logout & Login ulang agar permissions aktif.'],
         ];
         const wsGuide = xlsx.utils.aoa_to_sheet(guideData);
-        wsGuide['!cols'] = [{ wch: 25 }, { wch: 60 }, { wch: 12 }];
+        wsGuide['!cols'] = [{ wch: 30 }, { wch: 80 }, { wch: 12 }];
         xlsx.utils.book_append_sheet(wb, wsGuide, 'Panduan');
 
         xlsx.writeFile(wb, 'Template_Import_Karyawan.xlsx');
