@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     UploadCloud, X, Download, FileSpreadsheet,
     CheckCircle2, AlertCircle, Users, ShieldCheck, Info,
@@ -19,6 +20,11 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [result, setResult] = useState<{ roles: number; employees: number } | null>(null);
     const [errorMsg, setErrorMsg] = useState<string>('');
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     if (!isOpen) return null;
 
@@ -283,7 +289,7 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
         onClose();
     };
 
-    return (
+    const modalContent = (
         <div
             className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-0 sm:p-4"
             onClick={handleReset}
@@ -348,78 +354,111 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
                                     <p className="text-xs font-bold text-slate-700">Role Matrix</p>
                                     <p className="text-[10px] text-slate-500 leading-snug">Nama Role, Level Approval, Deskripsi, Permissions</p>
                                 </div>
-                                <div className="bg-sky-50 border border-sky-100 rounded-2xl p-4 flex flex-col gap-2">
-                                    <Users className="w-5 h-5 text-sky-500" />
-                                    <p className="text-[10px] font-black text-sky-600 uppercase tracking-widest">Sheet 2</p>
-                                    <p className="text-xs font-bold text-slate-700">Data Karyawan</p>
-                                    <p className="text-[10px] text-slate-500 leading-snug">Nama, Username, Role, PIN, RFID, Shift, dll.</p>
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex flex-col gap-2">
+                                    <Users className="w-5 h-5 text-emerald-500" />
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Sheet 2</p>
+                                    <p className="text-xs font-bold text-slate-700">Karyawan</p>
+                                    <p className="text-[10px] text-slate-500 leading-snug">Nama, Username, Role, PIN, RFID, dll</p>
                                 </div>
                             </div>
 
-                            {/* Upload */}
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                                    Pilih File Excel (.xlsx)
-                                </label>
-                                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${file ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50 hover:border-slate-300'}`}>
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                        <UploadCloud className={`w-8 h-8 mb-3 ${file ? 'text-indigo-500' : 'text-slate-400'}`} />
-                                        <p className="text-sm font-bold text-slate-600">
-                                            {file ? file.name : 'Klik untuk memilih file'}
-                                        </p>
-                                        {!file && (
-                                            <p className="text-[10px] text-slate-400 mt-1">Mendukung .xlsx dan .xls</p>
-                                        )}
-                                    </div>
-                                    <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
-                                </label>
+                            {/* File Input */}
+                            <div className="relative group">
+                                <input
+                                    type="file"
+                                    accept=".xlsx, .xls"
+                                    onChange={handleFileChange}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    disabled={isSubmitting}
+                                />
+                                <div
+                                    className={`w-full p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-3 transition-all ${file
+                                        ? 'border-indigo-500 bg-indigo-50/50'
+                                        : 'border-slate-200 bg-slate-50 group-hover:border-indigo-300 group-hover:bg-indigo-50/30'
+                                        }`}
+                                >
+                                    {file ? (
+                                        <>
+                                            <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-2">
+                                                <FileSpreadsheet className="w-6 h-6" />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-bold text-slate-700 truncate max-w-[200px] sm:max-w-[250px]">
+                                                    {file.name}
+                                                </p>
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-1">
+                                                    Siap di-import
+                                                </p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-14 h-14 bg-white text-slate-400 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:text-indigo-500 transition-all">
+                                                <UploadCloud className="w-6 h-6" />
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-sm font-bold text-slate-700">Pilih atau Tarik File Excel</p>
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-1">
+                                                    .xlsx atau .xls
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* Error */}
                             {errorMsg && (
-                                <div className="bg-rose-50 rounded-xl p-4 border border-rose-100 flex items-start gap-3">
-                                    <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                                    <p className="text-xs font-bold text-rose-700">{errorMsg}</p>
+                                <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex gap-3 text-rose-600 items-start">
+                                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                                    <p className="text-xs font-bold leading-relaxed">{errorMsg}</p>
                                 </div>
                             )}
 
-                            {/* Submit */}
-                            <button
-                                onClick={handleSubmit}
-                                disabled={!file || isSubmitting}
-                                className="w-full py-4 rounded-2xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 uppercase tracking-widest text-xs flex items-center justify-center gap-3"
-                            >
-                                {isSubmitting ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Memproses Data...
-                                    </>
-                                ) : (
-                                    'Mulai Import'
-                                )}
-                            </button>
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={handleReset}
+                                    className="px-6 py-3.5 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors text-xs uppercase tracking-widest"
+                                    disabled={isSubmitting}
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={!file || isSubmitting}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black py-3.5 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200/50 text-xs uppercase tracking-widest"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <UploadCloud className="w-4 h-4" />
+                                            Mulai Import
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </>
                     ) : (
-                        /* ── Success State ── */
-                        <div className="text-center py-6">
-                            <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <div className="py-8 flex flex-col items-center justify-center text-center space-y-6 animate-in zoom-in-95 duration-500">
+                            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
                                 <CheckCircle2 className="w-10 h-10" />
                             </div>
-                            <h3 className="text-2xl font-black text-slate-800 mb-2">Import Selesai!</h3>
-                            <p className="text-sm font-bold text-slate-500 mb-8">
-                                Data SDM berhasil dimasukkan ke dalam sistem.
-                            </p>
+                            <div className="space-y-2">
+                                <h4 className="text-2xl font-black text-slate-900">Import Selesai!</h4>
+                                <p className="text-sm font-bold text-slate-500">Data SDM berhasil dimasukkan ke dalam sistem.</p>
+                            </div>
 
-                            <div className="grid grid-cols-2 gap-4 mb-6 text-left">
+                            <div className="grid grid-cols-2 gap-4 w-full mb-2 text-left">
                                 <div className="bg-violet-50 p-4 rounded-2xl border border-violet-100">
-                                    <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest mb-1">Role Matrix</p>
+                                    <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest mb-1">Role Diupdate</p>
                                     <p className="text-3xl font-black text-slate-700">
                                         {result.roles}
                                         <span className="text-xs font-bold text-slate-400 ml-1">Role</span>
                                     </p>
                                 </div>
-                                <div className="bg-sky-50 p-4 rounded-2xl border border-sky-100">
-                                    <p className="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">Karyawan</p>
+                                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Karyawan</p>
                                     <p className="text-3xl font-black text-slate-700">
                                         {result.employees}
                                         <span className="text-xs font-bold text-slate-400 ml-1">Orang</span>
@@ -427,7 +466,7 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
                                 </div>
                             </div>
 
-                            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-left mb-6 flex items-start gap-3">
+                            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-left w-full flex items-start gap-3">
                                 <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                                 <p className="text-[11px] text-amber-700 font-semibold leading-relaxed">
                                     Data karyawan berhasil disinkronisasi. Pastikan untuk mengingatkan karyawan baru mengubah password mereka setelah login pertama.
@@ -446,5 +485,7 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             </div>
         </div>
     );
+
+    return mounted ? createPortal(modalContent, document.body) : null;
 }
 

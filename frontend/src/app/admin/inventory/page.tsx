@@ -1035,21 +1035,11 @@ function InventoryContent() {
                             </div>
                         )}
 
-                        {activeTab === 'stock' ? (
-                            <div className="flex flex-row flex-wrap sm:flex-nowrap gap-2 md:gap-3 w-full lg:w-auto shrink-0">
-                                {/* Waste Declaration Trigger */}
-                                {hasPermission('INVENTORY_WASTE') && (
-                                    <button
-                                        onClick={() => setShowWasteModal(true)}
-                                        className="flex-1 sm:flex-none bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
-                                    >
-                                        <AlertTriangle className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Deklarasi Waste</span>
-                                        <span className="sm:hidden">Waste</span>
-                                    </button>
-                                )}
-                                {hasPermission('INV_ADD_ITEM') && (
-                                    <>
+                        {/* Top Action Buttons that apply to multiple tabs */}
+                        <div className="flex gap-2 md:gap-3 w-full sm:w-auto shrink-0 overflow-x-auto pb-1 sm:pb-0">
+                            {['stock', 'recipes'].includes(activeTab) && (
+                                <>
+                                    {hasPermission('INV_ADD_ITEM') && (
                                         <button
                                             onClick={() => setShowImportModal(true)}
                                             className="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
@@ -1058,6 +1048,8 @@ function InventoryContent() {
                                             <span className="hidden sm:inline">Import Excel</span>
                                             <span className="sm:hidden">Import</span>
                                         </button>
+                                    )}
+                                    {hasPermission('INV_EXPORT') && (
                                         <button
                                             onClick={handleExportExcel}
                                             className="flex-1 sm:flex-none bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
@@ -1066,6 +1058,23 @@ function InventoryContent() {
                                             <span className="hidden sm:inline">Export Excel</span>
                                             <span className="sm:hidden">Export</span>
                                         </button>
+                                    )}
+                                </>
+                            )}
+                            
+                            {activeTab === 'stock' ? (
+                                <>
+                                    {hasPermission('INVENTORY_WASTE') && (
+                                        <button
+                                            onClick={() => setShowWasteModal(true)}
+                                            className="flex-1 sm:flex-none bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+                                        >
+                                            <AlertTriangle className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Deklarasi Waste</span>
+                                            <span className="sm:hidden">Waste</span>
+                                        </button>
+                                    )}
+                                    {hasPermission('INV_ADD_ITEM') && (
                                         <button
                                             onClick={openAddIngredientModal}
                                             className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-3 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-200/50"
@@ -1073,22 +1082,22 @@ function InventoryContent() {
                                             <Plus className="w-4 h-4" />
                                             <span>Tambah Bahan</span>
                                         </button>
-                                    </>
-                                )}
-                            </div>
-                        ) : activeTab === 'recipes' ? (
-                            <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
-                                {hasPermission('INV_ADD_MENU') && (
-                                    <button
-                                        onClick={openAddMenuModal}
-                                        className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-3 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-200/50"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                        <span>Tambah Menu</span>
-                                    </button>
-                                )}
-                            </div>
-                        ) : null}
+                                    )}
+                                </>
+                            ) : activeTab === 'recipes' ? (
+                                <>
+                                    {hasPermission('INV_ADD_MENU') && (
+                                        <button
+                                            onClick={openAddMenuModal}
+                                            className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-3 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-200/50"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            <span>Tambah Menu</span>
+                                        </button>
+                                    )}
+                                </>
+                            ) : null}
+                        </div>
                     </div>
 
                     {/* Content Body */}
