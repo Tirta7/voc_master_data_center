@@ -170,6 +170,7 @@ export const PERMISSION_GROUPS = [
             { id: 'TABLE_CREATE', label: 'Tambah Meja Baru (Billiard & Cafe)' },
             { id: 'TABLE_EDIT', label: 'Edit Konfigurasi Meja' },
             { id: 'TABLE_DELETE', label: 'Hapus Meja' },
+            { id: 'TABLE_BULK_CONFIG', label: 'Akses Fitur Bulk Config & Auto-Generate Meja' },
             { id: 'PROMO_MANAGE', label: 'Kelola Promo & Bundling' },
             { id: 'PROMO_APPLY', label: 'Penerapan Promo ke Transaksi' },
             { id: 'SETTING_DISPLAY', label: 'Display & Digital Marketing' },

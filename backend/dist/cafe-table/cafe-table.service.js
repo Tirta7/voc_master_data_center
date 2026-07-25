@@ -113,6 +113,41 @@ let CafeTableService = class CafeTableService {
         });
         return savedTable;
     }
+    async bulkGenerateTables(params) {
+        const { count, prefix, startIndex, capacity } = params;
+        if (!prefix || count < 1) {
+            throw new _common.BadRequestException('Parameter tidak valid untuk bulk generate.');
+        }
+        let createdCount = 0;
+        const skippedNames = [];
+        for(let i = 0; i < count; i++){
+            const idx = startIndex + i;
+            const tName = `${prefix.trim()} ${idx}`;
+            const existing = await this.cafeTableRepo.createQueryBuilder('table').where('LOWER(table.tableName) = LOWER(:tableName)', {
+                tableName: tName.toLowerCase()
+            }).getOne();
+            if (existing) {
+                skippedNames.push(tName);
+                continue;
+            }
+            const table = this.cafeTableRepo.create({
+                tableName: tName,
+                capacity: capacity ?? 4,
+                status: _cafetableentity.CafeTableStatus.AVAILABLE
+            });
+            const savedTable = await this.cafeTableRepo.save(table);
+            this.billiardGateway.broadcastTableUpdate({
+                ...savedTable,
+                type: 'cafe',
+                _action: 'ADD'
+            });
+            createdCount++;
+        }
+        return {
+            created: createdCount,
+            skipped: skippedNames
+        };
+    }
     async update(id, data) {
         const table = await this.cafeTableRepo.findOne({
             where: {

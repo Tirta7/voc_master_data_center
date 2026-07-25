@@ -33,6 +33,9 @@ let CafeTableController = class CafeTableController {
     create(body) {
         return this.service.create(body);
     }
+    bulkGenerate(body) {
+        return this.service.bulkGenerateTables(body);
+    }
     update(id, body) {
         return this.service.update(id, body);
     }
@@ -78,6 +81,16 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], CafeTableController.prototype, "create", null);
+_ts_decorate([
+    (0, _common.Post)('bulk-generate'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], CafeTableController.prototype, "bulkGenerate", null);
 _ts_decorate([
     (0, _common.Patch)(':id'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

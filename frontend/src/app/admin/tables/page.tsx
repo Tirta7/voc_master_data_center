@@ -109,7 +109,7 @@ export default function TableManagementPage() {
         productionZone: '',
         macAddress: '',
         espnowGatewayMac: '',
-        stationType: 'BILLIARD' as 'BILLIARD' | 'PLAYSTATION',
+        stationType: 'BILLIARD' as 'BILLIARD' | 'PLAYSTATION' | 'CAFE',
         autoPin: false,
     });
     const [generating, setGenerating] = useState(false);
@@ -241,41 +241,53 @@ export default function TableManagementPage() {
         }
         setGenerating(true);
         try {
-            const res = await axios.post('/billiard/tables/bulk-generate', {
-                count: generateForm.count,
-                prefix: generateForm.prefix,
-                startIndex: generateForm.startIndex,
-                hardwareType: generateForm.hardwareType,
-                categoryId: generateForm.categoryId || undefined,
-                floorNumber: generateForm.floorNumber,
-                productionZone: generateForm.productionZone || undefined,
-                macAddress: generateForm.macAddress || undefined,
-                espnowGatewayMac: generateForm.espnowGatewayMac || undefined,
-                stationType: generateForm.stationType,
-                autoPin: generateForm.autoPin,
-            });
+            let res;
+            if (generateForm.stationType === 'CAFE') {
+                res = await axios.post('/cafe-table/bulk-generate', {
+                    count: generateForm.count,
+                    prefix: generateForm.prefix,
+                    startIndex: generateForm.startIndex,
+                    capacity: 4
+                });
+                await mutateCafe();
+                setBulkPanel('table');
+            } else {
+                res = await axios.post('/billiard/tables/bulk-generate', {
+                    count: generateForm.count,
+                    prefix: generateForm.prefix,
+                    startIndex: generateForm.startIndex,
+                    hardwareType: generateForm.hardwareType,
+                    categoryId: generateForm.categoryId || undefined,
+                    floorNumber: generateForm.floorNumber,
+                    productionZone: generateForm.productionZone || undefined,
+                    macAddress: generateForm.macAddress || undefined,
+                    espnowGatewayMac: generateForm.espnowGatewayMac || undefined,
+                    stationType: generateForm.stationType,
+                    autoPin: generateForm.autoPin,
+                });
+                await mutateBilliard();
+                // Refresh bulk rows with new tables
+                const fresh = await axios.get('/billiard/tables');
+                const freshSorted = [...(fresh.data || [])].sort((a: any, b: any) =>
+                    a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+                );
+                setBulkRows(freshSorted.map((t: any) => ({
+                    id: t.id,
+                    tableName: t.tableName,
+                    hardwareType: t.hardwareType || 'ESPNOW_NODE',
+                    macAddress: t.macAddress || '',
+                    relayPin: t.relayPin ?? '',
+                    categoryId: t.categoryId || '',
+                    floorNumber: t.floorNumber || 1,
+                    espnowGatewayMac: t.espnowGatewayMac || '',
+                    productionZone: t.productionZone || '',
+                    stationType: t.stationType || 'BILLIARD',
+                    status: t.status,
+                    dirty: false,
+                })));
+                setBulkPanel('table');
+            }
             const { created, skipped } = res.data;
-            await mutateBilliard();
-            // Refresh bulk rows with new tables
-            const fresh = await axios.get('/billiard/tables');
-            const freshSorted = [...(fresh.data || [])].sort((a: any, b: any) =>
-                a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
-            );
-            setBulkRows(freshSorted.map((t: any) => ({
-                id: t.id,
-                tableName: t.tableName,
-                hardwareType: t.hardwareType || 'ESPNOW_NODE',
-                macAddress: t.macAddress || '',
-                relayPin: t.relayPin ?? '',
-                categoryId: t.categoryId || '',
-                floorNumber: t.floorNumber || 1,
-                espnowGatewayMac: t.espnowGatewayMac || '',
-                productionZone: t.productionZone || '',
-                stationType: t.stationType || 'BILLIARD',
-                status: t.status,
-                dirty: false,
-            })));
-            setBulkPanel('table');
             if (skipped?.length > 0) {
                 showAlert('Sebagian Berhasil', `${created} meja dibuat. ${skipped.length} nama sudah ada: ${skipped.slice(0,3).join(', ')}${skipped.length > 3 ? '...' : ''}`, { variant: 'warning' });
             } else {
@@ -577,7 +589,7 @@ export default function TableManagementPage() {
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 relative">
-                            {hasPermission('TABLE_EDIT') && (
+                            {hasPermission('TABLE_BULK_CONFIG') && (
                                 <button onClick={openBulkConfig}
                                     className="bg-white/15 backdrop-blur-sm border border-white/20 text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-xs hover:bg-white/25 w-full sm:w-auto">
                                     <Layers className="w-4 h-4" /> BULK CONFIG
@@ -1108,6 +1120,19 @@ export default function TableManagementPage() {
                                                 </div>
                                             </div>
 
+                                            {/* Type Selection */}
+                                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 mb-4">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Meja</p>
+                                                <div className="flex gap-3">
+                                                    {(['BILLIARD', 'PLAYSTATION', 'CAFE'] as const).map(type => (
+                                                        <button key={type} type="button" onClick={() => setGenerateForm(p => ({ ...p, stationType: type }))}
+                                                            className={`px-4 py-2 rounded-xl border-2 font-black text-xs transition-all active:scale-95 ${generateForm.stationType === type ? 'border-violet-600 bg-violet-600 text-white shadow-md' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-violet-300 hover:bg-violet-50'}`}>
+                                                            {type === 'CAFE' ? 'Meja Cafe' : type}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
                                             {/* Naming */}
                                             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penamaan Otomatis</p>
@@ -1135,9 +1160,10 @@ export default function TableManagementPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Hardware Mode */}
-                                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-sm">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mode Hardware Controller</p>
+                                            {/* Hardware Mode - Only for Billiard/PS */}
+                                            {generateForm.stationType !== 'CAFE' && (
+                                                <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-sm">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mode Hardware Controller</p>
                                                 <div className="grid grid-cols-3 gap-3 mb-4">
                                                     {([
                                                         { value: 'ESPNOW_NODE', label: 'ESP-NOW Node', desc: 'Prajurit tanpa WiFi, dikontrol Gateway', color: 'border-violet-500 bg-violet-500/10', badge: 'text-violet-400', tag: '★ Hybrid' },
@@ -1186,9 +1212,11 @@ export default function TableManagementPage() {
                                                     </div>
                                                 )}
                                             </div>
+                                        )}
 
-                                            {/* Category & Floor */}
-                                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                                            {/* Category & Floor - Only for Billiard/PS */}
+                                            {generateForm.stationType !== 'CAFE' && (
+                                                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori &amp; Penempatan</p>
 
                                                 {/* Categories from master data */}
@@ -1241,7 +1269,8 @@ export default function TableManagementPage() {
                                                         ))}
                                                     </div>
                                                 </div>
-                                            </div>
+                                                </div>
+                                            )}
 
                                             {/* Generate Button */}
                                             <button onClick={handleBulkGenerate} disabled={generating}

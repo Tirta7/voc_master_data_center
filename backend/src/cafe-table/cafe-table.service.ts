@@ -142,6 +142,57 @@ export class CafeTableService {
     return savedTable;
   }
 
+  async bulkGenerateTables(params: {
+    count: number;
+    prefix: string;
+    startIndex: number;
+    capacity?: number;
+  }) {
+    const { count, prefix, startIndex, capacity } = params;
+    if (!prefix || count < 1) {
+      throw new BadRequestException('Parameter tidak valid untuk bulk generate.');
+    }
+
+    let createdCount = 0;
+    const skippedNames: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const idx = startIndex + i;
+      const tName = `${prefix.trim()} ${idx}`;
+
+      const existing = await this.cafeTableRepo
+        .createQueryBuilder('table')
+        .where('LOWER(table.tableName) = LOWER(:tableName)', { tableName: tName.toLowerCase() })
+        .getOne();
+
+      if (existing) {
+        skippedNames.push(tName);
+        continue;
+      }
+
+      const table = this.cafeTableRepo.create({
+        tableName: tName,
+        capacity: capacity ?? 4,
+        status: CafeTableStatus.AVAILABLE,
+      });
+
+      const savedTable = await this.cafeTableRepo.save(table);
+      
+      this.billiardGateway.broadcastTableUpdate({
+        ...savedTable,
+        type: 'cafe',
+        _action: 'ADD',
+      });
+
+      createdCount++;
+    }
+
+    return {
+      created: createdCount,
+      skipped: skippedNames,
+    };
+  }
+
   async update(
     id: number,
     data: Partial<{ tableName: string; capacity: number }>,

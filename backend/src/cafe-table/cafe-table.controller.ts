@@ -30,6 +30,12 @@ export class CafeTableController {
     return this.service.create(body);
   }
 
+  @Post('bulk-generate')
+  @UseGuards(AuthGuard('jwt'))
+  bulkGenerate(@Body() body: { count: number; prefix: string; startIndex: number; capacity?: number }) {
+    return this.service.bulkGenerateTables(body);
+  }
+
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'))
   update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
