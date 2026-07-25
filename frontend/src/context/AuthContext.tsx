@@ -295,6 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Re-sync data when coming back
                 if (!socket.connected) socket.connect();
                 refetchShift();
+                refetchProfile(); // Re-fetch permissions in case role was updated while away
                 socket.emit('page_change', { userId: user.id, page: window.location.pathname });
             }
         };
