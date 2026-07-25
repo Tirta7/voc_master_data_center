@@ -918,6 +918,149 @@ export class BilliardService implements OnModuleInit {
     return savedTable;
   }
 
+  /**
+   * Bulk update IoT configuration for multiple tables at once.
+   * Skips tables that are currently in_use to prevent disruption.
+   */
+  async bulkUpdateTables(updates: Array<Partial<Table> & { id: number }>): Promise<{ updated: number; skipped: Array<{ id: number; reason: string }> }> {
+    if (!updates || updates.length === 0) {
+      throw new BadRequestException('Daftar update tidak boleh kosong.');
+    }
+
+    const skipped: Array<{ id: number; reason: string }> = [];
+    let updated = 0;
+
+    await this.dataSource.transaction(async (em) => {
+      for (const item of updates) {
+        const table = await em.findOne(Table, { where: { id: item.id, deletedAt: IsNull() } });
+        if (!table) {
+          skipped.push({ id: item.id, reason: 'Meja tidak ditemukan.' });
+          continue;
+        }
+        // Skip meja aktif
+        if (table.status === TableStatus.IN_USE) {
+          skipped.push({ id: item.id, reason: `Meja ${table.tableName} sedang aktif (IN USE). Konfigurasi tidak diubah.` });
+          continue;
+        }
+
+        // Normalize MAC
+        const macAddress = item.macAddress !== undefined
+          ? (item.macAddress === '' ? '' : item.macAddress.replace(/[:\-]/g, '').toUpperCase())
+          : table.macAddress;
+
+        const hardwareType = (item.hardwareType as HardwareType) || table.hardwareType;
+        const relayPin = item.relayPin !== undefined ? item.relayPin : table.relayPin;
+
+        // PCF uniqueness check
+        if (macAddress && hardwareType === HardwareType.PCF8575) {
+          const conflict = await em.findOne(Table, {
+            where: { macAddress, relayPin, deletedAt: IsNull() }
+          });
+          if (conflict && conflict.id !== item.id) {
+            skipped.push({ id: item.id, reason: `Kombinasi MAC ${macAddress} + Channel ${relayPin} sudah dipakai oleh ${conflict.tableName}.` });
+            continue;
+          }
+        }
+
+        Object.assign(table, {
+          ...(item.macAddress !== undefined && { macAddress }),
+          ...(item.relayPin !== undefined && { relayPin }),
+          ...(item.hardwareType !== undefined && { hardwareType }),
+          ...(item.categoryId !== undefined && { categoryId: item.categoryId }),
+          ...(item.espnowGatewayMac !== undefined && { espnowGatewayMac: item.espnowGatewayMac?.replace(/[:\-]/g, '').toUpperCase() }),
+          ...(item.floorNumber !== undefined && { floorNumber: item.floorNumber }),
+          ...(item.productionZone !== undefined && { productionZone: item.productionZone }),
+          ...(item.stationType !== undefined && { stationType: item.stationType as StationType }),
+        });
+
+        // TypeORM fix: detach relation when FK changes
+        if (item.categoryId !== undefined) {
+          table.categoryId = item.categoryId as any;
+          delete (table as any).categoryRelation;
+        }
+
+        await em.save(Table, table);
+        updated++;
+      }
+    });
+
+    await this.clearAllTablesCache();
+    this.clearMacCache();
+    this.billiardGateway.server?.emit('billiard/tables/update', { type: 'billiard', _action: 'BULK_UPDATE' });
+    return { updated, skipped };
+  }
+
+  /**
+   * Auto-generate N tables with preset IoT configuration.
+   * Skips names that already exist in the DB.
+   */
+  async bulkGenerateTables(params: {
+    count: number;
+    prefix: string;
+    startIndex: number;
+    hardwareType: string;
+    categoryId?: number;
+    floorNumber?: number;
+    productionZone?: string;
+    macAddress?: string;
+    espnowGatewayMac?: string;
+    stationType?: string;
+    autoPin?: boolean;
+  }): Promise<{ created: number; skipped: string[] }> {
+    const { count, prefix, startIndex, hardwareType, categoryId, floorNumber, productionZone, macAddress, espnowGatewayMac, stationType, autoPin } = params;
+
+    if (!count || count < 1 || count > 200) throw new BadRequestException('Jumlah meja harus antara 1 dan 200.');
+    if (!prefix?.trim()) throw new BadRequestException('Prefix nama meja wajib diisi.');
+
+    const created: Table[] = [];
+    const skippedNames: string[] = [];
+    const normalizedMac = macAddress ? macAddress.replace(/[:\-]/g, '').toUpperCase() : '';
+    const normalizedGw = espnowGatewayMac ? espnowGatewayMac.replace(/[:\-]/g, '').toUpperCase() : '';
+
+    for (let i = 0; i < count; i++) {
+      const index = startIndex + i;
+      const tableName = `${prefix.trim()} ${index}`;
+
+      // Check if name already exists
+      const existing = await this.tableRepository
+        .createQueryBuilder('table')
+        .where('LOWER(table.tableName) = LOWER(:tableName)', { tableName })
+        .andWhere('table.deletedAt IS NULL')
+        .getOne();
+
+      if (existing) {
+        skippedNames.push(`${tableName} (sudah ada)`);
+        continue;
+      }
+
+      // Calculate pin
+      const pinValue = autoPin ? i : undefined;
+
+      const newTable = this.tableRepository.create({
+        tableName,
+        hardwareType: hardwareType as HardwareType,
+        categoryId: categoryId || null,
+        floorNumber: floorNumber || 1,
+        productionZone: productionZone || '',
+        macAddress: normalizedMac,
+        espnowGatewayMac: normalizedGw,
+        relayPin: pinValue,
+        stationType: (stationType as StationType) || StationType.BILLIARD,
+        status: TableStatus.AVAILABLE,
+      });
+
+      const saved = await this.tableRepository.save(newTable);
+      created.push(saved);
+    }
+
+    await this.clearAllTablesCache();
+    this.clearMacCache();
+    if (created.length > 0) {
+      this.billiardGateway.server?.emit('billiard/tables/update', { type: 'billiard', _action: 'BULK_GENERATE' });
+    }
+    return { created: created.length, skipped: skippedNames };
+  }
+
   async updateTableStatus(
     id: number,
     status: TableStatus,

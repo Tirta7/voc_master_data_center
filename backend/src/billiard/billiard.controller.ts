@@ -132,6 +132,38 @@ export class BilliardController {
     return this.billiardService.createTable(tableData);
   }
 
+  /**
+   * Bulk update IoT config (MAC, relayPin, hardwareType, categoryId) for multiple tables at once.
+   * Body: { updates: Array<{ id: number; macAddress?: string; relayPin?: number; hardwareType?: string; categoryId?: number; espnowGatewayMac?: string; floorNumber?: number; productionZone?: string }> }
+   */
+  @Patch('tables/bulk-update')
+  @UseGuards(AuthGuard('jwt'))
+  async bulkUpdateTables(@Body() body: { updates: Array<Partial<Table> & { id: number }> }) {
+    return this.billiardService.bulkUpdateTables(body.updates);
+  }
+
+  /**
+   * Auto-generate N tables in one shot.
+   * Body: { count: number; prefix: string; startIndex: number; hardwareType: string; categoryId?: number; floorNumber?: number; productionZone?: string; macAddress?: string; espnowGatewayMac?: string }
+   */
+  @Post('tables/bulk-generate')
+  @UseGuards(AuthGuard('jwt'))
+  async bulkGenerateTables(@Body() body: {
+    count: number;
+    prefix: string;
+    startIndex: number;
+    hardwareType: string;
+    categoryId?: number;
+    floorNumber?: number;
+    productionZone?: string;
+    macAddress?: string;
+    espnowGatewayMac?: string;
+    stationType?: string;
+    autoPin?: boolean;
+  }) {
+    return this.billiardService.bulkGenerateTables(body);
+  }
+
   @Patch('tables/:id')
   @UseGuards(AuthGuard('jwt'))
   async updateTable(@Param('id') id: number, @Body() data: Partial<Table>) {

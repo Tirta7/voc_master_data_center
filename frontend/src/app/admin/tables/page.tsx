@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
-import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash, Building2, Signal, Gamepad2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash, Building2, Signal, Gamepad2, Layers, Sparkles, ChevronDown, Check, AlertTriangle, Copy, ArrowDown } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
@@ -41,7 +41,7 @@ interface CafeTable {
 }
 
 type TableType = 'billiard' | 'cafe';
-type ModalMode = 'choose' | 'billiard-form' | 'cafe-form';
+type ModalMode = 'choose' | 'billiard-form' | 'cafe-form' | 'bulk-config';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -80,6 +80,40 @@ export default function TableManagementPage() {
     const [modalMode, setModalMode] = useState<ModalMode | null>(null);
     const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+    // ── Bulk Config State ──────────────────────────────────────────────────────
+    type BulkRow = {
+        id: number;
+        tableName: string;
+        hardwareType: HardwareType;
+        macAddress: string;
+        relayPin: number | '';
+        categoryId: number | '';
+        floorNumber: number;
+        espnowGatewayMac: string;
+        productionZone: string;
+        stationType: 'BILLIARD' | 'PLAYSTATION';
+        status: string;
+        dirty: boolean; // track which rows are changed
+    };
+    const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
+    const [bulkSaving, setBulkSaving] = useState(false);
+    const [bulkSkipped, setBulkSkipped] = useState<Array<{ id: number; reason: string }>>([]);
+    const [generateForm, setGenerateForm] = useState({
+        prefix: 'Meja',
+        count: 10,
+        startIndex: 1,
+        hardwareType: 'ESPNOW_NODE' as HardwareType,
+        categoryId: '' as number | '',
+        floorNumber: 1,
+        productionZone: '',
+        macAddress: '',
+        espnowGatewayMac: '',
+        stationType: 'BILLIARD' as 'BILLIARD' | 'PLAYSTATION',
+        autoPin: false,
+    });
+    const [generating, setGenerating] = useState(false);
+    const [bulkPanel, setBulkPanel] = useState<'table' | 'generate'>('table');
 
     // ── Sorted Tables ──────────────────────────────────────────────────────────
     const sortedBilliardTables = React.useMemo(() => {
@@ -130,6 +164,144 @@ export default function TableManagementPage() {
 
     const fetchBilliardTables = () => mutateBilliard();
     const fetchCafeTables = () => mutateCafe();
+
+    // ── Bulk Config Handlers ───────────────────────────────────────────────────
+
+    const openBulkConfig = () => {
+        const rows = sortedBilliardTables.map(t => ({
+            id: t.id,
+            tableName: t.tableName,
+            hardwareType: (t.hardwareType as HardwareType) || 'ESPNOW_NODE',
+            macAddress: t.macAddress || '',
+            relayPin: (t.relayPin !== null && t.relayPin !== undefined ? t.relayPin : '') as number | '',
+            categoryId: (t.categoryId !== null && t.categoryId !== undefined ? t.categoryId : '') as number | '',
+            floorNumber: t.floorNumber || 1,
+            espnowGatewayMac: (t as any).espnowGatewayMac || '',
+            productionZone: t.productionZone || '',
+            stationType: t.stationType || 'BILLIARD',
+            status: t.status,
+            dirty: false,
+        }));
+        setBulkRows(rows);
+        setBulkSkipped([]);
+        setBulkPanel('table');
+        setModalMode('bulk-config');
+    };
+
+    const updateBulkRow = (id: number, field: string, value: any) => {
+        setBulkRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value, dirty: true } : r));
+    };
+
+    const handleBulkSave = async () => {
+        const dirtyRows = bulkRows.filter(r => r.dirty);
+        if (dirtyRows.length === 0) {
+            showAlert('Info', 'Tidak ada perubahan yang perlu disimpan.', { variant: 'warning' });
+            return;
+        }
+        setBulkSaving(true);
+        try {
+            const updates = dirtyRows.map(r => ({
+                id: r.id,
+                hardwareType: r.hardwareType,
+                macAddress: r.macAddress,
+                relayPin: r.relayPin === '' ? null : Number(r.relayPin),
+                categoryId: r.categoryId === '' ? null : Number(r.categoryId),
+                floorNumber: r.floorNumber,
+                espnowGatewayMac: r.espnowGatewayMac,
+                productionZone: r.productionZone,
+                stationType: r.stationType,
+            }));
+            const res = await axios.patch('/billiard/tables/bulk-update', { updates });
+            const { updated, skipped } = res.data;
+            setBulkSkipped(skipped || []);
+            // Mark saved rows as not dirty
+            const skippedIds = new Set((skipped || []).map((s: any) => s.id));
+            setBulkRows(prev => prev.map(r => ({ ...r, dirty: skippedIds.has(r.id) ? r.dirty : false })));
+            mutateBilliard();
+            if (skipped?.length > 0) {
+                showAlert('Sebagian Berhasil', `${updated} meja diperbarui. ${skipped.length} dilewati karena konflik atau sedang aktif.`, { variant: 'warning' });
+            } else {
+                showAlert('Berhasil', `${updated} meja berhasil diperbarui!`, { variant: 'success' });
+            }
+        } catch (err: any) {
+            showAlert('Gagal', err.response?.data?.message || 'Terjadi kesalahan.', { variant: 'error' });
+        } finally {
+            setBulkSaving(false);
+        }
+    };
+
+    const handleBulkGenerate = async () => {
+        if (!generateForm.prefix.trim()) {
+            showAlert('Validasi', 'Prefix nama meja wajib diisi.', { variant: 'warning' });
+            return;
+        }
+        if (generateForm.count < 1 || generateForm.count > 200) {
+            showAlert('Validasi', 'Jumlah meja harus antara 1 dan 200.', { variant: 'warning' });
+            return;
+        }
+        setGenerating(true);
+        try {
+            const res = await axios.post('/billiard/tables/bulk-generate', {
+                count: generateForm.count,
+                prefix: generateForm.prefix,
+                startIndex: generateForm.startIndex,
+                hardwareType: generateForm.hardwareType,
+                categoryId: generateForm.categoryId || undefined,
+                floorNumber: generateForm.floorNumber,
+                productionZone: generateForm.productionZone || undefined,
+                macAddress: generateForm.macAddress || undefined,
+                espnowGatewayMac: generateForm.espnowGatewayMac || undefined,
+                stationType: generateForm.stationType,
+                autoPin: generateForm.autoPin,
+            });
+            const { created, skipped } = res.data;
+            await mutateBilliard();
+            // Refresh bulk rows with new tables
+            const fresh = await axios.get('/billiard/tables');
+            const freshSorted = [...(fresh.data || [])].sort((a: any, b: any) =>
+                a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+            );
+            setBulkRows(freshSorted.map((t: any) => ({
+                id: t.id,
+                tableName: t.tableName,
+                hardwareType: t.hardwareType || 'ESPNOW_NODE',
+                macAddress: t.macAddress || '',
+                relayPin: t.relayPin ?? '',
+                categoryId: t.categoryId || '',
+                floorNumber: t.floorNumber || 1,
+                espnowGatewayMac: t.espnowGatewayMac || '',
+                productionZone: t.productionZone || '',
+                stationType: t.stationType || 'BILLIARD',
+                status: t.status,
+                dirty: false,
+            })));
+            setBulkPanel('table');
+            if (skipped?.length > 0) {
+                showAlert('Sebagian Berhasil', `${created} meja dibuat. ${skipped.length} nama sudah ada: ${skipped.slice(0,3).join(', ')}${skipped.length > 3 ? '...' : ''}`, { variant: 'warning' });
+            } else {
+                showAlert('Berhasil', `${created} meja berhasil dibuat!`, { variant: 'success' });
+            }
+        } catch (err: any) {
+            showAlert('Gagal', err.response?.data?.message || 'Gagal generate meja.', { variant: 'error' });
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const applyMacToAll = (fromIndex: number) => {
+        const baseRow = bulkRows[fromIndex];
+        if (!baseRow?.macAddress) return;
+        setBulkRows(prev => prev.map((r, i) => i >= fromIndex ? { ...r, macAddress: baseRow.macAddress, dirty: true } : r));
+    };
+
+    const autoPinFromRow = (fromIndex: number) => {
+        const baseRow = bulkRows[fromIndex];
+        const basePin = typeof baseRow.relayPin === 'number' ? baseRow.relayPin : 0;
+        setBulkRows(prev => prev.map((r, i) => {
+            if (i < fromIndex) return r;
+            return { ...r, relayPin: basePin + (i - fromIndex), dirty: true };
+        }));
+    };
 
     // ── Billiard Handlers ──────────────────────────────────────────────────────
 
@@ -405,6 +577,12 @@ export default function TableManagementPage() {
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 relative">
+                            {hasPermission('TABLE_EDIT') && (
+                                <button onClick={openBulkConfig}
+                                    className="bg-white/15 backdrop-blur-sm border border-white/20 text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-xs hover:bg-white/25 w-full sm:w-auto">
+                                    <Layers className="w-4 h-4" /> BULK CONFIG
+                                </button>
+                            )}
                             {hasPermission('TABLE_CREATE') && (
                                 <button onClick={() => setModalMode('choose')}
                                     className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/20 active:scale-95 text-xs hover:shadow-xl w-full sm:w-auto">
@@ -719,6 +897,365 @@ export default function TableManagementPage() {
 
             {modalMode && (
                     <div className="fixed inset-0 bg-slate-900/60 z-[1000] backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 lg:p-0 animate-in fade-in duration-300" onClick={handleCloseModal}>
+                        {/* ── Bulk Config Modal ── */}
+                        {modalMode === 'bulk-config' && (
+                            <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.35)] w-full max-w-7xl overflow-hidden flex flex-col max-h-[92vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+
+                                {/* Header */}
+                                <div className="shrink-0 bg-gradient-to-r from-slate-800 via-indigo-900 to-violet-900 px-6 py-5 sm:px-8 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center"><Layers className="w-5 h-5 text-white" /></div>
+                                        <div>
+                                            <p className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Advanced Mode</p>
+                                            <h2 className="text-xl font-black text-white">Bulk Config &amp; Generate Meja</h2>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-[10px] font-black text-white/50 bg-white/10 px-3 py-1.5 rounded-full">{bulkRows.length} Meja Total · {bulkRows.filter(r => r.dirty).length} Perubahan</div>
+                                        <button onClick={() => setModalMode(null)} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"><X className="w-5 h-5" /></button>
+                                    </div>
+                                </div>
+
+                                {/* Tab Bar */}
+                                <div className="shrink-0 flex border-b border-slate-100 bg-white px-6">
+                                    <button onClick={() => setBulkPanel('table')} className={`px-5 py-3.5 text-xs font-black border-b-2 transition-all flex items-center gap-2 ${bulkPanel === 'table' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                        <Layers className="w-3.5 h-3.5" /> EDIT KONFIGURASI ({bulkRows.length} meja)
+                                    </button>
+                                    <button onClick={() => setBulkPanel('generate')} className={`px-5 py-3.5 text-xs font-black border-b-2 transition-all flex items-center gap-2 ${bulkPanel === 'generate' ? 'border-violet-600 text-violet-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                                        <Sparkles className="w-3.5 h-3.5" /> AUTO-GENERATE MEJA
+                                    </button>
+                                </div>
+
+                                {/* ── PANEL: EDIT TABLE ── */}
+                                {bulkPanel === 'table' && (
+                                    <div className="flex flex-col flex-1 overflow-hidden">
+                                        {/* Toolbar */}
+                                        <div className="shrink-0 flex items-center justify-between px-6 py-3 bg-slate-50 border-b border-slate-100 gap-3">
+                                            <div className="text-xs text-slate-500 font-semibold">
+                                                Klik sel untuk edit. Gunakan tombol <span className="font-black text-indigo-600">↓ MAC</span> atau <span className="font-black text-indigo-600">↓ PIN</span> untuk auto-fill ke bawah.
+                                            </div>
+                                            {bulkSkipped.length > 0 && (
+                                                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                                    {bulkSkipped.length} baris dilewati. Periksa konflik di bawah.
+                                                </div>
+                                            )}
+                                            <button onClick={handleBulkSave} disabled={bulkSaving || bulkRows.filter(r => r.dirty).length === 0}
+                                                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
+                                                {bulkSaving ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Menyimpan...</> : <><Save className="w-3.5 h-3.5" /> SIMPAN {bulkRows.filter(r => r.dirty).length > 0 ? `(${bulkRows.filter(r => r.dirty).length})` : ''}</>}
+                                            </button>
+                                        </div>
+
+                                        {/* Table */}
+                                        <div className="flex-1 overflow-auto">
+                                            {bulkRows.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                                                    <Layers className="w-12 h-12 mb-3 opacity-30" />
+                                                    <p className="font-bold text-lg">Belum ada meja billiard</p>
+                                                    <p className="text-sm mt-1">Klik tab "Auto-Generate" untuk membuat meja secara massal</p>
+                                                    <button onClick={() => setBulkPanel('generate')} className="mt-4 px-5 py-2.5 bg-violet-600 text-white rounded-xl font-black text-xs flex items-center gap-2 hover:bg-violet-700 transition-colors">
+                                                        <Sparkles className="w-3.5 h-3.5" /> Generate Meja Sekarang
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <table className="w-full text-xs border-collapse min-w-[900px]">
+                                                    <thead className="sticky top-0 z-10">
+                                                        <tr className="bg-slate-800 text-white">
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest w-8">#</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest min-w-[110px]">Nama Meja</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest w-[140px]">Mode Hardware</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest min-w-[170px]">MAC Address</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest w-[100px]">PIN / ID</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest w-[130px]">Kategori</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest w-[70px]">Lantai</th>
+                                                            <th className="px-4 py-3 text-left font-black text-[10px] uppercase tracking-widest w-[90px]">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {bulkRows.map((row, idx) => {
+                                                            const isSkipped = bulkSkipped.some(s => s.id === row.id);
+                                                            const hwColors: Record<string, string> = {
+                                                                PCF8575: 'text-cyan-600 bg-cyan-50 border-cyan-200',
+                                                                MOC3062: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+                                                                ESPNOW_NODE: 'text-violet-600 bg-violet-50 border-violet-200',
+                                                            };
+                                                            return (
+                                                                <tr key={row.id} className={`border-b border-slate-100 transition-colors ${row.dirty ? 'bg-indigo-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} ${isSkipped ? 'bg-rose-50' : ''}`}>
+                                                                    {/* Row number */}
+                                                                    <td className="px-4 py-2 text-slate-400 font-mono">{idx + 1}</td>
+
+                                                                    {/* Table Name */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            {row.dirty && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" title="Ada perubahan" />}
+                                                                            {isSkipped && <span title={bulkSkipped.find(s => s.id === row.id)?.reason}><AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" /></span>}
+                                                                            <span className="font-bold text-slate-700">{row.tableName}</span>
+                                                                        </div>
+                                                                    </td>
+
+                                                                    {/* Hardware Mode */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <select
+                                                                            value={row.hardwareType}
+                                                                            onChange={e => updateBulkRow(row.id, 'hardwareType', e.target.value)}
+                                                                            className={`w-full px-2 py-1.5 rounded-lg border font-bold text-[10px] uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${hwColors[row.hardwareType] || 'text-slate-600 bg-white border-slate-200'}`}
+                                                                        >
+                                                                            <option value="ESPNOW_NODE">ESP-NOW Node</option>
+                                                                            <option value="PCF8575">PCF8575</option>
+                                                                            <option value="MOC3062">MOC3062</option>
+                                                                        </select>
+                                                                    </td>
+
+                                                                    {/* MAC Address */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <div className="flex items-center gap-1">
+                                                                            <input
+                                                                                type="text"
+                                                                                value={row.macAddress}
+                                                                                onChange={e => updateBulkRow(row.id, 'macAddress', e.target.value.replace(/[:\-]/g, '').toUpperCase())}
+                                                                                placeholder="XXXXXXXXXXXX"
+                                                                                className="flex-1 px-2 py-1.5 bg-slate-800 text-indigo-300 font-mono rounded-lg border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-[10px] transition-all placeholder:text-slate-600"
+                                                                            />
+                                                                            <button onClick={() => applyMacToAll(idx)} title="Terapkan MAC ini ke semua baris di bawah" className="p-1.5 hover:bg-indigo-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors shrink-0">
+                                                                                <ArrowDown className="w-3 h-3" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+
+                                                                    {/* Relay PIN */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <div className="flex items-center gap-1">
+                                                                            <input
+                                                                                type="number"
+                                                                                value={row.relayPin}
+                                                                                onChange={e => updateBulkRow(row.id, 'relayPin', e.target.value === '' ? '' : Number(e.target.value))}
+                                                                                placeholder={row.hardwareType === 'PCF8575' ? '0-15' : row.hardwareType === 'ESPNOW_NODE' ? '1-100' : '4'}
+                                                                                min={0} max={row.hardwareType === 'PCF8575' ? 15 : 100}
+                                                                                className="flex-1 px-2 py-1.5 bg-slate-800 text-emerald-300 font-mono rounded-lg border border-slate-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-[10px] transition-all"
+                                                                            />
+                                                                            <button onClick={() => autoPinFromRow(idx)} title="Auto-isi PIN urut dari baris ini ke bawah" className="p-1.5 hover:bg-emerald-100 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors shrink-0">
+                                                                                <ArrowDown className="w-3 h-3" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+
+                                                                    {/* Category */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <select
+                                                                            value={row.categoryId}
+                                                                            onChange={e => updateBulkRow(row.id, 'categoryId', e.target.value === '' ? '' : Number(e.target.value))}
+                                                                            className="w-full px-2 py-1.5 bg-white rounded-lg border border-slate-200 font-bold text-[10px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all"
+                                                                        >
+                                                                            <option value="">— Pilih —</option>
+                                                                            {(categoriesData || []).filter((c: any) => c.assetType === row.stationType || !c.assetType).map((c: any) => (
+                                                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </td>
+
+                                                                    {/* Floor */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <select
+                                                                            value={row.floorNumber}
+                                                                            onChange={e => updateBulkRow(row.id, 'floorNumber', Number(e.target.value))}
+                                                                            className="w-full px-2 py-1.5 bg-white rounded-lg border border-slate-200 font-bold text-[10px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
+                                                                        >
+                                                                            {[1, 2, 3, 4].map(f => <option key={f} value={f}>Lt {f}</option>)}
+                                                                        </select>
+                                                                    </td>
+
+                                                                    {/* Status badge */}
+                                                                    <td className="px-2 py-1.5">
+                                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${row.status === 'in_use' ? 'bg-indigo-100 text-indigo-700' : row.status === 'available' ? 'bg-emerald-100 text-emerald-700' : row.status === 'maintenance' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>
+                                                                            {row.status === 'in_use' ? 'AKTIF' : row.status === 'available' ? 'READY' : row.status === 'maintenance' ? 'MAINT.' : row.status.replace('_', ' ')}
+                                                                        </span>
+                                                                        {row.status === 'in_use' && <p className="text-[8px] text-rose-500 mt-0.5">Terkunci</p>}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            )}
+                                        </div>
+
+                                        {/* Skipped warning list */}
+                                        {bulkSkipped.length > 0 && (
+                                            <div className="shrink-0 border-t border-rose-100 bg-rose-50 px-6 py-3 max-h-28 overflow-y-auto">
+                                                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1.5">Baris yang Dilewati ({bulkSkipped.length})</p>
+                                                <ul className="space-y-1">
+                                                    {bulkSkipped.map(s => (
+                                                        <li key={s.id} className="text-[10px] text-rose-700 flex items-start gap-1.5">
+                                                            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                                                            {bulkRows.find(r => r.id === s.id)?.tableName || `ID ${s.id}`}: {s.reason}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ── PANEL: AUTO-GENERATE ── */}
+                                {bulkPanel === 'generate' && (
+                                    <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+                                        <div className="max-w-3xl mx-auto space-y-6">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-2xl flex items-center justify-center"><Sparkles className="w-5 h-5" /></div>
+                                                <div>
+                                                    <h3 className="font-black text-slate-800 text-lg">Auto-Generate Meja</h3>
+                                                    <p className="text-xs text-slate-500">Buat banyak meja sekaligus dengan konfigurasi yang sudah diatur.</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Naming */}
+                                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penamaan Otomatis</p>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <div className="col-span-1">
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Prefix Nama</label>
+                                                        <input type="text" value={generateForm.prefix} onChange={e => setGenerateForm(p => ({ ...p, prefix: e.target.value }))}
+                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 outline-none transition-all"
+                                                            placeholder="Meja" />
+                                                        <p className="text-[10px] text-slate-400 mt-1">Contoh: "Meja", "Table", "Room"</p>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Mulai dari Nomor</label>
+                                                        <input type="number" min={1} value={generateForm.startIndex} onChange={e => setGenerateForm(p => ({ ...p, startIndex: Number(e.target.value) }))}
+                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 outline-none transition-all" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-600 mb-1.5">Jumlah Meja</label>
+                                                        <input type="number" min={1} max={200} value={generateForm.count} onChange={e => setGenerateForm(p => ({ ...p, count: Number(e.target.value) }))}
+                                                            className="w-full px-3 py-2.5 bg-white border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:border-violet-500 focus:ring-4 focus:ring-violet-100 outline-none transition-all" />
+                                                    </div>
+                                                </div>
+                                                <div className="p-3 bg-violet-50 border border-violet-100 rounded-xl text-xs text-violet-700 font-medium">
+                                                    ✨ Akan membuat: <span className="font-black">{generateForm.prefix} {generateForm.startIndex}</span> sampai <span className="font-black">{generateForm.prefix} {generateForm.startIndex + generateForm.count - 1}</span> ({generateForm.count} meja)
+                                                </div>
+                                            </div>
+
+                                            {/* Hardware Mode */}
+                                            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 shadow-sm">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Mode Hardware Controller</p>
+                                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                                    {([
+                                                        { value: 'ESPNOW_NODE', label: 'ESP-NOW Node', desc: 'Prajurit tanpa WiFi, dikontrol Gateway', color: 'border-violet-500 bg-violet-500/10', badge: 'text-violet-400', tag: '★ Hybrid' },
+                                                        { value: 'PCF8575', label: 'PCF8575', desc: 'Panel terpusat, 1 ESP32 kontrol 16 relay', color: 'border-cyan-500 bg-cyan-500/10', badge: 'text-cyan-400', tag: 'Panel Box' },
+                                                        { value: 'MOC3062', label: 'MOC3062', desc: '1 ESP32 per meja, GPIO langsung ke TRIAC', color: 'border-emerald-500 bg-emerald-500/10', badge: 'text-emerald-400', tag: 'Per Meja' },
+                                                    ] as const).map(opt => (
+                                                        <button key={opt.value} type="button" onClick={() => setGenerateForm(p => ({ ...p, hardwareType: opt.value as HardwareType }))}
+                                                            className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 relative ${generateForm.hardwareType === opt.value ? opt.color : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'}`}>
+                                                            <span className={`absolute top-2 right-2 text-[8px] font-black px-1.5 py-0.5 rounded-full ${generateForm.hardwareType === opt.value ? 'bg-white/20 text-white' : 'bg-slate-700 text-slate-400'}`}>{opt.tag}</span>
+                                                            <div className={`flex items-center gap-1.5 mb-1 ${generateForm.hardwareType === opt.value ? opt.badge : 'text-slate-500'}`}>
+                                                                <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${generateForm.hardwareType === opt.value ? 'border-current' : 'border-slate-600'}`}>
+                                                                    {generateForm.hardwareType === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-current" />}
+                                                                </div>
+                                                                <span className="text-[10px] font-black tracking-widest uppercase">{opt.label}</span>
+                                                            </div>
+                                                            <p className="text-[9px] text-slate-400 leading-relaxed pl-4">{opt.desc}</p>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* MAC fields */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{generateForm.hardwareType === 'ESPNOW_NODE' ? 'MAC Gateway (opsional)' : 'MAC Address ESP32 (opsional)'}</label>
+                                                        <input type="text" value={generateForm.macAddress} onChange={e => setGenerateForm(p => ({ ...p, macAddress: e.target.value.replace(/[:\-]/g, '').toUpperCase() }))}
+                                                            placeholder="Kosongkan jika belum ada"
+                                                            className="w-full px-3 py-2 bg-slate-800 text-indigo-300 font-mono rounded-xl border border-slate-700 focus:border-indigo-500 outline-none text-xs transition-all" />
+                                                    </div>
+                                                    {generateForm.hardwareType === 'ESPNOW_NODE' && (
+                                                        <div>
+                                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">MAC Komandan Gateway</label>
+                                                            <input type="text" value={generateForm.espnowGatewayMac} onChange={e => setGenerateForm(p => ({ ...p, espnowGatewayMac: e.target.value.replace(/[:\-]/g, '').toUpperCase() }))}
+                                                                placeholder="MAC ESP32 Komandan"
+                                                                className="w-full px-3 py-2 bg-slate-800 text-violet-300 font-mono rounded-xl border border-slate-700 focus:border-violet-500 outline-none text-xs transition-all" />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {generateForm.hardwareType === 'PCF8575' && (
+                                                    <div className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                                                        <input type="checkbox" id="autoPin" checked={generateForm.autoPin} onChange={e => setGenerateForm(p => ({ ...p, autoPin: e.target.checked }))}
+                                                            className="w-4 h-4 accent-cyan-500 cursor-pointer" />
+                                                        <label htmlFor="autoPin" className="text-[11px] text-cyan-300 font-bold cursor-pointer">
+                                                            Auto-assign PIN mulai dari 0 (PIN 0, 1, 2, 3... per meja) — Otomatis sesuaikan ke channel PCF8575
+                                                        </label>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Category & Floor */}
+                                            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori &amp; Penempatan</p>
+
+                                                {/* Categories from master data */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-600 mb-2">Kategori Meja</label>
+                                                    {loadingCategories ? (
+                                                        <div className="animate-pulse h-10 bg-slate-100 rounded-xl" />
+                                                    ) : (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <button type="button" onClick={() => setGenerateForm(p => ({ ...p, categoryId: '' }))}
+                                                                className={`px-4 py-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${generateForm.categoryId === '' ? 'border-slate-600 bg-slate-700 text-white' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
+                                                                — Tanpa Kategori —
+                                                            </button>
+                                                            {(categoriesData || []).filter((c: any) => c.assetType === 'BILLIARD' || !c.assetType).map((cat: any) => {
+                                                                const isVip = cat.name?.toLowerCase().includes('vip');
+                                                                const isSelected = generateForm.categoryId === cat.id;
+                                                                return (
+                                                                    <button key={cat.id} type="button" onClick={() => setGenerateForm(p => ({ ...p, categoryId: cat.id }))}
+                                                                        className={`px-4 py-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${isSelected ? (isVip ? 'border-amber-500 bg-amber-500 text-white' : 'border-indigo-600 bg-indigo-600 text-white') : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                                                                        {cat.name}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Floor Selector */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-600 mb-2">Lantai Fisik</label>
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {[1, 2, 3, 4].map(fl => (
+                                                            <button key={fl} type="button" onClick={() => setGenerateForm(p => ({ ...p, floorNumber: fl }))}
+                                                                className={`py-2.5 rounded-xl border-2 font-black text-sm transition-all active:scale-95 ${generateForm.floorNumber === fl ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300'}`}>
+                                                                Lt {fl}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Production Zone */}
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-600 mb-2">Zona Produksi (Routing Printer)</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {['', 'ZONE_A', 'ZONE_B', 'ZONE_C'].map(zone => (
+                                                            <button key={zone} type="button" onClick={() => setGenerateForm(p => ({ ...p, productionZone: zone }))}
+                                                                className={`px-4 py-2 rounded-xl border-2 font-black text-[10px] uppercase tracking-wider transition-all active:scale-95 ${generateForm.productionZone === zone ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-100 bg-white text-slate-500 hover:border-amber-300'}`}>
+                                                                {zone === '' ? 'DEFAULT (BROAD)' : zone.replace('_', ' ')}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Generate Button */}
+                                            <button onClick={handleBulkGenerate} disabled={generating}
+                                                className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-black text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.99] shadow-lg shadow-violet-200 disabled:opacity-60 disabled:cursor-not-allowed">
+                                                {generating
+                                                    ? <><RefreshCw className="w-5 h-5 animate-spin" /> Membuat {generateForm.count} meja...</>
+                                                    : <><Sparkles className="w-5 h-5" /> GENERATE {generateForm.count} MEJA SEKARANG</>}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* ── Type Chooser ── */}
                         {modalMode === 'choose' && (
                             <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-3xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
