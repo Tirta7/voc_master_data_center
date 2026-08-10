@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
-import { Plus, Coffee, Utensils, CreditCard, ArrowRightLeft, Power, CheckCircle2, Timer, ChevronDown, ChevronUp, Clock, Loader2, Trash2, AlertCircle, AlertTriangle, Ban, ChevronRight, Bell, Receipt } from 'lucide-react';
+import { Plus, Coffee, Utensils, CreditCard, ArrowRightLeft, Power, CheckCircle2, Timer, ChevronDown, ChevronUp, Clock, Loader2, Trash2, AlertCircle, AlertTriangle, Ban, ChevronRight, Bell, Receipt, Search } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import NetworkMonitor from '@/components/NetworkMonitor';
@@ -297,6 +297,7 @@ export default function CafeDashboardPage() {
     const [alertType, setAlertType] = useState<'NONE' | 'RED' | 'YELLOW'>('NONE');
     const [newestCustomerName, setNewestCustomerName] = useState<string | null>(null);
     const [lastSeenId, setLastSeenId] = useState<number>(0);
+    const [searchQuery, setSearchQuery] = useState<string>('');
 
     useEffect(() => {
         const pendingUnhandled = entries.filter((e: any) =>
@@ -369,6 +370,16 @@ export default function CafeDashboardPage() {
                 if (!waiterAssignments.some((t: any) => t.type === 'CAFE' && t.id === table.id)) return false;
             } else return false;
         }
+
+        if (searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase();
+            const customerName = (table.currentCustomer || table.activeTransaction?.customerName || '').toLowerCase();
+            const tableName = (table.tableName || '').toLowerCase();
+            if (!customerName.includes(query) && !tableName.includes(query)) {
+                return false;
+            }
+        }
+
         return true;
     });
 
@@ -570,17 +581,20 @@ export default function CafeDashboardPage() {
                     <AIBattlePlanWidget />
 
                     {/* CAFE STATION CARD - inside banner */}
-                    <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-3.5 mt-3 mb-4 flex items-center justify-between gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
-                        <div className="flex items-center gap-3 min-w-0">
+                    <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-3.5 md:px-5 md:py-3.5 mt-3 mb-4 flex flex-wrap md:flex-nowrap items-center gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+                        {/* Left: Summary Info */}
+                        <div className="flex items-center gap-3 min-w-0 order-1 mr-auto">
                             <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
                                 <span className="text-sm md:text-base font-black text-white">{filteredTables.length}</span>
                             </div>
                             <div className="min-w-0">
                                 <h2 className="text-sm md:text-base font-extrabold text-white tracking-tight truncate">{t('cafe.title', { defaultValue: 'Meja Cafe' })}</h2>
-                                <p className="text-[9px] md:text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja Tersedia</p>
+                                <p className="text-[9px] md:text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1.5 md:gap-2 shrink-0 order-2 md:order-3">
                             {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
                                 <button
                                     onClick={() => {
@@ -613,7 +627,22 @@ export default function CafeDashboardPage() {
                                 </button>
                             )}
                         </div>
+
+                        {/* Search Input */}
+                        <div className="relative group w-full md:w-auto order-3 md:order-2 md:ml-auto mt-1 md:mt-0">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search className="h-4 w-4 text-white/50 group-focus-within:text-white transition-colors" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Cari Customer/Meja..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full md:w-56 bg-black/20 hover:bg-black/30 focus:bg-black/40 text-white placeholder-white/50 text-[16px] md:text-sm rounded-xl pl-9 pr-4 py-2 md:py-2.5 outline-none border border-white/10 focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all font-medium"
+                            />
+                        </div>
                     </div>
+
                 </div>
             </div>
 

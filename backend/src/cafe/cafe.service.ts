@@ -895,12 +895,18 @@ export class CafeService {
       }
 
       // 3. Stock & Transaction persist
+      // PERFORMANCE: Pre-fetch semua menu sekaligus dalam SATU query (batch)
+      // daripada query satu per satu di dalam loop (N queries → 1 query)
+      const allItemIds = [...new Set(itemsToProcess.map(i => i.id).filter(Boolean))];
+      const fetchedMenuItems = await queryRunner.manager.find(MenuItem, {
+        where: { id: In(allItemIds) },
+        relations: ['category'],
+      });
+      const menuItemMap = new Map<number, MenuItem>(fetchedMenuItems.map(m => [m.id, m]));
+
       const addedItemsSummary: string[] = [];
       for (const orderItem of itemsToProcess) {
-        const menuItem = await queryRunner.manager.findOne(MenuItem, {
-          where: { id: orderItem.id },
-          relations: ['category'],
-        });
+        const menuItem = menuItemMap.get(orderItem.id);
         if (!menuItem || !menuItem.isActive) {
           throw new BadRequestException(
             `Menu "${menuItem?.name || orderItem.id}" tidak tersedia.`,
@@ -960,35 +966,31 @@ export class CafeService {
           resolvedTransactionId,
         );
 
-        // Resolve tableName for notification context
+        // PERFORMANCE: Gunakan data yang sudah ada di memory daripada query ulang ke DB
+        // tableName dan resolvedTableId di-derive dari data transaksi yang sudah di-resolve sebelumnya
         let tableName: string | undefined;
         let resolvedTableId: number | undefined = tableId;
         try {
-          const txn = await this.dataSource.manager.findOne(Transaction, {
-            where: { id: resolvedTransactionId },
-            relations: ['table', 'cafeTable'],
-          });
-          if (txn) {
-            const cafeTable = (txn as any).cafeTable;
-            const billiardTable = (txn as any).table;
-            if (cafeTable?.tableName) {
-              tableName = cafeTable.tableName;
-              resolvedTableId = cafeTable.id;
-            } else if (billiardTable?.tableName) {
-              tableName = billiardTable.tableName;
-              resolvedTableId = billiardTable.id;
-            } else if (txn.tableId) {
-              tableName = `Meja ${txn.tableId}`;
-            } else if ((txn as any).cafeTableId) {
-              tableName = `Cafe ${(txn as any).cafeTableId}`;
-            } else {
-              tableName = 'Takeaway';
-            }
+          // Coba ambil dari Redis cache dulu (transaction.service sudah cache ini)
+          const cachedTx = await this.redisService.get(`bill_preview_${tableId}`) as any;
+          if (cachedTx?.cafeTable?.tableName) {
+            tableName = cachedTx.cafeTable.tableName;
+            resolvedTableId = cachedTx.cafeTable.id;
+          } else if (cachedTx?.table?.tableName) {
+            tableName = cachedTx.table.tableName;
+            resolvedTableId = cachedTx.table.id;
+          } else if (tableId) {
+            // Fallback: simple lookup tanpa JOIN besar
+            const tbl = await this.dataSource.manager.findOne('CafeTable', { where: { id: tableId } }) as any
+              ?? await this.dataSource.manager.findOne('Table', { where: { id: tableId } }) as any;
+            tableName = tbl?.tableName || `Meja ${tableId}`;
+            resolvedTableId = tableId;
+          } else {
+            tableName = 'Takeaway';
           }
         } catch (e) {
-          this.logger.warn(
-            `Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`,
-          );
+          this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+          tableName = tableId ? `Meja ${tableId}` : 'Takeaway';
         }
 
         // --- AI SALES ORCHESTRATOR: Real-time progress tracking & Combo Suggestions ---

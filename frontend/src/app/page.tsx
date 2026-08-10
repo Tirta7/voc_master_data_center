@@ -21,7 +21,7 @@ import { Users, Bell, LayoutGrid, Flame, Sparkles, Wrench, CircleDashed } from '
 import { useLanguage } from '@/context/LanguageContext';
 import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
 import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
-import { MessageSquare, AlertOctagon, RefreshCw } from 'lucide-react';
+import { MessageSquare, AlertOctagon, RefreshCw, Search } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import { socket } from '@/lib/socket';
 
@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [itemToCancel, setItemToCancel] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSeenId, setLastSeenId] = useState<number>(0);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Waiting list alert UI state
   const [alertType, setAlertType] = useState<'NONE' | 'RED' | 'YELLOW'>('NONE');
@@ -211,13 +212,23 @@ export default function Dashboard() {
           return false;
         }
       }
+
+      if (searchQuery.trim() !== '') {
+        const query = searchQuery.toLowerCase();
+        const customerName = (table.currentCustomer || table.activeTransaction?.customerName || '').toLowerCase();
+        const tableName = (table.tableName || '').toLowerCase();
+        if (!customerName.includes(query) && !tableName.includes(query)) {
+            return false;
+        }
+      }
+
       if (filterStatus === 'ALL') return true;
       if (filterStatus === 'ACTIVE') return table.status === TableStatus.IN_USE || table.status === TableStatus.WARNING || table.status === TableStatus.WAITING_PAYMENT;
       if (filterStatus === 'AVAILABLE') return table.status === TableStatus.AVAILABLE;
       if (filterStatus === 'ISSUE') return table.status === TableStatus.MAINTENANCE || table.isOffline;
       return true;
     });
-  }, [tables, isRestrictedRole, waiterAssignments, filterStatus]);
+  }, [tables, isRestrictedRole, waiterAssignments, filterStatus, searchQuery]);
 
   // ── Scroll Restoration Logic ─────────────────────────────────────────────
   useEffect(() => {
@@ -462,20 +473,20 @@ export default function Dashboard() {
           <AIBattlePlanWidget />
 
           {/* RENTAL STATION CARD - inside the banner */}
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl px-5 py-4 mt-3 mb-4 flex items-center justify-between gap-4 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-3.5 md:px-5 md:py-4 mt-3 mb-4 flex flex-wrap md:flex-nowrap items-center gap-3 md:gap-4 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
             {/* Left: Summary Info */}
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-11 h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
-                <span className="text-base font-black text-white">{tables.length}</span>
+            <div className="flex items-center gap-3 md:gap-4 min-w-0 order-1 mr-auto">
+              <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
+                <span className="text-sm md:text-base font-black text-white">{tables.length}</span>
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm md:text-base font-extrabold text-white tracking-tight truncate">{t('billiard.title')}</h2>
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja Tersedia</p>
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja</p>
               </div>
             </div>
 
-            {/* Right: Quick Actions */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1.5 md:gap-2 shrink-0 order-2 md:order-3">
               {hasPermission('ADMIN_RESET') && (
                 <button
                   onClick={handleEmergencyStop}
@@ -483,7 +494,7 @@ export default function Dashboard() {
                   className="flex items-center gap-2 p-2.5 md:py-2.5 md:px-3.5 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 rounded-2xl transition-all disabled:opacity-50 border border-rose-400/30"
                   title="Emergency Stop"
                 >
-                  <AlertOctagon className="w-5 h-5 md:w-4 md:h-4 shrink-0" />
+                  <AlertOctagon className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:block text-[10px] font-black uppercase tracking-wider">E-Stop</span>
                 </button>
               )}
@@ -516,8 +527,8 @@ export default function Dashboard() {
                     alertType === 'RED'
                       ? 'bg-rose-500 text-white shadow-lg shadow-rose-900/30'
                       : alertType === 'YELLOW'
-                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-900/30'
-                      : 'bg-white text-indigo-700 shadow-lg shadow-indigo-900/20 hover:bg-indigo-50'
+                        ? 'bg-amber-500 text-white shadow-lg shadow-amber-900/30'
+                        : 'bg-white text-indigo-700 shadow-lg shadow-indigo-900/20 hover:bg-indigo-50'
                   }`}
                 >
                   {alertType === 'RED' ? (
@@ -531,12 +542,28 @@ export default function Dashboard() {
                     {alertType === 'RED' && newestCustomerName ? newestCustomerName : alertType === 'YELLOW' ? 'Booking' : 'Antrean'}
                   </span>
                   <span className="text-[11px] font-black px-1.5 py-0.5 rounded-lg bg-black/10">
-                    {waitingList.filter((e: any) => e.type === 'BILLIARD' && e.status === 'PENDING').length}
+                    {waitingList.filter(e => e.status === 'PENDING').length}
                   </span>
                 </button>
               )}
             </div>
+
+            {/* Search Input */}
+            <div className="relative group w-full md:w-auto order-3 md:order-2 mt-1 md:mt-0">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-white/50 group-focus-within:text-white transition-colors" />
+              </div>
+              <input
+                type="text"
+                placeholder="Cari Customer/Meja..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full md:w-56 bg-black/20 hover:bg-black/30 focus:bg-black/40 text-white placeholder-white/50 text-[16px] md:text-sm rounded-xl pl-9 pr-4 py-2 md:py-2.5 outline-none border border-white/10 focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all font-medium"
+              />
+            </div>
           </div>
+
+
         </div>
       </div>
 

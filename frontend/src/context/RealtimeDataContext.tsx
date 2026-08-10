@@ -436,10 +436,10 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
     }, [user, refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 
-    // ── SAFETY NET: Periodic full-refetch setiap 5 detik ─────────────────────
+    // ── SAFETY NET: Periodic full-refetch sebagai jaring pengaman ─────────────
     // Mencegah data drift jika pesan WebSocket/MQTT terlewat.
-    // Hanya refetch data yang sering berubah (billiard + cafe tables) → 5 detik
-    // Data yang tidak sering berubah (AI, financial) → tetap 30 detik
+    // Interval di-set ke 30 detik karena update realtime sudah ditangani MQTT+WebSocket.
+    // Polling hanya sebagai fallback jika ada pesan yang terlewat.
     useEffect(() => {
         if (!user) return;
         const fastInterval = setInterval(() => {
@@ -447,7 +447,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 refetchBilliard();
                 refetchCafe();
             }
-        }, 5000); // Setiap 5 detik — untuk tagihan realtime
+        }, 30000); // Safety-net setiap 30 detik — MQTT+WebSocket yang handle realtime
 
         const slowInterval = setInterval(() => {
             if (user) {
@@ -797,7 +797,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
 
         const onTransactionUpdated = (data: any) => {
-            console.log('[RealtimeData] Transaction update via WebSocket:', data);
+            // Transaction update via WebSocket
             if (!data.id) return;
 
             const updater = (prev: TableRow[]) => {
@@ -897,12 +897,11 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
 
         const onWaitingListUpdate = () => {
-            console.log('[RealtimeData] Waiting list update via WebSocket');
             refetchWaitingList();
         };
 
         const onRedeemRequest = (data: any) => {
-            console.log('[RealtimeData] Redeem request received:', data);
+            // Redeem request received
             // Append to queue if not already there
             setRedeemQueue(prev => {
                 const exists = prev.some(r => r.token === data.token);
