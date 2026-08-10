@@ -109,7 +109,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     } | null>(null);
 
     // ── Derived Variables ────────────────────────────────────────────────────
-    const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+    const cartTotal = cart.reduce((sum, item) => sum + (Number(item.isDiscountActive ? item.discountPrice : item.price) * item.quantity), 0);
     const totalItems = cart.reduce((a, b) => a + b.quantity, 0);
     const activeTransactionMember = activeTransaction?.member;
     const isMemberSession = !!activeTransactionMember;
@@ -382,7 +382,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     };
 
     const calcCartGrandTotal = (cartItems: any[], extraItemPrice = 0): number => {
-        const subtotal = cartItems.reduce((sum: number, c: any) => sum + (Number(c.price) * c.quantity), 0) + extraItemPrice;
+        const subtotal = cartItems.reduce((sum: number, c: any) => sum + (Number(c.isDiscountActive ? c.discountPrice : c.price) * c.quantity), 0) + extraItemPrice;
         const scPercent = financeSettings.serviceChargePercentage / 100;
         const vatPercent = financeSettings.ppnPercentage / 100;
         const sc = Math.round(subtotal * scPercent);
@@ -418,7 +418,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             }
 
             if (isMemberSession) {
-                const newEstimatedTotal = calcCartGrandTotal(prev, Number(item.price));
+                const newEstimatedTotal = calcCartGrandTotal(prev, Number(item.isDiscountActive ? item.discountPrice : item.price));
                 if (newEstimatedTotal > remainingBalance) {
                     const scPct = financeSettings.serviceChargePercentage;
                     const vatPct = financeSettings.ppnPercentage;
@@ -549,7 +549,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             if (isInsufficientBalance) {
                 const scPct = financeSettings.serviceChargePercentage;
                 const vatPct = financeSettings.ppnPercentage;
-                const cartSubtotal = cart.reduce((sum: number, c: any) => sum + (Number(c.price) * c.quantity), 0);
+                const cartSubtotal = cart.reduce((sum: number, c: any) => sum + (Number(c.isDiscountActive ? c.discountPrice : c.price) * c.quantity), 0);
                 const sc = Math.round(cartSubtotal * (scPct / 100));
                 const vat = Math.round((cartSubtotal + sc) * (vatPct / 100));
 
@@ -825,7 +825,9 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                 {filteredMenu.map((item: any) => {
                                     const qty = cart.find(c => c.id === item.id)?.quantity || 0;
                                     const inCart = qty > 0;
-                                    const itemPrice = Number(item.price);
+                                    const isDiscounted = item.isDiscountActive && item.discountPrice !== null;
+                                    const itemPrice = isDiscounted ? Number(item.discountPrice) : Number(item.price);
+                                    const originalPrice = Number(item.price);
                                     const isPromo = !!item.isPromo;
                                     const itemStock = getItemStock(item);
                                     const isOutOfStock = itemStock <= 0;
@@ -884,8 +886,23 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             {/* Price & Add Action Row */}
                                             <div className="flex items-center justify-between mt-1.5 pt-2 border-t border-slate-100 gap-1">
                                                 <div className="flex flex-col justify-center min-w-0">
-                                                    <span className="text-[7px] font-black text-slate-400 uppercase leading-none">Rp</span>
-                                                    <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight tabular-nums leading-tight mt-0.5 truncate">{itemPrice.toLocaleString('id-ID')}</span>
+                                                    {isDiscounted ? (
+                                                        <>
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-[7px] font-black text-rose-500 uppercase leading-none bg-rose-50 px-1 py-0.5 rounded-sm">PROMO</span>
+                                                                <span className="text-[8px] font-bold text-slate-400 line-through tabular-nums truncate">Rp {originalPrice.toLocaleString('id-ID')}</span>
+                                                            </div>
+                                                            <div className="flex items-end mt-0.5">
+                                                                <span className="text-[7px] font-black text-emerald-600 uppercase leading-none mb-0.5 mr-0.5">Rp</span>
+                                                                <span className="text-xs sm:text-sm font-black text-emerald-600 tracking-tight tabular-nums leading-none truncate">{itemPrice.toLocaleString('id-ID')}</span>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="text-[7px] font-black text-slate-400 uppercase leading-none">Rp</span>
+                                                            <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight tabular-nums leading-tight mt-0.5 truncate">{itemPrice.toLocaleString('id-ID')}</span>
+                                                        </>
+                                                    )}
                                                 </div>
 
                                                 <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${inCart ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105' : 'bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-700'}`}>
@@ -1089,7 +1106,7 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                     </div>
                 ) : (
                     cart.map((item: any) => {
-                        const isIncreaseDisabled = potentialBalance < Number(item.price);
+                        const isIncreaseDisabled = potentialBalance < Number(item.isDiscountActive ? item.discountPrice : item.price);
                         return (
                             <div key={item.id} className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs space-y-2.5 group hover:border-indigo-200 transition-all">
                                 {/* Row 1: Name & Subtotal */}
@@ -1097,7 +1114,7 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-slate-900 text-xs leading-snug line-clamp-2">{item.name}</p>
                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                            <span className="text-[10px] font-bold text-slate-400 tabular-nums">@ {Number(item.price).toLocaleString('id-ID')}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 tabular-nums">@ {Number(item.isDiscountActive ? item.discountPrice : item.price).toLocaleString('id-ID')}</span>
                                             {item.isPromo && (
                                                 <span className="text-[7px] font-black bg-amber-50 text-amber-700 px-1 py-0.5 rounded border border-amber-200">PROMO</span>
                                             )}
@@ -1108,7 +1125,7 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                                     <div className="bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200/80 text-right shrink-0">
                                         <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 block leading-none">Subtotal</span>
                                         <span className="text-[11px] font-black text-slate-900 tabular-nums">
-                                            {(item.price * item.quantity).toLocaleString('id-ID')}
+                                            {(Number(item.isDiscountActive ? item.discountPrice : item.price) * item.quantity).toLocaleString('id-ID')}
                                         </span>
                                     </div>
                                 </div>

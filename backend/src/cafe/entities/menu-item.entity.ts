@@ -55,6 +55,12 @@ export class MenuItem {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  discountPrice: number;
+
+  @Column({ default: false })
+  isDiscountActive: boolean;
+
   @Column({ default: true })
   isActive: boolean;
 

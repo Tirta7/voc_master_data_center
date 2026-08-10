@@ -1800,6 +1800,21 @@ function InventoryContent() {
                                             <div className="bg-gradient-to-br from-white via-emerald-50/10 to-emerald-50/40 p-6 md:p-8 rounded-[3rem] border border-emerald-100 shadow-sm space-y-6 relative overflow-hidden group/price">
                                                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 group-hover/price:scale-110 transition-transform duration-700" />
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                                                    <div className="space-y-4 md:col-span-2">
+                                                        <div className="flex items-center justify-between p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                                                            <div>
+                                                                <p className="text-sm font-bold text-emerald-900">Promo Harga Coret (Diskon Item)</p>
+                                                                <p className="text-[10px] text-emerald-700/80 mt-0.5">Aktifkan untuk memberikan harga khusus pada item ini.</p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setNewMenu({ ...newMenu, isDiscountActive: !newMenu.isDiscountActive })}
+                                                                className={`w-12 h-6 rounded-full transition-colors relative ${newMenu.isDiscountActive ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                                                            >
+                                                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${newMenu.isDiscountActive ? 'left-7' : 'left-1'}`} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                     <InputField
                                                         label="Harga Jual"
                                                         type="number"
@@ -1820,6 +1835,17 @@ function InventoryContent() {
                                                         required
                                                         step="any"
                                                     />
+                                                    {newMenu.isDiscountActive && (
+                                                        <InputField
+                                                            label="Harga Diskon (Rp)"
+                                                            type="number"
+                                                            value={newMenu.discountPrice}
+                                                            onChange={val => setNewMenu({ ...newMenu, discountPrice: val })}
+                                                            placeholder="0"
+                                                            suffix={<span className="font-bold text-rose-500">Rp</span>}
+                                                            step="any"
+                                                        />
+                                                    )}
                                                     <InputField
                                                         label="Pajak (%)"
                                                         type="number"

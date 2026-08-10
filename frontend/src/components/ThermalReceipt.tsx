@@ -594,9 +594,14 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                     let itemDiscPercent = 0;
                                     let discVal = 0;
 
+                                    let isPromoCoret = false;
+
                                     if (Number(item.discountAmount) > 0) {
-                                        discVal = Number(item.discountAmount);
-                                        itemDiscPercent = Number(item.discountPercentage);
+                                        discVal = Number(item.discountAmount) * Number(item.quantity || 1); // Total discount for this row
+                                        itemDiscPercent = Number(item.discountPercentage) || 0;
+                                        if (itemDiscPercent === 0) {
+                                            isPromoCoret = true;
+                                        }
                                     } else if (tx.member?.tier?.discountConfig) {
                                         const cfg = tx.member.tier.discountConfig as any;
                                         const catName = typeof item.menuItem?.category === 'object' ? item.menuItem?.category?.name : item.menuItem?.category;
@@ -617,12 +622,19 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                     </span>
                                                     <span className="text-center">{Number(item.quantity)}</span>
                                                     <span className="text-right font-bold min-w-[70px]">
-                                                        Rp{fmt(origTotal)}
+                                                        {isPromoCoret ? (
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="text-[9px] line-through text-slate-500 font-normal">Rp{fmt(origTotal)}</span>
+                                                                <span>Rp{fmt(origTotal - discVal)}</span>
+                                                            </div>
+                                                        ) : (
+                                                            `Rp${fmt(origTotal)}`
+                                                        )}
                                                     </span>
                                                 </div>
-                                                {itemDiscPercent > 0 && (
+                                                {discVal > 0 && !isPromoCoret && (
                                                     <div className="text-[9px] font-bold text-slate-800 pr-1 text-right mt-0.5">
-                                                        {useBirthdayDiscount ? 'Disc Birthday' : `Disc ${tx.member?.tier?.name}`} ({itemDiscPercent}%): -Rp{fmt(discVal)}
+                                                        {itemDiscPercent > 0 ? (useBirthdayDiscount ? 'Disc Birthday' : `Disc ${tx.member?.tier?.name || 'Member'}`) : 'Disc Promo'} {itemDiscPercent > 0 ? `(${itemDiscPercent}%)` : ''}: -Rp{fmt(discVal)}
                                                     </div>
                                                 )}
                                             </div>

@@ -773,16 +773,26 @@ let CafeService = class CafeService {
                 }
             }
             // 3. Stock & Transaction persist
+            // PERFORMANCE: Pre-fetch semua menu sekaligus dalam SATU query (batch)
+            // daripada query satu per satu di dalam loop (N queries → 1 query)
+            const allItemIds = [
+                ...new Set(itemsToProcess.map((i)=>i.id).filter(Boolean))
+            ];
+            const fetchedMenuItems = await queryRunner.manager.find(_menuitementity.MenuItem, {
+                where: {
+                    id: (0, _typeorm1.In)(allItemIds)
+                },
+                relations: [
+                    'category'
+                ]
+            });
+            const menuItemMap = new Map(fetchedMenuItems.map((m)=>[
+                    m.id,
+                    m
+                ]));
             const addedItemsSummary = [];
             for (const orderItem of itemsToProcess){
-                const menuItem = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
-                    where: {
-                        id: orderItem.id
-                    },
-                    relations: [
-                        'category'
-                    ]
-                });
+                const menuItem = menuItemMap.get(orderItem.id);
                 if (!menuItem || !menuItem.isActive) {
                     throw new _common.BadRequestException(`Menu "${menuItem?.name || orderItem.id}" tidak tersedia.`);
                 }
@@ -792,12 +802,19 @@ let CafeService = class CafeService {
                 }
                 const station = orderItem.isBundleHeader ? 'NONE' : this.getStation(menuItem);
                 const isDirectSale = station === 'NONE';
-                const itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
+                let itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
+                let itemDiscountAmount = 0;
+                // Apply item-level discount (Harga Coret) if active and no manual override
+                if (orderItem.priceOverride === undefined && menuItem.isDiscountActive && menuItem.discountPrice !== null) {
+                    itemPrice = menuItem.price;
+                    itemDiscountAmount = menuItem.price - menuItem.discountPrice;
+                }
                 const item = queryRunner.manager.create(_orderitementity.OrderItem, {
                     transactionId: resolvedTransactionId,
                     menuItemId: menuItem.id,
                     quantity: orderItem.quantity,
                     priceAtOrder: itemPrice,
+                    discountAmount: itemDiscountAmount,
                     status: isDirectSale ? _orderitementity.OrderItemStatus.DONE : _orderitementity.OrderItemStatus.QUEUED,
                     note: orderItem.note,
                     customName: orderItem.customName,
@@ -824,38 +841,38 @@ let CafeService = class CafeService {
             // 4. Update Totals (Outside Transaction for performance/broadcast)
             if (resolvedTransactionId) {
                 const updatedTx = await this.transactionService.updateTotals(resolvedTransactionId);
-                // Resolve tableName for notification context
+                // PERFORMANCE: Gunakan data yang sudah ada di memory daripada query ulang ke DB
+                // tableName dan resolvedTableId di-derive dari data transaksi yang sudah di-resolve sebelumnya
                 let tableName;
                 let resolvedTableId = tableId;
                 try {
-                    const txn = await this.dataSource.manager.findOne(_transactionentity.Transaction, {
-                        where: {
-                            id: resolvedTransactionId
-                        },
-                        relations: [
-                            'table',
-                            'cafeTable'
-                        ]
-                    });
-                    if (txn) {
-                        const cafeTable = txn.cafeTable;
-                        const billiardTable = txn.table;
-                        if (cafeTable?.tableName) {
-                            tableName = cafeTable.tableName;
-                            resolvedTableId = cafeTable.id;
-                        } else if (billiardTable?.tableName) {
-                            tableName = billiardTable.tableName;
-                            resolvedTableId = billiardTable.id;
-                        } else if (txn.tableId) {
-                            tableName = `Meja ${txn.tableId}`;
-                        } else if (txn.cafeTableId) {
-                            tableName = `Cafe ${txn.cafeTableId}`;
-                        } else {
-                            tableName = 'Takeaway';
-                        }
+                    // Coba ambil dari Redis cache dulu (transaction.service sudah cache ini)
+                    const cachedTx = await this.redisService.get(`bill_preview_${tableId}`);
+                    if (cachedTx?.cafeTable?.tableName) {
+                        tableName = cachedTx.cafeTable.tableName;
+                        resolvedTableId = cachedTx.cafeTable.id;
+                    } else if (cachedTx?.table?.tableName) {
+                        tableName = cachedTx.table.tableName;
+                        resolvedTableId = cachedTx.table.id;
+                    } else if (tableId) {
+                        // Fallback: simple lookup tanpa JOIN besar
+                        const tbl = await this.dataSource.manager.findOne('CafeTable', {
+                            where: {
+                                id: tableId
+                            }
+                        }) ?? await this.dataSource.manager.findOne('Table', {
+                            where: {
+                                id: tableId
+                            }
+                        });
+                        tableName = tbl?.tableName || `Meja ${tableId}`;
+                        resolvedTableId = tableId;
+                    } else {
+                        tableName = 'Takeaway';
                     }
                 } catch (e) {
                     this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+                    tableName = tableId ? `Meja ${tableId}` : 'Takeaway';
                 }
                 // --- AI SALES ORCHESTRATOR: Real-time progress tracking & Combo Suggestions ---
                 if (updatedTx?.businessDayId) {

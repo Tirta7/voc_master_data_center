@@ -250,7 +250,7 @@ let ReportService = class ReportService {
                 revenue: 0
             };
             const hpp = Number(item.productFinance?.baseHpp || 0);
-            const marginPerUnit = Number(item.price) - hpp;
+            const marginPerUnit = Number(item.isDiscountActive ? item.discountPrice : item.price) - hpp;
             const totalMargin = marginPerUnit * stats.qty;
             totalCombinedQty += stats.qty;
             totalCombinedProfit += totalMargin;
@@ -259,6 +259,8 @@ let ReportService = class ReportService {
                 name: item.name,
                 category: item.category?.name || '—',
                 price: Number(item.price),
+                isDiscountActive: item.isDiscountActive,
+                discountPrice: Number(item.discountPrice || 0),
                 hpp,
                 margin: marginPerUnit,
                 totalQty: stats.qty,

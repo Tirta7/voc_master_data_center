@@ -924,16 +924,25 @@ export class CafeService {
 
         const station = orderItem.isBundleHeader ? 'NONE' : this.getStation(menuItem);
         const isDirectSale = station === 'NONE';
-        const itemPrice =
+        
+        let itemPrice =
           orderItem.priceOverride !== undefined
             ? orderItem.priceOverride
             : menuItem.price;
+        let itemDiscountAmount = 0;
+
+        // Apply item-level discount (Harga Coret) if active and no manual override
+        if (orderItem.priceOverride === undefined && menuItem.isDiscountActive && menuItem.discountPrice !== null) {
+            itemPrice = menuItem.price;
+            itemDiscountAmount = menuItem.price - menuItem.discountPrice;
+        }
 
         const item = queryRunner.manager.create(OrderItem, {
           transactionId: resolvedTransactionId,
           menuItemId: menuItem.id,
           quantity: orderItem.quantity,
           priceAtOrder: itemPrice,
+          discountAmount: itemDiscountAmount,
           status: isDirectSale ? OrderItemStatus.DONE : OrderItemStatus.QUEUED,
           note: orderItem.note,
           customName: orderItem.customName,

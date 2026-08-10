@@ -93,6 +93,21 @@ _ts_decorate([
 ], MenuItem.prototype, "price", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], MenuItem.prototype, "discountPrice", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], MenuItem.prototype, "isDiscountActive", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         default: true
     }),
     _ts_metadata("design:type", Boolean)

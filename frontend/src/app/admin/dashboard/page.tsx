@@ -2494,7 +2494,16 @@ export default function AdminDashboard() {
                                                                     <td className="py-2 px-2 text-slate-400 font-bold">{i + 1}</td>
                                                                     <td className="py-2 px-2 font-bold text-slate-800">{item.name}</td>
                                                                     <td className="py-2 px-2 text-slate-500">{item.category || '—'}</td>
-                                                                    <td className="py-2 px-2 text-right text-slate-600">{fmt(item.price)}</td>
+                                                                    <td className="py-2 px-2 text-right">
+                                                                        {item.isDiscountActive && item.discountPrice ? (
+                                                                            <div className="flex flex-col items-end leading-tight">
+                                                                                <span className="text-[9px] text-slate-400 line-through decoration-slate-300">{fmt(item.price)}</span>
+                                                                                <span className="text-emerald-600 font-bold">{fmt(item.discountPrice)}</span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-slate-600">{fmt(item.price)}</span>
+                                                                        )}
+                                                                    </td>
                                                                     <td className="py-2 px-2 text-right font-black text-indigo-600">{item.totalQty > 0 ? `${item.totalQty}×` : <span className="text-rose-400">—</span>}</td>
                                                                     <td className="py-2 px-2 text-right font-bold text-slate-700">{item.totalRevenue > 0 ? fmtK(item.totalRevenue) : '—'}</td>
                                                                     <td className="py-2 px-2 text-right">
