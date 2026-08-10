@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, MoreThanOrEqual, LessThan, DataSource } from 'typeorm';
 import { Voucher, VoucherType } from './entities/voucher.entity';
 
 @Injectable()
-export class VoucherService {
+export class VoucherService implements OnModuleInit {
   private readonly logger = new Logger(VoucherService.name);
 
   constructor(
@@ -14,26 +14,28 @@ export class VoucherService {
     private readonly dataSource: DataSource,
   ) {}
 
+  async onModuleInit() {
+    // Run cleanup on startup to clear out backlog immediately
+    await this.handleExpiredBounceBackVouchers();
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleExpiredBounceBackVouchers() {
     this.logger.log('Running nightly cleanup for expired Bounce-Back vouchers...');
     const now = new Date();
-    // Cari semua voucher Bounce-Back yang sudah melewati masa tenggang dan belum dipakai
+    // HARD DELETE unused, expired Bounce-Back vouchers to save storage and UI performance
     const expiredVouchers = await this.voucherRepository.find({
       where: {
         isBounceBack: true,
-        isActive: true,
         usageCount: 0,
         endDate: LessThan(now),
       },
     });
 
     if (expiredVouchers.length > 0) {
-      for (const voucher of expiredVouchers) {
-        voucher.isActive = false; // Soft Delete
-      }
-      await this.voucherRepository.save(expiredVouchers);
-      this.logger.log(`Successfully soft-deleted ${expiredVouchers.length} expired Bounce-Back vouchers.`);
+      // Physical delete from DB
+      await this.voucherRepository.remove(expiredVouchers);
+      this.logger.log(`Successfully HARD-DELETED ${expiredVouchers.length} expired & unused Bounce-Back vouchers.`);
     } else {
       this.logger.log('No expired Bounce-Back vouchers found tonight.');
     }
@@ -60,7 +62,7 @@ export class VoucherService {
       where: { code: code.toUpperCase() },
       relations: ['freeMenuItem', 'user'],
     });
-    if (!voucher) throw new NotFoundException('Voucher code not found');
+    if (!voucher) throw new NotFoundException('Mohon maaf, Kode Voucher tidak ditemukan atau sudah hangus (dihapus oleh sistem).');
     return voucher;
   }
 
