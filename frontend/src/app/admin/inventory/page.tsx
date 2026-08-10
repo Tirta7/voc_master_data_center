@@ -184,6 +184,8 @@ function InventoryContent() {
         categoryId: '',
         productionTarget: '', // Optional override
         expiryDate: '',
+        isDiscountActive: false,
+        discountPrice: '',
         price: '',
         taxPercentage: '',
         stockQuantity: '',
@@ -211,6 +213,8 @@ function InventoryContent() {
             categoryId: '',
             productionTarget: '',
             expiryDate: '',
+            isDiscountActive: false,
+            discountPrice: '',
             price: '',
             taxPercentage: '',
             stockQuantity: '',
@@ -451,7 +455,9 @@ function InventoryContent() {
                 productFinance: newMenu.productFinance,
                 department: newMenu.department,
                 isHighValue: newMenu.isHighValue,
-                expiryDate: newMenu.expiryDate || null
+                expiryDate: newMenu.expiryDate || null,
+                isDiscountActive: !!newMenu.isDiscountActive,
+                discountPrice: newMenu.discountPrice ? Number(newMenu.discountPrice) : null
             };
 
             if (editingMenu) {
@@ -504,6 +510,8 @@ function InventoryContent() {
             categoryId: menu.categoryId.toString(),
             productionTarget: menu.productionTarget || '',
             expiryDate: menu.expiryDate ? new Date(menu.expiryDate).toISOString().split('T')[0] : '',
+            isDiscountActive: !!menu.isDiscountActive,
+            discountPrice: menu.discountPrice ? menu.discountPrice.toString() : '',
             price: Math.round(Number(menu.price)).toString(),
             taxPercentage: menu.taxPercentage?.toString() || '0',
             stockQuantity: Math.round(Number(currentRealStock)).toString(),
