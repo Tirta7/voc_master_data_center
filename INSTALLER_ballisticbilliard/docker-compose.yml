@@ -1,0 +1,169 @@
+# ═══════════════════════════════════════════════════════════════
+# VOC BILLIARD SYSTEM — Docker Compose (CLIENT INSTALLER)
+# Pull images otomatis dari GitHub Container Registry (ghcr.io)
+# Tidak perlu source code! Cukup: docker compose up -d
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── 1. PostgreSQL Database ───────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: voc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vocbilliard2024}
+      POSTGRES_DB: ${DB_DATABASE:-billiard_db}
+      TZ: ${TZ:-Asia/Jakarta}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - voc_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-billiard_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── 2. Redis Cache ───────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: voc_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - voc_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 3. Mosquitto MQTT Broker ─────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: voc_mosquitto
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    ports:
+      - "1883:1883"   # MQTT TCP (ESP32 + Backend)
+      - "8083:8083"   # WebSocket (Browser)
+    networks:
+      - voc_net
+
+  # ── 4. NestJS Backend (dari ghcr.io) ─────────────────────────
+  backend:
+    image: ghcr.io/tirta7/voc-backend:latest
+    container_name: voc_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-vocbilliard2024}
+      DB_DATABASE: ${DB_DATABASE:-billiard_db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_CLIENT_ID: billiard_server
+      PORT: 4000
+      APP_URL: http://${SERVER_IP:-localhost}:4000
+      NODE_ENV: production
+      TZ: ${TZ:-Asia/Jakarta}
+      FONNTE_TOKEN: ${FONNTE_TOKEN:-}
+      LOCATION_ID: ${LOCATION_ID:-LOKASI_DEFAULT}
+      LOCATION_NAME: ${LOCATION_NAME:-Lokasi Default}
+      GAS_WEBAPP_URL: ${GAS_WEBAPP_URL:-}
+      GAS_SECRET: ${GAS_SECRET:-}
+      VAPID_PUBLIC_KEY: BO7qY3be0RC0QZ24AN9Ueozm-PL5CUmKpHp5esi3DGXN15F35dasv_PnyrANIMykDEbO9wyd_NshToMwal1YTcY
+      VAPID_PRIVATE_KEY: SrZIVDSCJ0yW3yv4bR4i_qY6y2CJ3GL_mcca0zy0khg
+      VAPID_SUBJECT: mailto:owner@voc-billiard.com
+    volumes:
+      - backend_storage:/app/storage
+      - backend_logs:/app/logs
+      - backend_uploads:/app/public/uploads
+    ports:
+      - "4000:4000"
+    networks:
+      - voc_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── 5. Next.js Frontend (dari ghcr.io) ───────────────────────
+  frontend:
+    image: ghcr.io/tirta7/voc-frontend:latest
+    container_name: voc_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      TZ: ${TZ:-Asia/Jakarta}
+      # URL publik untuk browser klien (HP/Kasir) via Cloudflare — butuh internet
+      NEXT_PUBLIC_API_URL: https://api-${CLIENT_SUBDOMAIN:-ballisticbilliard}.vocbilliard.online
+      NEXT_PUBLIC_MQTT_URL: wss://mqtt-${CLIENT_SUBDOMAIN:-ballisticbilliard}.vocbilliard.online
+      # URL internal untuk Next.js SSR/middleware (server-side) via Docker network
+      # Menggunakan nama service Docker 'backend' bukan IP/localhost
+      # Ini memastikan localhost:3000 TETAP BERJALAN meski WiFi/internet mati
+      NEXT_INTERNAL_API_URL: http://backend:4000
+    ports:
+      - "3000:3000"
+    networks:
+      - voc_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # ── 6. Cloudflare Tunnel (Akses Online Global) ───────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: voc_cloudflared
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflare:/etc/cloudflared
+    networks:
+      - voc_net
+    depends_on:
+      - frontend
+      - backend
+
+# ── Networks ──────────────────────────────────────────────────
+networks:
+  voc_net:
+    driver: bridge
+
+# ── Persistent Storage ────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  mosquitto_data:
+    driver: local
+  backend_storage:
+    driver: local
+  backend_logs:
+    driver: local
+  backend_uploads:
+    driver: local

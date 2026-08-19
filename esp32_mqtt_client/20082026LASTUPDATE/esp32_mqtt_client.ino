@@ -11,8 +11,7 @@
  * Fitur:
  *  1. Multi Modul PCF8575: Mendukung hingga puluhan modul (otomatis hitung
  * jumlah relay)
- *  2. Dynamic-Safe JSON: Alokasi memory JSON DINAMIS sesuai num_relays
- * (tidak lagi fixed 4096 bytes)
+ *  2. Dynamic-Safe JSON: Alokasi memory JSON menyesuaikan jumlah relay
  *  3. Hardware Watchdog: Auto-restart jika sistem membeku (hang) >30s
  *  4. Anti-Ghost Switching: Verifikasi status I2C setiap 10 detik di semua
  * modul
@@ -26,19 +25,6 @@
  *  9. State Persistence: Status relay tersimpan ke SPIFFS, di-restore saat
  * power restore
  * 10. Identifikasi via MAC Address (otomatis, tanpa konfigurasi manual)
- * 11. [v19] Low-Heap Guard: publishStatus() & callback() dibatalkan otomatis
- * jika heap kritis
- * 12. [v19] Rate-Limit Publish: Max 1x per 400ms agar tidak spam heap/MQTT
- * 13. [v19] MQTT Exponential Backoff: Retry 8s → 16s → 32s → max 60s
- * (reset otomatis saat berhasil konek atau WiFi reconnect)
- * 14. [v19] I2C Fast Mode 400kHz: Latency pcfWrite() lebih rendah
- * 15. [v19] Non-Blocking Reboot: Semua delay()+restart diganti pendingReboot
- * pattern (Serial CLI, MQTT CMD, OLED Menu, WebServer /save)
- * 16. [v19] Atomic Encoder Read: noInterrupts() saat baca encoderPos
- * 17. [v19] WebSerial Streaming: /api/logs streaming chunked tanpa alokasi
- * String besar
- * 18. [v19] NTP Sekali: configTime() hanya dipanggil satu kali saat boot
- * 19. [v19] MQTT Buffer Dinamis: Dihitung sesuai num_relays tiap reconnect
  *
  * TOPIK MQTT:
  *  Subscribe: billiard/table/{MAC}/#
@@ -76,19 +62,11 @@
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
 
 // ─── WEB SERIAL CUSTOM ───────────────────────────────────────────
-const int LOG_BUFFER_SIZE = 6144; // 🚀 Diperbesar dari 4096 → 6144 agar log tidak terpotong
+const int LOG_BUFFER_SIZE = 4096;
 char logBuffer[LOG_BUFFER_SIZE];
 int logHead = 0;
 int logTail = 0;
 bool logFull = false;
-
-// 🚀 Rate-limit publishStatus() — max 1x per 400ms agar tidak spam heap
-unsigned long lastPublishTime = 0;
-constexpr unsigned long PUBLISH_MIN_INTERVAL = 400;
-
-// 🚀 MQTT reconnect exponential backoff
-unsigned long mqttBackoffMs = 8000; // Mulai 8 detik
-constexpr unsigned long MQTT_BACKOFF_MAX = 60000; // Max 60 detik
 
 extern bool needOledUpdate;
 String oledLogLines[5] = {"", "", "", "", ""};
@@ -143,33 +121,16 @@ public:
 DualSerialWrapper DualSerial;
 #define Serial DualSerial
 
-// 🚀 Ganti dari String-concatenation O(n) ke streaming chunked via WebServer
-// Fungsi ini HANYA untuk kompatibilitas — gunakan streamLogBuffer() untuk HTTP response
 String getLogBuffer() {
-  // Dibatasi 2KB untuk hindari OOM saat dipanggil dari HTML embed
-  const int SAFE_LIMIT = 2048;
   String s = "";
-  s.reserve(SAFE_LIMIT + 1);
-  int count = 0;
+  s.reserve(LOG_BUFFER_SIZE + 1);
   if (logFull) {
-    for (int i = logTail; i < LOG_BUFFER_SIZE && count < SAFE_LIMIT; i++, count++) s += logBuffer[i];
-    for (int i = 0; i < logHead && count < SAFE_LIMIT; i++, count++) s += logBuffer[i];
+    for (int i = logTail; i < LOG_BUFFER_SIZE; i++) s += logBuffer[i];
+    for (int i = 0; i < logHead; i++) s += logBuffer[i];
   } else {
-    for (int i = 0; i < logHead && count < SAFE_LIMIT; i++, count++) s += logBuffer[i];
+    for (int i = 0; i < logHead; i++) s += logBuffer[i];
   }
   return s;
-}
-
-// 🚀 Stream log langsung ke HTTP client tanpa alokasi String besar
-void streamLogBuffer(WebServer &srv) {
-  srv.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  srv.send(200, "text/plain", "");
-  if (logFull) {
-    srv.sendContent(String(logBuffer + logTail, LOG_BUFFER_SIZE - logTail));
-    if (logHead > 0) srv.sendContent(String(logBuffer, logHead));
-  } else if (logHead > 0) {
-    srv.sendContent(String(logBuffer, logHead));
-  }
 }
 
 #define ENC_A 32
@@ -265,8 +226,7 @@ typedef struct __attribute__((packed)) {
 // ─────────────────────────────────────────────────────────────
 char ssid[33] = "";
 char password[65] = "";
-char mqtt_server[65] = "";     // Primary: hostname.local atau IP
-char mqtt_fallback_ip[20] = ""; // 🚀 Fallback IP jika mDNS gagal
+char mqtt_server[65] = "";
 int mqtt_port = 1883;
 String tablePinCode = "";
 
@@ -354,7 +314,6 @@ void loadSettings() {
   preferences.getString("pass", "").toCharArray(password, 65);
   preferences.getString("mqtt", "voc-server.local")
       .toCharArray(mqtt_server, 65);
-  preferences.getString("mqFb", "").toCharArray(mqtt_fallback_ip, 20); // 🚀 Fallback IP
   mqtt_port = preferences.getInt("port", 1883);
 
   pin_mode_switch = preferences.getInt("pMod", 5);
@@ -393,19 +352,15 @@ void loadSettings() {
 
   preferences.end();
   Serial.println("[CONFIG] Settings hydrated from memory.");
-  Serial.printf("[CONFIG] MQTT Primary : %s:%d\n", mqtt_server, mqtt_port);
-  if (strlen(mqtt_fallback_ip) > 0)
-    Serial.printf("[CONFIG] MQTT Fallback: %s:%d\n", mqtt_fallback_ip, mqtt_port);
 }
 
-void saveSettings(String s, String p, String m, String mfb, int pt, String ph, int pm,
+void saveSettings(String s, String p, String m, int pt, String ph, int pm,
                   int pl, int pr, int pb, bool al, int nr, int tz, String pin) {
   preferences.begin("voc-config", false);
   preferences.putString("pPin", pin);
   preferences.putString("ssid", s);
   preferences.putString("pass", p);
   preferences.putString("mqtt", m);
-  preferences.putString("mqFb", mfb); // 🚀 Fallback IP
   preferences.putInt("port", pt);
   preferences.putString("pcf", ph);
   preferences.putInt("pMod", pm);
@@ -482,44 +437,56 @@ bool pcfWrite(uint8_t pin, bool state) {
 String getHeader() {
   return "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
          "name='viewport' content='width=device-width, initial-scale=1.0'>"
-         "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap' rel='stylesheet'>"
-         "<style>"
-         ":root{--p:#3b82f6;--s:#10b981;--bg:#0f172a;--glass:rgba(30,41,59,0.7);--border:rgba(255,255,255,0.1);}"
+         "<link "
+         "href='https://fonts.googleapis.com/"
+         "css2?family=Outfit:wght@300;400;600;800&display=swap' "
+         "rel='stylesheet'>"
+         "<style>:root{--p:#3b82f6;--s:#10b981;--bg:#020617;--glass:rgba(255,"
+         "255,255,0.03);} "
          "body{font-family:'Outfit',sans-serif;margin:0;padding:20px;"
-         "background:radial-gradient(circle at top left, #1e1b4b 0%, var(--bg) 100%);"
-         "color:#f8fafc;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;}"
-         "*{box-sizing:border-box;transition:all 0.3s ease;}"
-         ".container{width:100%;max-width:800px;}"
-         "h1{font-weight:800;font-size:28px;margin-bottom:24px;color:var(--p);text-align:center;letter-spacing:1px;}"
-         ".card{background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);"
-         "border-radius:24px;padding:32px;border:1px solid var(--border);box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);}"
-         ".section-title{font-size:14px;font-weight:800;color:var(--s);text-transform:uppercase;letter-spacing:1px;margin:32px 0 16px;border-bottom:1px solid var(--border);padding-bottom:8px;}"
-         ".section-title:first-of-type{margin-top:0;}"
-         ".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;}"
-         ".field{display:flex;flex-direction:column;}"
-         "label{font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}"
-         "input,select{width:100%;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:12px;padding:14px;color:white;font-size:15px;outline:none;font-family:'Outfit',sans-serif;}"
-         "input:focus,select:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(59,130,246,0.2);}"
-         ".help{font-size:11px;color:#64748b;margin-top:6px;line-height:1.4;}"
-         "button[type='submit']{background:linear-gradient(135deg,var(--p),#2563eb);color:white;border:none;padding:16px;border-radius:16px;font-weight:800;font-size:16px;cursor:pointer;width:100%;margin-top:32px;box-shadow:0 10px 20px -5px rgba(59,130,246,0.5);}"
-         "button[type='submit']:hover{transform:translateY(-2px);box-shadow:0 15px 25px -5px rgba(59,130,246,0.6);}"
-         ".scan-btn{background:rgba(59,130,246,0.15);color:var(--p);border:1px solid var(--p);padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;}"
-         ".scan-btn:hover{background:var(--p);color:white;}"
-         ".pass-grp{position:relative;}"
-         ".eye{position:absolute;right:14px;top:14px;cursor:pointer;color:#94a3b8;font-size:16px;}"
-         "#scan-res{margin-top:10px;background:rgba(0,0,0,0.4);border-radius:12px;overflow:hidden;max-height:0;transition:max-height 0.4s ease;}"
-         ".scan-item{padding:12px 16px;font-size:14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;}"
-         ".scan-item:hover{background:rgba(59,130,246,0.15);}"
-         ".scan-item:last-child{border-bottom:none;}"
-         ".dash-link{display:flex;align-items:center;justify-content:center;margin-top:24px;padding:16px;background:rgba(16,185,129,0.05);border:1px dashed var(--s);border-radius:16px;color:var(--s);font-weight:700;text-decoration:none;font-size:15px;}"
-         ".dash-link:hover{background:rgba(16,185,129,0.15);}"
-         "@media(max-width:600px){.grid{grid-template-columns:1fr;}.card{padding:24px;}}"
+         "background:radial-gradient(circle at 0% 0%, #1e1b4b 0%, #020617 "
+         "100%);color:#f8fafc;min-height:100vh;} "
+         "*{box-sizing:border-box;transition:0.3s cubic-bezier(0.4,0,0.2,1);} "
+         ".card{background:rgba(15,23,42,0.6);backdrop-filter:blur(20px);-"
+         "webkit-backdrop-filter:blur(20px);border-radius:32px;padding:30px;"
+         "border:1px solid rgba(255,255,255,0.08);box-shadow:0 25px 50px -12px "
+         "rgba(0,0,0,0.5);max-width:440px;margin:auto;} "
+         "h1{font-weight:800;font-size:24px;margin-bottom:20px;display:flex;"
+         "align-items:center;gap:12px;color:var(--p);} "
+         ".field{margin-bottom:20px;} "
+         "label{display:block;font-size:11px;font-weight:600;color:#64748b;"
+         "text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;} "
+         "input,select{width:100%;background:rgba(255,255,255,0.03);border:1px "
+         "solid "
+         "rgba(255,255,255,0.1);border-radius:12px;padding:12px;color:white;"
+         "outline:none;} "
+         "input:focus{border-color:var(--p);background:rgba(59,130,246,0.05);} "
+         ".row{display:flex;gap:10px;} "
+         "button{background:linear-gradient(135deg,var(--p),#2563eb);color:"
+         "white;border:none;padding:15px;border-radius:14px;font-weight:700;"
+         "cursor:pointer;width:100%;} "
+         ".scan-btn{width:auto;padding:8px "
+         "15px;background:rgba(59,130,246,0.1);color:var(--p);border:1px solid "
+         "var(--p);font-size:10px;} "
+         ".pass-grp{position:relative;} "
+         ".eye{position:absolute;right:12px;top:10px;cursor:pointer;opacity:0."
+         "5;} "
+         "#scan-res{margin-top:10px;background:rgba(0,0,0,0.3);border-radius:"
+         "10px;overflow:hidden;max-height:0;transition:max-height 0.4s ease;} "
+         ".scan-item{padding:10px;font-size:13px;border-bottom:1px solid "
+         "rgba(255,255,255,0.05);cursor:pointer;} "
+         ".scan-item:hover{background:rgba(59,130,246,0.1);}"
          "</style><script>"
-         "function togglePass(){var x=document.getElementById('p');if(x.type==='password'){x.type='text';}else{x.type='password';}}"
-         "function scan(){var r=document.getElementById('scan-res');r.style.maxHeight='250px';r.style.overflowY='auto';r.innerHTML='<div style=\"padding:15px;text-align:center;color:#94a3b8;\">Mencari jaringan WiFi...</div>';fetch('/scan').then(res=>res.text()).then(h=>{r.innerHTML=h;});}"
-         "function setSsid(s){document.getElementById('s').value=s;document.getElementById('scan-res').style.maxHeight='0';}"
-         "</script></head><body>"
-         "<div class='container'>";
+         "function togglePass(){var "
+         "x=document.getElementById('p');x.type=x.type==='password'?'text':'"
+         "password';} "
+         "function scan(){var "
+         "r=document.getElementById('scan-res');r.style.maxHeight='200px';r."
+         "innerHTML='<p "
+         "style=\"padding:10px;font-size:11px;\">Scanning...</p>';"
+         "fetch('/scan').then(res=>res.text()).then(h=>{r.innerHTML=h;});} "
+         "function setSsid(s){document.getElementById('s').value=s;}"
+         "</script></head><body>";
 }
 
 void handleRoot() {
@@ -527,52 +494,73 @@ void handleRoot() {
   String pcfHexStr = preferences.getString("pcf", "0x20");
   preferences.end();
   String h = getHeader();
-  h += "<h1>VOC PANEL CONFIG</h1>";
-  h += "<div class='card'>";
+  h += "<div class='card'><h1>VOC CONFIG</h1>";
   h += "<form action='/save' method='POST'>";
-  
-  // Section: Network
-  h += "<div class='section-title'>🌐 Jaringan WiFi</div>";
-  h += "<div class='grid'>";
-  h += "<div class='field'><label>WIFI SSID <button type='button' class='scan-btn' onclick='scan()'>SCAN</button></label><input id='s' name='s' value='" + String(ssid) + "'><div id='scan-res'></div></div>";
-  h += "<div class='field'><label>WIFI PASSWORD</label><div class='pass-grp'><input id='p' name='p' type='password' value='" + String(password) + "'><span class='eye' onclick='togglePass()'>👁️</span></div></div>";
+  h += "<div class='field'><label>WIFI SSID <button type='button' "
+       "class='scan-btn' onclick='scan()'>SCAN</button></label><input id='s' "
+       "name='s' value='" +
+       String(ssid) + "'> <div id='scan-res'></div></div>";
+  h += "<div class='field'><label>WIFI PASSWORD</label><div "
+       "class='pass-grp'><input id='p' name='p' type='password' value='" +
+       String(password) +
+       "'><span class='eye' onclick='togglePass()'>👀</span></div></div>";
+  h += "<div class='field'><label>MQTT BROKER (IP atau mDNS .local)</label>"
+       "<input name='m' placeholder='voc-server.local atau 192.168.1.x' "
+       "value='" +
+       String(mqtt_server) +
+       "'>"
+       "<div style='font-size:10px;color:#64748b;margin-top:4px;'>💡 Gunakan "
+       "hostname.local agar tidak perlu ganti IP saat WiFi restart</div></div>";
+  h += "<div class='field'><label>MQTT PORT</label><input name='pt' "
+       "type='number' value='" +
+       String(mqtt_port) + "'></div>";
+  h += "<div class='field'><label>PCF ADDRESSES (CSV)</label><input name='ph' "
+       "value='" +
+       pcfHexStr +
+       "' placeholder='0x20,0x21'></div>";
+  h += "<div class='field'><label>JUMLAH MEJA DIPAKAI</label><input name='nr' "
+       "type='number' value='" +
+       String(num_relays) + "'></div>";
+  h += "<div class='row'>";
+  h += " <div class='field'><label>PIN MODE</label><input name='pm' "
+       "type='number' value='" +
+       String(pin_mode_switch) + "'></div>";
+  h += " <div class='field'><label>PIN WIFI</label><input name='pl' "
+       "type='number' value='" +
+       String(pin_led_wifi) + "'></div>";
+  h += "</div><div class='row'>";
+  h += " <div class='field'><label>PIN TRAN</label><input name='ptr' "
+       "type='number' value='" +
+       String(pin_transistor) + "'></div>";
+  h += " <div class='field'><label>PIN BUZZ</label><input name='pb' "
+       "type='number' value='" +
+       String(pin_buzzer) + "'></div>";
   h += "</div>";
-
-  // Section: MQTT Broker
-  h += "<div class='section-title'>📡 Koneksi Server (MQTT)</div>";
-  h += "<div class='grid'>";
-  h += "<div class='field'><label>MQTT BROKER (Primary)</label><input name='m' placeholder='Misal: voc-server.local atau 192.168.1.50' value='" + String(mqtt_server) + "'><div class='help'>💡 Disarankan pakai Static IP Server untuk kestabilan 100%</div></div>";
-  h += "<div class='field'><label>MQTT FALLBACK IP (Cadangan)</label><input name='mfb' placeholder='Misal: 192.168.1.50' value='" + String(mqtt_fallback_ip) + "'><div class='help'>💡 Jika Primary gagal (mDNS error dll), alat akan coba IP ini</div></div>";
-  h += "<div class='field'><label>MQTT PORT</label><input name='pt' type='number' value='" + String(mqtt_port) + "'></div>";
-  h += "</div>";
-
-  // Section: Hardware Config
-  h += "<div class='section-title'>⚙️ Konfigurasi Hardware</div>";
-  h += "<div class='grid'>";
-  h += "<div class='field'><label>PCF ADDRESSES (CSV)</label><input name='ph' value='" + pcfHexStr + "' placeholder='0x20,0x21'></div>";
-  h += "<div class='field'><label>JUMLAH MEJA DIPAKAI</label><input name='nr' type='number' value='" + String(num_relays) + "'></div>";
-  h += "<div class='field'><label>RELAY ACTIVE LOW</label><select name='al'><option value='1' " + String(pcf_active_low ? "selected" : "") + ">LOW (Modul Relay Biru)</option><option value='0' " + String(!pcf_active_low ? "selected" : "") + ">HIGH (Solid State)</option></select></div>";
-  h += "</div>";
-  
-  // Section: Pin Mapping
-  h += "<div class='section-title'>🔌 Pin Mapping</div>";
-  h += "<div class='grid'>";
-  h += "<div class='field'><label>PIN MODE (TOMBOL)</label><input name='pm' type='number' value='" + String(pin_mode_switch) + "'></div>";
-  h += "<div class='field'><label>PIN WIFI LED</label><input name='pl' type='number' value='" + String(pin_led_wifi) + "'></div>";
-  h += "<div class='field'><label>PIN TRANSISTOR / SIRINE</label><input name='ptr' type='number' value='" + String(pin_transistor) + "'></div>";
-  h += "<div class='field'><label>PIN BUZZER</label><input name='pb' type='number' value='" + String(pin_buzzer) + "'></div>";
-  h += "</div>";
-
-  // Section: Lainnya
-  h += "<div class='section-title'>🕒 Sistem</div>";
-  h += "<div class='grid'>";
-  h += "<div class='field'><label>ZONA WAKTU (TIMEZONE)</label><select name='tz'><option value='7' " + String(timeZoneOffset == 7 ? "selected" : "") + ">WIB (UTC+7)</option><option value='8' " + String(timeZoneOffset == 8 ? "selected" : "") + ">WITA (UTC+8)</option><option value='9' " + String(timeZoneOffset == 9 ? "selected" : "") + ">WIT (UTC+9)</option></select></div>";
-  h += "<div class='field'><label>PIN KONTROL MEJA</label><input name='pin' placeholder='Misal: 1234 (Kosongkan jika bebas)' value='" + tablePinCode + "'></div>";
-  h += "</div>";
-
-  h += "<button type='submit'>SIMPAN & RESTART SYSTEM</button></form>";
-  h += "<a href='/dashboard' class='dash-link'>⚡ Buka Dashboard Darurat &rarr;</a>";
-  h += "</div></div></body></html>";
+  h += "<div class='field'><label>RELAY ACTIVE LOW</label><select "
+       "name='al'><option value='1' " +
+       String(pcf_active_low ? "selected" : "") +
+       ">LOW (Common)</option><option value='0' " +
+       String(!pcf_active_low ? "selected" : "") +
+       ">HIGH</option></select></div>";
+  h += "<div class='field'><label>ZONA WAKTU (TIMEZONE)</label><select "
+       "name='tz'><option value='7' " +
+       String(timeZoneOffset == 7 ? "selected" : "") +
+       ">WIB (UTC+7)</option><option value='8' " +
+       String(timeZoneOffset == 8 ? "selected" : "") +
+       ">WITA (UTC+8)</option><option value='9' " +
+       String(timeZoneOffset == 9 ? "selected" : "") +
+       ">WIT (UTC+9)</option></select></div>";
+  h += "<div class='field'><label>PIN KONTROL MEJA (Kosongkan jika bebas)</label><input name='pin' "
+       "type='number' placeholder='Misal: 1234' value='" +
+       tablePinCode + "'></div>";
+  h += "<button type='submit'>APPLY SETTINGS</button></form>";
+  h += "<a href='/dashboard' "
+       "style='display:block;text-align:center;margin-top:20px;padding:12px;"
+       "background:rgba(16,185,129,0.1);border:1px solid "
+       "#10b981;border-radius:14px;color:#10b981;"
+       "font-weight:700;text-decoration:none;font-size:14px;'>"
+       "⚡ Buka Dashboard Darurat &rarr;</a>";
+  h += "</div></body></html>";
   server.send(200, "text/html", h);
 }
 
@@ -580,7 +568,8 @@ void handleScan() {
   int n = WiFi.scanNetworks();
   String h = "";
   for (int i = 0; i < n; i++) {
-    h += "<div class='scan-item' onclick='setSsid(\"" + WiFi.SSID(i) + "\")'><span style='font-weight:600;'>" + WiFi.SSID(i) + "</span><span style='color:#64748b;font-size:12px;'>" + String(WiFi.RSSI(i)) + " dBm</span></div>";
+    h += "<div class='scan-item' onclick='setSsid(\"" + WiFi.SSID(i) + "\")'>" +
+         WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + "dBm)</div>";
   }
   server.send(200, "text/html", h);
 }
@@ -590,9 +579,8 @@ bool pendingReboot = false;
 unsigned long rebootAt = 0;
 
 void handleSave() {
-  // Simpan settings (termasuk fallback IP baru)
+  // Simpan settings
   saveSettings(server.arg("s"), server.arg("p"), server.arg("m"),
-               server.arg("mfb"), // 🚀 Fallback IP
                server.arg("pt").toInt(), server.arg("ph"),
                server.arg("pm").toInt(), server.arg("pl").toInt(),
                server.arg("ptr").toInt(), server.arg("pb").toInt(),
@@ -671,9 +659,8 @@ void handleSaved() {
 
 void handleDoReboot() {
   server.send(200, "text/plain", "Rebooting...");
-  // 🚀 Gunakan pendingReboot pattern \u2014 beri 500ms agar response HTTP terkirim
-  pendingReboot = true;
-  rebootAt = millis() + 500;
+  delay(300);
+  ESP.restart();
 }
 
 void startPortal() {
@@ -698,9 +685,7 @@ void startPortal() {
 // SPIFFS — Simpan & Muat Status Relay
 // ─────────────────────────────────────────────────────────────
 void saveToSPIFFS() {
-  // 🚀 Ukuran dinamis: 64 byte overhead + 12 byte per relay (state+timer+alert)
-  size_t docSize = 128 + (num_relays * 24);
-  DynamicJsonDocument doc(docSize);
+  DynamicJsonDocument doc(4096);
   JsonArray arr = doc.createNestedArray("state");
   for (int i = 0; i < num_relays; i++)
     arr.add(relayState[i]);
@@ -725,8 +710,7 @@ void loadFromSPIFFS() {
   if (SPIFFS.exists("/relay_config.json")) {
     File f = SPIFFS.open("/relay_config.json", FILE_READ);
     if (f) {
-      size_t docSize = 128 + (num_relays * 24);
-      DynamicJsonDocument doc(docSize);
+      DynamicJsonDocument doc(4096);
       if (!deserializeJson(doc, f)) {
         for (int i = 0; i < num_relays; i++) {
           relayState[i] = doc["state"][i] | false;
@@ -748,21 +732,8 @@ void publishStatus() {
   if (!client.connected())
     return;
 
-  // 🚀 Rate-limit: max 1x per PUBLISH_MIN_INTERVAL ms agar tidak spam heap
-  unsigned long nowMs = millis();
-  if (nowMs - lastPublishTime < PUBLISH_MIN_INTERVAL)
-    return;
-  lastPublishTime = nowMs;
-
-  // 🚀 Low-heap guard: batalkan jika heap terlalu rendah
-  size_t docSize = 256 + (num_relays * 30);
-  if (ESP.getFreeHeap() < docSize + 8192) {
-    Serial.printf("[MQTT] publishStatus SKIP: heap rendah (%u bytes)\n", ESP.getFreeHeap());
-    return;
-  }
-
   String topic = baseTopic + "/status";
-  DynamicJsonDocument resp(docSize);
+  DynamicJsonDocument resp(4096);
 
   resp["status"] = "ONLINE";
   resp["online"] = true;
@@ -786,19 +757,11 @@ void publishStatus() {
   }
 
   String buf;
-  buf.reserve(docSize / 2);
   serializeJson(resp, buf);
-
-  // 🚀 Pastikan MQTT buffer cukup sebelum publish
-  if (buf.length() + 64 > client.getBufferSize()) {
-    Serial.printf("[MQTT] WARN: payload %d > buffer %d, skip publish!\n", buf.length(), client.getBufferSize());
-    return;
-  }
-
   client.publish(topic.c_str(), buf.c_str(), true); // retain=true
 
-  Serial.printf("[MQTT] \u2191 Status published: %d relays, RSSI=%d, heap=%u\n", num_relays,
-                WiFi.RSSI(), ESP.getFreeHeap());
+  Serial.printf("[MQTT] ↑ Status published: %d relays, RSSI=%d\n", num_relays,
+                WiFi.RSSI());
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -812,8 +775,7 @@ void onWifiEvent(WiFiEvent_t event) {
                   WiFi.localIP().toString().c_str());
     digitalWrite(pin_led_wifi, HIGH);
     wasWifiConnected = true;
-    lastMqttRetry = 0;    // Langsung coba MQTT setelah WiFi connected
-    mqttBackoffMs = 8000; // 🚀 Reset exponential backoff saat WiFi reconnect
+    lastMqttRetry = 0; // Langsung coba MQTT setelah WiFi connected
     break;
   case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
     Serial.println("[WiFi] PUTUS dari AP! WiFi auto-reconnect...");
@@ -833,16 +795,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
   esp_task_wdt_reset();
   Serial.printf("[MQTT] Pesan masuk: %s (len=%u)\n", topic, length);
 
-  // 🚀 Low-heap guard: tolak jika free heap terlalu rendah
-  if (ESP.getFreeHeap() < 8000) {
-    Serial.printf("[MQTT] CALLBACK SKIP: heap kritis (%u bytes)\n", ESP.getFreeHeap());
-    return;
-  }
-
-  // 🚀 Ukuran dokumen dinamis sesuai panjang payload, minimal 512
-  size_t docSize = max((size_t)512, length * 3);
-  if (docSize > 8192) docSize = 8192; // Cap maksimum
-  DynamicJsonDocument doc(docSize);
+  DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, payload, length);
   if (error) {
     Serial.printf("[MQTT] JSON parse error: %s\n", error.c_str());
@@ -1018,11 +971,10 @@ void callback(char *topic, byte *payload, unsigned int length) {
   if (sTopic.endsWith("/system/set")) {
     const char *cmd = doc["command"] | "";
     if (strcmp(cmd, "REBOOT") == 0) {
-      Serial.println("[SYSTEM] Reboot via MQTT dalam 2 detik...");
-      startBuzzer(500);
-      // 🚀 Gunakan pendingReboot pattern \u2014 tidak blocking MQTT loop & WDT
-      pendingReboot = true;
-      rebootAt = millis() + 2000;
+      Serial.println("[SYSTEM] Reboot via MQTT...");
+      startBuzzer(1000);
+      delay(1500);
+      ESP.restart();
     }
     return;
   }
@@ -1032,69 +984,49 @@ void callback(char *topic, byte *payload, unsigned int length) {
 // MQTT — Reconnect Handler
 // ─────────────────────────────────────────────────────────────
 
-// ─── mDNS Resolver + Fallback IP untuk MQTT Broker ───────────
-// Strategi:
-//  1. Jika mqtt_server adalah IP → langsung pakai
-//  2. Jika mqtt_server adalah hostname biasa → resolve via DNS
-//  3. Jika mqtt_server adalah hostname.local → resolve via mDNS
-//     Jika mDNS gagal → coba mqtt_fallback_ip (IP statis cadangan)
+// ─── mDNS Resolver untuk MQTT Broker ────────────────────────
+// Jika mqtt_server berakhiran ".local", resolve via mDNS ke IP.
+// Fallback ke hostname asli jika gagal (biarkan TCP timeout sendiri).
 IPAddress resolveMqttHost() {
   String host = String(mqtt_server);
   host.trim();
 
-  // ── 1. Direct IP ─────────────────────────────────────────────
+  // Cek apakah bukan .local hostname → langsung parse sebagai IP
   if (!host.endsWith(".local")) {
     IPAddress ip;
     if (ip.fromString(host)) {
-      return ip; // Sudah berupa IP address — langsung pakai
+      return ip; // Sudah berupa IP address
     }
-    // Hostname biasa (bukan .local) → resolve via DNS
+    // Bisa juga hostname biasa, coba resolve via DNS
     IPAddress resolved;
     if (WiFi.hostByName(host.c_str(), resolved)) {
-      Serial.printf("[MQTT] DNS resolved '%s' \u2192 %s\n", host.c_str(),
+      Serial.printf("[MQTT] DNS resolved '%s' → %s\n", host.c_str(),
                     resolved.toString().c_str());
       return resolved;
     }
-    // DNS gagal → coba fallback IP
-    goto try_fallback;
+    return IPAddress(0, 0, 0, 0);
   }
 
-  // ── 2. mDNS .local ───────────────────────────────────────────
-  {
-    String mdnsName = host.substring(0, host.length() - 6);
-    Serial.printf("[MQTT] Resolving mDNS: '%s.local'...\n", mdnsName.c_str());
+  // mDNS resolve: hapus ".local" → query via MDNS.queryHost()
+  String mdnsName = host.substring(0, host.length() - 6); // hilangkan ".local"
+  Serial.printf("[MQTT] Resolving mDNS: '%s.local'...\n", mdnsName.c_str());
 
-    IPAddress resolved = MDNS.queryHost(mdnsName.c_str(), 2000); // timeout 2s
-    if (resolved != INADDR_NONE && resolved != IPAddress(0, 0, 0, 0)) {
-      Serial.printf("[MQTT] mDNS OK: '%s.local' \u2192 %s\n", mdnsName.c_str(),
-                    resolved.toString().c_str());
-      return resolved;
-    }
-
-    Serial.printf("[MQTT] mDNS GAGAL resolve '%s.local'.\n", mdnsName.c_str());
-    // Jatuh ke fallback
+  IPAddress resolved = MDNS.queryHost(mdnsName.c_str(), 2000); // timeout 2s
+  if (resolved != INADDR_NONE && resolved != IPAddress(0, 0, 0, 0)) {
+    Serial.printf("[MQTT] mDNS OK: '%s.local' → %s\n", mdnsName.c_str(),
+                  resolved.toString().c_str());
+    return resolved;
   }
 
-  // ── 3. Fallback IP (jika dikonfigurasi) ──────────────────────
-try_fallback:
-  if (strlen(mqtt_fallback_ip) > 0) {
-    IPAddress fallback;
-    if (fallback.fromString(mqtt_fallback_ip)) {
-      Serial.printf("[MQTT] \u26a0\ufe0f Menggunakan Fallback IP: %s\n", mqtt_fallback_ip);
-      return fallback;
-    }
-  }
-
-  Serial.println("[MQTT] \u274c Semua metode resolve GAGAL. Cek konfigurasi broker.");
+  Serial.printf("[MQTT] mDNS GAGAL resolve '%s.local'. Retry nanti.\n",
+                mdnsName.c_str());
   return IPAddress(0, 0, 0, 0);
 }
 
 void handleMqttConnection() {
-  if (client.connected()) {
-    mqttBackoffMs = 8000; // Reset backoff saat sudah konek
+  if (client.connected())
     return;
-  }
-  if (millis() - lastMqttRetry < mqttBackoffMs)
+  if (millis() - lastMqttRetry < 8000)
     return;
   lastMqttRetry = millis();
 
@@ -1106,27 +1038,17 @@ void handleMqttConnection() {
   if (brokerIP == IPAddress(0, 0, 0, 0)) {
     Serial.printf("[MQTT] Tidak bisa resolve broker '%s'. Skip.\n",
                   mqtt_server);
-    // 🚀 Exponential backoff: 8s → 16s → 32s → ... → max 60s
-    mqttBackoffMs = min(mqttBackoffMs * 2, MQTT_BACKOFF_MAX);
     return;
   }
 
-  // 🚀 Set MQTT buffer dinamis sesuai num_relays
-  uint16_t mqttBufSize = (uint16_t)(512 + (num_relays * 80));
-  if (mqttBufSize < 2048) mqttBufSize = 2048;
-  client.setBufferSize(mqttBufSize);
-
   Serial.printf("[MQTT] Menghubungi Broker %s (%s):%d...\n", mqtt_server,
                 brokerIP.toString().c_str(), mqtt_port);
-  Serial.printf("[MQTT] ClientID: %s | Buffer: %d bytes\n", clientId.c_str(), mqttBufSize);
+  Serial.printf("[MQTT] ClientID: %s\n", clientId.c_str());
 
   client.setServer(brokerIP, mqtt_port);
 
   if (client.connect(clientId.c_str(), lwtTopic.c_str(), 1, true,
                      "{\"status\":\"offline\",\"hwType\":\"PCF8575\"}")) {
-
-    mqttBackoffMs = 8000; // 🚀 Reset backoff saat berhasil konek
-    lastPublishTime = 0;  // 🚀 Force publish status instan saat reconnect
 
     // Kirim status awal instan agar Jendral langsung mendapatkan MAC Address
     publishStatus();
@@ -1140,9 +1062,7 @@ void handleMqttConnection() {
     Serial.printf("[MQTT] Subscribed ke: %s/#\n", baseTopic.c_str());
   } else {
     int state = client.state();
-    // 🚀 Exponential backoff pada kegagalan
-    mqttBackoffMs = min(mqttBackoffMs * 2, MQTT_BACKOFF_MAX);
-    Serial.printf("[MQTT] GAGAL (rc=%d). Retry dalam %lus.\n", state, mqttBackoffMs / 1000);
+    Serial.printf("[MQTT] GAGAL (rc=%d). Retry 8s lagi.\n", state);
     if (state == -2) {
       Serial.println(
           ">> RC -2: Cek hostname broker, port 1883, dan Mosquitto berjalan.");
@@ -1214,26 +1134,20 @@ void handleSerialCmd(String cmd) {
   cmd.trim();
   Serial.printf("[Serial CMD] %s\n", cmd.c_str());
   if (cmd.equalsIgnoreCase("status")) {
-    lastPublishTime = 0; // Bypass rate-limit untuk perintah manual
     publishStatus();
     Serial.println("[OK] Status MQTT telah dipublish.");
   } else if (cmd.equalsIgnoreCase("reboot")) {
     Serial.println("[OK] Rebooting dalam 2 detik...");
-    // 🚀 Gunakan pendingReboot pattern agar WDT tidak reset sebelum restart
-    pendingReboot = true;
-    rebootAt = millis() + 2000;
-  } else if (cmd.equalsIgnoreCase("heap")) {
-    Serial.printf("[HEAP] Free: %u bytes | Min: %u bytes\n",
-                  ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    delay(2000);
+    ESP.restart();
   } else if (cmd.equalsIgnoreCase("help")) {
-    Serial.println("\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
-    Serial.println("\u2551   VOC ESP32 Serial CLI       \u2551");
-    Serial.println("\u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563");
-    Serial.println("\u2551 status  \u2192 Publish MQTT status\u2551");
-    Serial.println("\u2551 reboot  \u2192 Restart ESP32      \u2551");
-    Serial.println("\u2551 heap    \u2192 Info free heap      \u2551");
-    Serial.println("\u2551 help    \u2192 Tampilkan bantuan  \u2551");
-    Serial.println("\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d");
+    Serial.println("╔══════════════════════════════╗");
+    Serial.println("║   VOC ESP32 Serial CLI       ║");
+    Serial.println("╠══════════════════════════════╣");
+    Serial.println("║ status  → Publish MQTT status║");
+    Serial.println("║ reboot  → Restart ESP32      ║");
+    Serial.println("║ help    → Tampilkan bantuan  ║");
+    Serial.println("╚══════════════════════════════╝");
   } else {
     Serial.println("[ERR] Perintah tidak dikenal. Ketik 'help'.");
   }
@@ -1494,8 +1408,6 @@ void handleDashboard() {
 }
 
 void handleWebSerial() {
-  // 🚀 Jangan embed getLogBuffer() di HTML — ini menyebabkan spike RAM 4–6KB
-  // Biarkan JS fetch via /api/logs setelah halaman dimuat (lebih efisien)
   String h = "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
              "<title>VOC Web Serial</title>"
              "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -1518,24 +1430,21 @@ void handleWebSerial() {
              "<button class='btn-danger' onclick='clearLog()'>Clear</button>"
              "<a href='/dashboard' class='btn'>Back</a>"
              "</div></div>"
-             "<div id='log-container'><div id='log'>Loading...</div></div>"
+             "<div id='log-container'><div id='log'>" + getLogBuffer() + "</div></div>"
              "<script>"
              "var autoScroll=true;var logCont=document.getElementById('log-container');var logEl=document.getElementById('log');"
              "function toggleScroll(){autoScroll=!autoScroll;var btn=document.getElementById('btn-scroll');if(autoScroll){btn.className='active';btn.innerText='Autoscroll: ON';scrollToBottom();}else{btn.className='';btn.innerText='Autoscroll: OFF';}}"
              "function clearLog(){fetch('/api/logs/clear').then(()=>{logEl.innerText='';});}"
              "function scrollToBottom(){logCont.scrollTop=logCont.scrollHeight;}"
              "logCont.addEventListener('scroll',function(){if(logCont.scrollTop+logCont.clientHeight<logCont.scrollHeight-30){if(autoScroll)toggleScroll();}});"
-             // Fetch segera saat halaman load, lalu polling tiap 1500ms
-             "function fetchLog(){fetch('/api/logs').then(r=>r.text()).then(t=>{logEl.innerText=t;if(autoScroll)scrollToBottom();}).catch(()=>{});}"
-             "fetchLog();"
-             "setInterval(fetchLog, 1500);"
+             "setInterval(()=>{fetch('/api/logs').then(r=>r.text()).then(t=>{logEl.innerText=t;if(autoScroll)scrollToBottom();})}, 1500);"
+             "window.onload=scrollToBottom;"
              "</script></body></html>";
   server.send(200, "text/html", h);
 }
 
 void handleApiLogs() {
-  // 🚀 Gunakan streaming chunked — tidak alokasi String besar di heap
-  streamLogBuffer(server);
+  server.send(200, "text/plain", getLogBuffer());
 }
 
 void handleApiLogsClear() {
@@ -1553,13 +1462,9 @@ void handleApiLogsClear() {
 // ─────────────────────────────────────────────────────────────
 
 void startWebServices() {
-  // 🚀 Init NTP hanya sekali saat pertama kali init
-  // NTP akan otomatis refresh sendiri via SNTP library internal
-  if (!webServicesStarted) {
-    configTime(timeZoneOffset * 3600, 0, "pool.ntp.org", "time.nist.gov");
-    Serial.printf("[NTP] Sinkronisasi waktu dimulai (UTC+%d)\n", timeZoneOffset);
-  }
-
+  // Init NTP (Sesuai Zona Waktu yang disetting)
+  configTime(timeZoneOffset * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  
   if (webServicesStarted)
     return;
 
@@ -2288,8 +2193,7 @@ void setup() {
 
   // 🛡️ 4. I2C & DYNAMIC PCF INIT
   Wire.begin(21, 22);
-  Wire.setClock(400000); // 🚀 I2C Fast Mode 400kHz — PCF8575 & SH1106 keduanya support ini
-                         //    Mengurangi latency pcfWrite() & mempercepat kontrol relay
+  // Wire.setClock(400000); // 🚀 Dihapus sementara untuk stabilitas OLED
 
   // ─── INIT OLED & ENCODER ───
   pinMode(ENC_A, INPUT_PULLUP);
@@ -2390,11 +2294,7 @@ void setup() {
   if (!isConfigMode) {
     client.setKeepAlive(120);
     client.setSocketTimeout(15); // Increased for stability
-    // 🚀 Buffer size dihitung dinamis saat connect (di handleMqttConnection)
-    // Namun set nilai awal yang aman untuk boot pertama
-    uint16_t initBufSize = (uint16_t)(512 + (num_relays * 80));
-    if (initBufSize < 2048) initBufSize = 2048;
-    client.setBufferSize(initBufSize);
+    client.setBufferSize(4096);  // 🚀 Increased for multi-table batch status
     // ℹ️ Server di-set saat connect (via resolveMqttHost) agar support mDNS
     client.setCallback(callback);
 
@@ -2466,17 +2366,16 @@ void loop() {
   unsigned long now = millis();
   updateBuzzer();
 
-  // 🔄 PRG Reboot: Restart terjadwal setelah redirect /saved selesai dimuat browser
+  // 🔄 PRG Reboot: Restart terjadwal setelah redirect /saved selesai dimuat
+  // browser
   if (pendingReboot && now >= rebootAt) {
     Serial.println("[SYSTEM] Reboot terjadwal dieksekusi...");
-    ESP.restart(); // 🚀 Hapus delay(100) — restart langsung, WDT sudah di-reset di atas
+    delay(100);
+    ESP.restart();
   }
 
   // ─── ENCODER & OLED UI STATE MACHINE ───
-  // 🚀 Baca encoderPos secara atomic untuk hindari race condition dengan ISR
-  noInterrupts();
   int currentEncPos = encoderPos;
-  interrupts();
   bool activityDetected = false;
 
   if (currentEncPos != lastEncoderPos) {
@@ -2845,28 +2744,14 @@ void loop() {
       startBuzzer(100);
     } else if (currentUIState == STATE_RESTART_SELECTION) {
       if (restartMenuSelection == 0) { // Reboot Biasa
-        // 🚀 Pakai pendingReboot pattern — tidak blocking WDT/OLED
-        startBuzzer(500);
-        pendingReboot = true;
-        rebootAt = millis() + 1500;
-        toastMessage = "REBOOT DALAM 2S...";
-        showToast = true;
-        toastEndTime = millis() + 2000;
-        needOledUpdate = true;
+        startBuzzer(1000);
+        delay(1500);
+        ESP.restart();
       } else if (restartMenuSelection == 1) { // Masuk Mode Portal
-        startBuzzer(300);
-        pendingReboot = false; // Jangan reboot biasa
-        toastMessage = "MASUK PORTAL...";
-        showToast = true;
-        toastEndTime = millis() + 1000;
-        needOledUpdate = true;
-        // Delay via reboot timer trick: startPortal setelah 1 detik
-        // Agar toast sempat tampil di OLED
-        pendingReboot = false;
-        rebootAt = millis() + 800; // Gunakan untuk trigger portal
-        // Flag portal trigger khusus
-        portalTriggerStart = 0; // Reset agar tidak konflik
-        startPortal(); // Langsung masuk portal (buzzer sudah selesai dalam ~300ms)
+        startBuzzer(500);
+        delay(500);
+        startBuzzer(500);
+        startPortal();
       } else { // Batal
         currentUIState = STATE_MAIN_MENU;
         needOledUpdate = true;

@@ -1,0 +1,11 @@
+tunnel: 6c40329a-4a11-4311-9d72-8a1beee24bfd
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: ballisticbilliard.vocbilliard.online
+    service: http://voc_frontend:3000
+  - hostname: api-ballisticbilliard.vocbilliard.online
+    service: http://voc_backend:4000
+  - hostname: mqtt-ballisticbilliard.vocbilliard.online
+    service: http://voc_mosquitto:8083
+  - service: http_status:404

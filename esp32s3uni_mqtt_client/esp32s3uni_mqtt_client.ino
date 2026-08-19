@@ -93,7 +93,7 @@ int pin_scl         = SCL_PIN;
 // PCF Config
 uint8_t pcfAddresses[8] = {0x20};
 int num_pcf_modules = 1;
-bool pcf_active_low = true;
+bool pcf_active_low = true; // Kembali ke Active Low (Standar Relay Optocoupler)
 
 // Portal Objects
 WebServer  server(80);
@@ -151,6 +151,12 @@ const unsigned long WIFI_FULL_RECONNECT =
 // ─────────────────────────────────────────────────────────────
 
 void loadSettings() {
+  // --- BARIS TAMBAHAN UNTUK RESET ---
+  preferences.begin("voc-config", false);
+  preferences.remove("pAL"); // Paksa hapus memori Active Low lama
+  preferences.end();
+  // ----------------------------------
+
   preferences.begin("voc-config", true);
 
   preferences.getString("ssid", "").toCharArray(ssid, 33);
@@ -167,7 +173,7 @@ void loadSettings() {
   pin_sda         = preferences.getInt("pSDA", SDA_PIN);
   pin_scl         = preferences.getInt("pSCL", SCL_PIN);
 
-  pcf_active_low = preferences.getBool("pAL", true);
+  pcf_active_low = preferences.getBool("pAL", false); // Default ke false
 
   String pcfHex   = preferences.getString("pcf", "0x20");
   num_pcf_modules = 0;

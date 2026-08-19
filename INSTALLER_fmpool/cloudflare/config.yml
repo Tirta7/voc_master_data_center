@@ -1,0 +1,11 @@
+tunnel: 9200824c-214c-4f9d-9543-f0d139531c18
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: fmpool.vocbilliard.online
+    service: http://voc_frontend:3000
+  - hostname: api-fmpool.vocbilliard.online
+    service: http://voc_backend:4000
+  - hostname: mqtt-fmpool.vocbilliard.online
+    service: http://voc_mosquitto:8083
+  - service: http_status:404
