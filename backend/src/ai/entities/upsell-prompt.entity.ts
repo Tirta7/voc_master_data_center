@@ -7,9 +7,9 @@ import {
   ManyToOne,
   Index,
 } from 'typeorm';
-import { MenuItem } from '../../cafe/entities/menu-item.entity.js';
-import { BusinessDay } from '../../finance/entities/business-day.entity.js';
-import { Promo } from '../../promo/entities/promo.entity.js';
+import { MenuItem } from '../../cafe/entities/menu-item.entity';
+import { BusinessDay } from '../../finance/entities/business-day.entity';
+import { Promo } from '../../promo/entities/promo.entity';
 
 @Entity('ai_upsell_prompts')
 @Index(['businessDayId', 'isConverted'])

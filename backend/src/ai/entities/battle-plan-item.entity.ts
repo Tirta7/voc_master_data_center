@@ -5,10 +5,10 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { BattlePlan } from './battle-plan.entity.js';
-import { MenuItem } from '../../cafe/entities/menu-item.entity.js';
-import { BilliardPackage } from '../../billiard/entities/billiard-package.entity.js';
-import { Promo } from '../../promo/entities/promo.entity.js';
+import { BattlePlan } from './battle-plan.entity';
+import { MenuItem } from '../../cafe/entities/menu-item.entity';
+import { BilliardPackage } from '../../billiard/entities/billiard-package.entity';
+import { Promo } from '../../promo/entities/promo.entity';
 
 @Entity('battle_plan_items')
 export class BattlePlanItem {

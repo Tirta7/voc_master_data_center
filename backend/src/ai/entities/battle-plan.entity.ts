@@ -9,7 +9,7 @@ import {
   ManyToOne,
 } from 'typeorm';
 import { BusinessDay } from '../../finance/entities/business-day.entity';
-import type { BattlePlanItem } from './battle-plan-item.entity.js';
+import type { BattlePlanItem } from './battle-plan-item.entity';
 
 export enum BattlePlanStatus {
   DRAFT = 'DRAFT',

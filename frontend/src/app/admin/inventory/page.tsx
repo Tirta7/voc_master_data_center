@@ -725,7 +725,7 @@ function InventoryContent() {
                     const catName = categories?.find(c => c.id === m.categoryId)?.name || '';
                     const recipeStr = (m.recipes || []).map((r: any) => {
                         const ingName = r.ingredient ? r.ingredient.name : (r.subMenuItem ? r.subMenuItem.name : 'Unknown');
-                        return `${ingName}: ${r.quantity}`;
+                        return `${ingName}: ${Number(r.quantity)}`;
                     }).join(', ');
                     return [
                         m.name, m.sku, catName, m.price, m.department || 'KITCHEN', recipeStr
