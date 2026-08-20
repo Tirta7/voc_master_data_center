@@ -13,7 +13,7 @@ const nextConfig = {
     productionBrowserSourceMaps: false,
     // ─── Required for Docker deployment ───────────────────────
     // Menghasilkan server.js standalone tanpa perlu node_modules penuh
-    // output: 'standalone',
+    output: 'standalone',
     outputFileTracing: false,
     async rewrites() {
         // Gunakan URL internal backend di Docker
