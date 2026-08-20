@@ -14,7 +14,6 @@ const nextConfig = {
     // ─── Required for Docker deployment ───────────────────────
     // Menghasilkan server.js standalone tanpa perlu node_modules penuh
     output: 'standalone',
-    outputFileTracing: false,
     async rewrites() {
         // Gunakan URL internal backend di Docker
         const backendUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
