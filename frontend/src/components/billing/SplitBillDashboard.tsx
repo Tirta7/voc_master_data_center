@@ -296,7 +296,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overscroll-contain">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60  flex items-center justify-center p-0 sm:p-4 overscroll-contain">
             <div className="bg-white w-full max-w-6xl h-full sm:h-[90vh] rounded-none sm:rounded-[3rem] shadow-2xl sm:border sm:border-white overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                 {/* Header */}
                 <div className="px-5 sm:px-8 pb-4 sm:pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:pt-6 bg-slate-100 text-slate-900 flex justify-between items-center relative border-b border-slate-200 shrink-0">

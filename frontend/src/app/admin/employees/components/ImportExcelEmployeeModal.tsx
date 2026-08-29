@@ -294,7 +294,7 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-0 sm:p-4"
             onClick={handleReset}
         >
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" />
+            <div className="absolute inset-0 bg-slate-900/60  animate-in fade-in duration-300" />
             <div
                 className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}

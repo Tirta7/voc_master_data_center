@@ -60,7 +60,7 @@ export default function AIBattlePlanWidget() {
     };
 
     return (
-        <div className="bg-white/10 border border-white/20 rounded-2xl p-4 sm:p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] overflow-hidden relative mb-3 backdrop-blur-2xl">
+        <div className="bg-white/10 border border-white/20 rounded-2xl p-4 sm:p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] overflow-hidden relative mb-3 ">
             <div className={`absolute top-0 right-0 w-64 h-64 blur-3xl pointer-events-none transition-all duration-1000 ${intensityData?.score >= 6 ? 'bg-rose-500/10' : 'bg-indigo-500/5'}`} />
             
             <div className={`flex items-center justify-between gap-3 ${isMinimized ? '' : 'mb-6'}`}>

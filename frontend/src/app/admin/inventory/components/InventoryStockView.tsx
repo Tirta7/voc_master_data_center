@@ -341,7 +341,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
             {/* Adjustment Modal - Premium Redesign */}
             {showAdjModal && selectedItem && (
                 <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 sm:p-6 pb-24">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setShowAdjModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/60  animate-in fade-in" onClick={() => setShowAdjModal(false)} />
                     <div className="relative bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom-12 duration-500">
                         <div className="p-10 pb-6 text-center">
                             <div className={`w-24 h-24 mx-auto mb-8 rounded-[2rem] flex items-center justify-center shadow-2xl ${adjType === 'add' ? 'bg-emerald-50 text-emerald-600 shadow-emerald-100' : 'bg-amber-50 text-amber-600 shadow-amber-100'}`}>

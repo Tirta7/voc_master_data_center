@@ -21,7 +21,7 @@ export function StatCard({ label, value, icon: Icon, color, trend, isWarning }: 
     return (
         <div className={`
             relative group overflow-hidden
-            bg-white/80 backdrop-blur-xl
+            bg-white/80 
             p-5 rounded-[1.75rem]
             border border-slate-200/60
             shadow-[0_4px_20px_rgb(0,0,0,0.03)]

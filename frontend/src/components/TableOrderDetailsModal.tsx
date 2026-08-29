@@ -54,7 +54,7 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6" style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%' }}>
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300"
+                className="absolute inset-0 bg-slate-900/60  transition-opacity duration-300"
                 onClick={onClose}
             />
 

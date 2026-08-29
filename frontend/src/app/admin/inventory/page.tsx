@@ -793,7 +793,7 @@ function InventoryContent() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Box className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Resource Management</span>
@@ -803,7 +803,7 @@ function InventoryContent() {
                         </div>
 
                         {/* Modern Tabs - Scrollable on mobile */}
-                        <div className="bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start lg:self-auto w-full lg:w-auto gap-1 pb-2 -mx-4 px-4 md:mx-0 md:px-0">
+                        <div className="bg-white/10  p-1.5 rounded-2xl border border-white/20 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start lg:self-auto w-full lg:w-auto gap-1 pb-2 -mx-4 px-4 md:mx-0 md:px-0">
                             <button
                                 onClick={() => { setActiveTab('stock'); setSelectedIngCategory('ALL'); }}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'stock'
@@ -1206,7 +1206,7 @@ function InventoryContent() {
                 {/* Add Ingredient Modal */}
                 {showAddModal && (
                     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
+                        <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
                         <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col">
                             <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
                                 <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
@@ -1607,7 +1607,7 @@ function InventoryContent() {
                 {/* Add Menu Modal */}
                 {showAddMenuModal && (
                     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
+                        <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
                         <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col">
                             <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
                                 <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
@@ -1908,7 +1908,7 @@ function InventoryContent() {
                 {/* Manage Recipe Modal - Premium Redesign */}
                 {showRecipeModal && selectedMenu && (
                     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowRecipeModal(false)} />
+                        <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowRecipeModal(false)} />
                         <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-5xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-500 max-h-[96vh] sm:max-h-[92vh] flex flex-col border border-white">
 
                             {/* Elegant Glass Header */}
@@ -2431,7 +2431,7 @@ function InventoryContent() {
                 {/* Category Management Modal - Premium Redesign */}
                 {showCategoryModal && (
                     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowCategoryModal(false)} />
+                        <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => setShowCategoryModal(false)} />
                         <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] sm:max-h-[90vh] flex flex-col">
                             <div className="pt-4 pb-4 sm:py-6 px-6 sm:px-10 border-b border-slate-100 flex flex-col shrink-0 bg-white">
                                 <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />

@@ -156,7 +156,7 @@ export default function TierManagementPage() {
                                 <ArrowLeft className="w-4 h-4" /> Kembali ke Member
                             </Link>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Award className="w-5 h-5 flex-shrink-0" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Sistem Loyalitas</span>
@@ -192,11 +192,11 @@ export default function TierManagementPage() {
                                         <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Tier Member</p>
                                         <h3 className="text-2xl font-black text-white tracking-tight">{tier.name}</h3>
                                         <div className="flex items-center gap-2 mt-3">
-                                            <div className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-black">
+                                            <div className="bg-white/20  text-white px-3 py-1 rounded-full text-[10px] font-black">
                                                 ×{tier.pointMultiplier} POIN
                                             </div>
                                             {tier.autoUpgradeSpend && (
-                                                <div className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-black">
+                                                <div className="bg-white/20  text-white px-3 py-1 rounded-full text-[10px] font-black">
                                                     AUTO ≥ {`Rp ${Math.round(Number(tier.autoUpgradeSpend)).toLocaleString('id-ID')}`}
                                                 </div>
                                             )}
@@ -242,7 +242,7 @@ export default function TierManagementPage() {
             {/* ── Modal ── */}
             {showModal && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => setShowModal(false)} />
                     <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3.5rem] w-full max-w-3xl max-h-[85vh] sm:max-h-[90vh] flex flex-col shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                         {/* Modal Header */}
                         <div className="p-6 pt-4 pb-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 bg-white z-10 relative">

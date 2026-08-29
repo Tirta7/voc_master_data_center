@@ -54,12 +54,12 @@ const AccessPendingOverlay = () => {
     return (
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-6 overflow-hidden overscroll-contain font-sans animate-in fade-in duration-300">
             {/* Darker, smooth backdrop */}
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/40 " />
 
             <div className="w-full max-w-[400px] relative z-10 flex flex-col items-center justify-end sm:justify-center h-full sm:h-auto">
                 
                 {/* Main Content Card - Premium Clean iOS Sheet (Light) */}
-                <div className="w-full bg-[#f9f9fb]/95 backdrop-blur-3xl sm:rounded-[36px] rounded-[36px] sm:rounded-b-[36px] rounded-b-none p-8 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8 text-center shadow-[0_-8px_40px_rgba(0,0,0,0.15)] border-t border-black/[0.04] relative overflow-hidden animate-in slide-in-from-bottom-[100%] duration-500 ease-out">
+                <div className="w-full bg-[#f9f9fb]/95  sm:rounded-[36px] rounded-[36px] sm:rounded-b-[36px] rounded-b-none p-8 pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8 text-center shadow-[0_-8px_40px_rgba(0,0,0,0.15)] border-t border-black/[0.04] relative overflow-hidden animate-in slide-in-from-bottom-[100%] duration-500 ease-out">
                     
                     {/* iOS drag handle indicator */}
                     <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-black/15 rounded-full sm:hidden" />
@@ -100,7 +100,7 @@ const AccessPendingOverlay = () => {
                             </div>
 
                             {/* Minimalist Info List */}
-                            <div className="bg-white/60 backdrop-blur-md rounded-3xl p-5 shadow-sm border border-black/[0.03]">
+                            <div className="bg-white/60  rounded-3xl p-5 shadow-sm border border-black/[0.03]">
                                 <div className="flex justify-between items-center border-b border-black/[0.04] pb-3 mb-3">
                                     <span className="text-[13px] text-slate-400 font-medium">Pegawai</span>
                                     <span className="text-[15px] font-semibold text-slate-700">{pendingAccessData.employeeName}</span>

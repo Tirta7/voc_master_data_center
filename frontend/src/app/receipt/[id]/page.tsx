@@ -110,7 +110,7 @@ export default function StandaloneThermalReceiptPage() {
                 }
             `}</style>
 
-            <div className="no-print fixed bottom-0 left-0 right-0 bg-white/70 backdrop-blur-xl border-t border-slate-200/50 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] z-[100] flex flex-col items-center gap-3 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,16px)+16px)]">
+            <div className="no-print fixed bottom-0 left-0 right-0 bg-white/70  border-t border-slate-200/50 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] z-[100] flex flex-col items-center gap-3 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,16px)+16px)]">
                 <div className="flex gap-2 w-full max-w-md">
                     <button
                         onClick={() => window.print()}

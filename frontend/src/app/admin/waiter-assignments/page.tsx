@@ -443,7 +443,7 @@ export default function WaiterAssignmentsPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Shield className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Access Control</span>
@@ -451,13 +451,13 @@ export default function WaiterAssignmentsPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Penugasan Waiter</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1">Atur area kerja waiter secara real-time</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Activity className="w-4 h-4" /> {shifts.length} Shift Aktif
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Coffee className="w-4 h-4" /> {cafeTables.length} Meja Cafe
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Gamepad2 className="w-4 h-4" /> {billiardTables.length} Billiard
                                 </div>
                             </div>
@@ -467,7 +467,7 @@ export default function WaiterAssignmentsPage() {
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
                                 <input type="text" placeholder="Cari waiter / shift..."
                                     value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-3 bg-white/20 backdrop-blur-sm border border-white/20 rounded-2xl font-bold text-white text-sm placeholder:text-white/50 focus:outline-none focus:bg-white/30" />
+                                    className="w-full pl-11 pr-4 py-3 bg-white/20  border border-white/20 rounded-2xl font-bold text-white text-sm placeholder:text-white/50 focus:outline-none focus:bg-white/30" />
                             </div>
                         </div>
                     </div>
@@ -632,7 +632,7 @@ export default function WaiterAssignmentsPage() {
                 {/* Assignment Modal */}
                 {selectedItem && mounted && createPortal(
                     <div className="fixed -inset-4 sm:inset-0 z-[9999] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setSelectedItem(null)} />
+                        <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setSelectedItem(null)} />
                         <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-7xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-white/20">
                             {/* Modal Header */}
                             <div className="p-8 border-b border-slate-100 flex items-center justify-between">
@@ -893,7 +893,7 @@ export default function WaiterAssignmentsPage() {
                 {/* ── Target Selection Modal ── */}
                 {mounted && showTargetModal && createPortal(
                     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowTargetModal(false)} />
+                        <div className="absolute inset-0 bg-slate-900/60 " onClick={() => setShowTargetModal(false)} />
                         <div className="bg-white rounded-3xl w-full max-w-md relative flex flex-col max-h-[90vh] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                             <div className="p-6 border-b border-slate-100">
                                 <h3 className="text-xl font-black text-slate-800">

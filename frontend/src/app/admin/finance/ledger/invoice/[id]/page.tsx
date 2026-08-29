@@ -318,7 +318,7 @@ export default function InvoicePage() {
             `}</style>
 
             {/* Screen action bar */}
-            <div className="no-print fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.05)] px-4 sm:px-6 pb-3 pt-[calc(env(safe-area-inset-top,0px)+12px)] flex flex-row items-center justify-between gap-3">
+            <div className="no-print fixed top-0 left-0 right-0 z-50 bg-white/90  border-b border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.05)] px-4 sm:px-6 pb-3 pt-[calc(env(safe-area-inset-top,0px)+12px)] flex flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
                     <button onClick={() => window.close()} className="flex items-center justify-center p-2.5 sm:px-4 sm:py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl sm:rounded-2xl text-slate-500 hover:text-slate-800 text-sm font-bold transition-all active:scale-95 shrink-0">
                         <span className="sm:hidden text-lg leading-none">✕</span>

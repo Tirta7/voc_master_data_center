@@ -417,7 +417,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     return (
         /* ─── BACKDROP ──────────────────────────────────────────────────────────── */
         <div
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-200"
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/70  animate-in fade-in duration-200"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <style jsx global>{`
@@ -441,7 +441,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             `}>
                 {/* Full-screen Loading Overlay for Safety (Waiters Phone Lag Protection) */}
                 {isLoading && (
-                    <div className="absolute inset-0 z-[9000] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[9000] bg-white/60  flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-16 h-16 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin shadow-xl" />
                         <div className="flex flex-col items-center animate-pulse">
                             <p className="text-slate-900 font-black uppercase tracking-widest text-base">Inisialisasi Sesi...</p>
@@ -692,7 +692,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                                     <div className="relative z-10 flex flex-col gap-4">
                                         <div className="flex justify-between items-start">
-                                            <div className="px-3.5 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-[0.2em] border border-white/40 shadow-sm">
+                                            <div className="px-3.5 py-1.5 bg-white/20  rounded-full text-[9px] font-black uppercase tracking-[0.2em] border border-white/40 shadow-sm">
                                                 {member.tier?.name || 'MEMBER'}
                                             </div>
                                             <div className="text-right">
@@ -704,7 +704,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                         <h4 className="text-2xl font-black uppercase tracking-tight leading-none mb-1 text-white truncate drop-shadow-sm">{member.name}</h4>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                            <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 shadow-inner flex flex-col justify-center">
+                                            <div className="bg-white/10  px-4 py-3 rounded-2xl border border-white/10 shadow-inner flex flex-col justify-center">
                                                 <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1 opacity-70">SALDO</p>
                                                 {(() => {
                                                     const balStr = `Rp ${Number(member.balance).toLocaleString('id-ID', { minimumFractionDigits: 0 })}`;
@@ -716,7 +716,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                     );
                                                 })()}
                                             </div>
-                                            <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 shadow-inner">
+                                            <div className="bg-white/10  px-4 py-3 rounded-2xl border border-white/10 shadow-inner">
                                                 <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1 opacity-70">EXPIRY</p>
                                                 <p className="text-sm font-black tracking-tight leading-none text-white/90">
                                                     {member.expiryDate ? new Date(member.expiryDate).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selamanya'}
@@ -1145,7 +1145,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             )}
 
             {showVoucherPrompt && (
-                <div className="fixed inset-0 z-[150] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[150] bg-slate-900/70  flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl shadow-indigo-900/20 animate-in zoom-in-95 duration-300 flex flex-col items-center relative overflow-hidden border border-slate-100">
                         
                         {/* Decorative Background Blur */}

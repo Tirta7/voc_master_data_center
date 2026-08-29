@@ -448,7 +448,7 @@ export default function AIOrchestrator() {
     return (
         <div className="min-h-screen bg-[#0F172A] text-slate-200">
             {/* Slim Premium Top Bar */}
-            <div className="sticky top-0 z-40 bg-[#0F172A]/80 backdrop-blur-md border-b border-white/5 px-6 lg:px-12 py-4">
+            <div className="sticky top-0 z-40 bg-[#0F172A]/80  border-b border-white/5 px-6 lg:px-12 py-4">
                 <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center border border-indigo-500/30">
@@ -490,7 +490,7 @@ export default function AIOrchestrator() {
                     {/* LEFT SIDEBAR: Controls & Intelligence */}
                     <aside className="space-y-6 lg:sticky lg:top-28">
                         {/* Target Input Card */}
-                        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
+                        <div className="bg-slate-900/60  border border-white/10 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl" />
                             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-6 flex items-center gap-2">
                                 <Target className="w-3.5 h-3.5" />
@@ -539,7 +539,7 @@ export default function AIOrchestrator() {
                         </div>
 
                         {/* PHASE 37: AI PROACTIVE TOGGLE */}
-                        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group">
+                        <div className="bg-slate-900/60  border border-white/10 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500 ${aiAutoPromote ? 'bg-indigo-500/20 border-indigo-500/30' : 'bg-slate-800 border-white/5'}`}>
@@ -585,7 +585,7 @@ export default function AIOrchestrator() {
                         </div>
 
                         {/* PHASE 38: ROI LEADERBOARD & INTENSITY Prediction */}
-                        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] p-8 space-y-6">
+                        <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] p-8 space-y-6">
                             <div className="flex items-center justify-between border-b border-indigo-500/20 pb-4 mb-2">
                                 <div className="flex gap-4">
                                     <button
@@ -702,7 +702,7 @@ export default function AIOrchestrator() {
                             )}
                         </div>
                         {simulatedItems.length > 0 && (
-                            <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] p-8 space-y-6">
+                            <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] p-8 space-y-6">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4">
                                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1">Projection</p>
@@ -743,7 +743,7 @@ export default function AIOrchestrator() {
                             </div>
                         )}
                         {/* PHASE 29: AI Commander's Log & Anomaly Alerts */}
-                        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
+                        <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
                             <div className="p-6 border-b border-white/5 bg-gradient-to-r from-red-500/5 to-transparent flex items-center gap-3">
                                 <Shield className="w-5 h-5 text-red-400" />
                                 <h3 className="text-sm font-black text-white uppercase tracking-widest">AI Commander's Log</h3>
@@ -809,7 +809,7 @@ export default function AIOrchestrator() {
                     <div className="space-y-8 min-w-0">
                         {/* PHASE 30: AI Mission Report & Executive Grade */}
                         {missionReport && (
-                            <div className="relative group overflow-hidden bg-slate-900/60 backdrop-blur-xl border border-indigo-500/20 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in duration-700">
+                            <div className="relative group overflow-hidden bg-slate-900/60  border border-indigo-500/20 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in duration-700">
                                 {/* Premium Shimmer Effects */}
                                 <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 via-transparent to-transparent opacity-10 group-hover:opacity-20 transition-opacity duration-1000" />
                                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent animate-shimmer" />
@@ -820,7 +820,7 @@ export default function AIOrchestrator() {
                                 <div className="relative flex flex-col md:flex-row items-center gap-12">
                                     <div className="relative shrink-0">
                                         <div className="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full scale-150 animate-pulse" />
-                                        <div className="grade-badge-premium w-32 h-32 rounded-full border-4 border-indigo-500/30 flex items-center justify-center bg-black/40 backdrop-blur-md relative z-10">
+                                        <div className="grade-badge-premium w-32 h-32 rounded-full border-4 border-indigo-500/30 flex items-center justify-center bg-black/40  relative z-10">
                                             <span className="text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">{missionReport.grade}</span>
                                         </div>
                                         <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-xl border-2 border-[#0F172A] z-20">
@@ -909,7 +909,7 @@ export default function AIOrchestrator() {
 
                                 {/* Performance Pulse: Live Achievement Gauge */}
                                 {performancePulse && (
-                                    <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
+                                    <div className="bg-slate-900/60  border border-white/10 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
                                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-3xl pointer-events-none" />
 
                                         <div className="flex flex-col md:flex-row items-center gap-10">
@@ -989,7 +989,7 @@ export default function AIOrchestrator() {
 
                                 {/* PHASE 27: AI Campaign ROI & Staff Engagement */}
                                 {Object.keys(aiCampaigns || {}).length > 0 && (
-                                    <div className="bg-slate-900/40 backdrop-blur-xl border border-emerald-500/20 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
+                                    <div className="bg-slate-900/40  border border-emerald-500/20 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl pointer-events-none" />
                                         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
                                             <div className="flex items-center gap-6">
@@ -1029,7 +1029,7 @@ export default function AIOrchestrator() {
 
                                 {/* PHASE 28: Historical Strategy Trends */}
                                 {strategyHistory.length > 0 && (
-                                    <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] p-8 shadow-2xl">
+                                    <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] p-8 shadow-2xl">
                                         <div className="flex items-center justify-between mb-8">
                                             <div>
                                                 <h3 className="text-xl font-black text-white flex items-center gap-3">
@@ -1119,7 +1119,7 @@ export default function AIOrchestrator() {
                                 )}
 
                                 {/* High-Density Menu Mix List */}
-                                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
+                                <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
                                     <div className="p-8 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-white/[0.02] to-transparent">
                                         <div>
                                             <h3 className="text-xl font-black text-white">Recommended Menu Mix</h3>
@@ -1252,7 +1252,7 @@ export default function AIOrchestrator() {
 
                                 {/* Secondary Intelligence Row: MBA & Forecast */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] p-8 space-y-6 shadow-xl relative overflow-hidden">
+                                    <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] p-8 space-y-6 shadow-xl relative overflow-hidden">
                                         <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl" />
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-lg font-black text-white flex items-center gap-3">
@@ -1293,7 +1293,7 @@ export default function AIOrchestrator() {
                                     </div>
 
                                     {forecast && (
-                                        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2rem] p-8 space-y-6 shadow-xl relative overflow-hidden">
+                                        <div className="bg-slate-900/40  border border-white/5 rounded-[2rem] p-8 space-y-6 shadow-xl relative overflow-hidden">
                                             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-3xl" />
                                             <h3 className="text-lg font-black text-white flex items-center gap-3">
                                                 <Eye className="w-4 h-4 text-indigo-400" />
@@ -1383,7 +1383,7 @@ export default function AIOrchestrator() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="h-[600px] bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[3rem] flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:border-indigo-500/30 transition-all shadow-2xl" onClick={handleSimulate}>
+                            <div className="h-[600px] bg-slate-900/40  border border-white/5 rounded-[3rem] flex flex-col items-center justify-center p-12 text-center group cursor-pointer hover:border-indigo-500/30 transition-all shadow-2xl" onClick={handleSimulate}>
                                 <div className="w-24 h-24 bg-indigo-500/20 rounded-[2.5rem] flex items-center justify-center mb-8 border border-indigo-500/30 group-hover:scale-110 group-hover:bg-indigo-500/30 transition-all duration-500">
                                     <Target className="w-10 h-10 text-indigo-400" />
                                 </div>
@@ -1398,7 +1398,7 @@ export default function AIOrchestrator() {
 
                 {/* Modals Container */}
                 {showMenuPicker && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm bg-black/60 animate-in fade-in duration-300">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-6  bg-black/60 animate-in fade-in duration-300">
                         <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
                             <div className="p-8 border-b border-white/5 space-y-4">
                                 <div className="flex items-center justify-between">
@@ -1440,7 +1440,7 @@ export default function AIOrchestrator() {
                 )}
 
                 {editingQuantityItem && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 backdrop-blur-md bg-black/40 animate-in fade-in duration-300">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6  bg-black/40 animate-in fade-in duration-300">
                         <div className="bg-slate-900 border border-white/20 rounded-[2.5rem] w-full max-w-xs flex flex-col p-8 shadow-2xl relative overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none" />
                             <div className="flex items-center justify-between mb-8">

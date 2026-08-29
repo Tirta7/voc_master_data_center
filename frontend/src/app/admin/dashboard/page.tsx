@@ -506,7 +506,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
         .sort((a, b) => b.revenue - a.revenue);
 
     if (data.length === 0) return (
-        <div className="bg-white/40 backdrop-blur-md rounded-[2.5rem] border border-white/40 p-12 text-center shadow-xl">
+        <div className="bg-white/40  rounded-[2.5rem] border border-white/40 p-12 text-center shadow-xl">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-slate-200">
                 <Dices className="w-8 h-8 text-slate-300" />
             </div>
@@ -538,7 +538,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
                     <h3 className="text-3xl font-black text-slate-900 tracking-tight">Performance Intelligence</h3>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Real-time Table Profitability & Demand Analytics</p>
                 </div>
-                <div className="bg-white/60 backdrop-blur-xl border border-white p-1 rounded-2xl flex items-center shadow-sm">
+                <div className="bg-white/60  border border-white p-1 rounded-2xl flex items-center shadow-sm">
                     <div className="px-4 py-2 border-r border-slate-100">
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Fleet Size</p>
                         <p className="text-sm font-black text-slate-800 leading-none">{data.length} Meja</p>
@@ -552,7 +552,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
                 {data.map((table) => (
-                    <div key={table.name} className="group bg-white/60 backdrop-blur-xl rounded-[2.5rem] border border-white p-7 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-indigo-200/40 transition-all duration-500 hover:-translate-y-1 relative overflow-hidden">
+                    <div key={table.name} className="group bg-white/60  rounded-[2.5rem] border border-white p-7 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-indigo-200/40 transition-all duration-500 hover:-translate-y-1 relative overflow-hidden">
                         {/* Background Decoration */}
                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all duration-500" />
                         
@@ -665,7 +665,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
             <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[100px] -mr-32 -mt-32" />
                 <div className="relative flex items-center gap-6">
-                    <div className="w-14 h-14 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/20 shadow-xl group-hover:scale-110 transition-all duration-500">
+                    <div className="w-14 h-14 bg-white/10  rounded-2xl flex items-center justify-center border border-white/20 shadow-xl group-hover:scale-110 transition-all duration-500">
                         <Activity className="w-7 h-7 text-indigo-400" />
                     </div>
                     <div className="max-w-xl">
@@ -986,7 +986,7 @@ export default function AdminDashboard() {
             {/* ── Printer Health Toast (Floating) ── */}
             {printers?.some(p => !p.isOnline) && (
                 <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[1000] animate-in slide-in-from-bottom duration-500">
-                    <div className="bg-rose-500/90 backdrop-blur-xl border border-rose-400 p-4 rounded-3xl shadow-2xl flex items-center gap-4 text-white">
+                    <div className="bg-rose-500/90  border border-rose-400 p-4 rounded-3xl shadow-2xl flex items-center gap-4 text-white">
                         <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center animate-pulse">
                             <Printer className="w-5 h-5 text-white" />
                         </div>
@@ -1019,7 +1019,7 @@ export default function AdminDashboard() {
                     <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Owner Dashboard</span>
@@ -1032,7 +1032,7 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3">
                             {/* Business Day Toggle */}
-                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer group/toggle" onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}>
+                            <div className="flex items-center gap-2 bg-white/10  border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer group/toggle" onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}>
                                 <div className="flex flex-col items-start pr-2 border-r border-white/10">
                                     <span className="text-[7px] font-black text-white/40 uppercase tracking-widest leading-none">Logic Mode</span>
                                     <span className="text-[9px] font-black text-white uppercase italic tracking-tighter">
@@ -1044,7 +1044,7 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-2 w-full sm:w-auto overflow-hidden">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white/10  border border-white/20 rounded-xl px-3 py-2 w-full sm:w-auto overflow-hidden">
                                 <input
                                     type="datetime-local"
                                     value={startDate}
@@ -1504,7 +1504,7 @@ export default function AdminDashboard() {
 
                                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                             {/* AI Summary */}
-                                            <div className="lg:col-span-2 p-8 bg-white/5 rounded-[2.5rem] border border-white/10 backdrop-blur-sm">
+                                            <div className="lg:col-span-2 p-8 bg-white/5 rounded-[2.5rem] border border-white/10 ">
                                                 <div className="flex items-center gap-3 mb-6">
                                                     <Zap className="w-5 h-5 text-amber-400" />
                                                     <h5 className="text-xs font-black uppercase tracking-widest">Executive AI Summary</h5>
@@ -1524,7 +1524,7 @@ export default function AdminDashboard() {
                                             </div>
 
                                             {/* Top Risk Items */}
-                                            <div className="p-8 bg-rose-500/5 rounded-[2.5rem] border border-rose-500/10 backdrop-blur-sm">
+                                            <div className="p-8 bg-rose-500/5 rounded-[2.5rem] border border-rose-500/10 ">
                                                 <div className="flex items-center gap-3 mb-6">
                                                     <ShieldAlert className="w-5 h-5 text-rose-500" />
                                                     <h5 className="text-xs font-black uppercase tracking-widest">High Risk Inventory</h5>
@@ -2002,7 +2002,7 @@ export default function AdminDashboard() {
                                                     <h4 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Table Intensity Clusters</h4>
                                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">AI-Driven Segmentation based on Session Frequency & Duration</p>
                                                 </div>
-                                                <div className="px-6 py-2.5 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 text-[11px] font-black uppercase tracking-[0.2em] shadow-xl inline-flex items-center gap-2 w-fit">
+                                                <div className="px-6 py-2.5 bg-white/10  rounded-2xl border border-white/20 text-[11px] font-black uppercase tracking-[0.2em] shadow-xl inline-flex items-center gap-2 w-fit">
                                                     <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
                                                     Advanced AI Analytics
                                                 </div>
@@ -2255,7 +2255,7 @@ export default function AdminDashboard() {
                                     <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse" />
                                     <div className="relative z-10">
                                         <div className="flex items-center gap-3 mb-6">
-                                            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                            <div className="p-2 bg-white/20 rounded-xl ">
                                                 <Zap className="w-6 h-6 text-amber-300" />
                                             </div>
                                             <div>
@@ -2265,7 +2265,7 @@ export default function AdminDashboard() {
                                         </div>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div className="p-6 bg-white/10 rounded-3xl backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all cursor-default">
+                                            <div className="p-6 bg-white/10 rounded-3xl  border border-white/10 hover:bg-white/20 transition-all cursor-default">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <Trophy className="w-4 h-4 text-emerald-300" />
                                                     <span className="text-[10px] font-black uppercase tracking-widest">Profitability</span>
@@ -2275,7 +2275,7 @@ export default function AdminDashboard() {
                                                     { (itemsPerf.menuEngineering?.stars?.length || 0) > 3 ? ' Performa "Stars" sangat sehat!' : ' Optimalkan menu Puzzles untuk boost margin.' }
                                                 </p>
                                             </div>
-                                            <div className="p-6 bg-white/10 rounded-3xl backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all cursor-default">
+                                            <div className="p-6 bg-white/10 rounded-3xl  border border-white/10 hover:bg-white/20 transition-all cursor-default">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <Activity className="w-4 h-4 text-sky-300" />
                                                     <span className="text-[10px] font-black uppercase tracking-widest">Table Efficiency</span>
@@ -2285,7 +2285,7 @@ export default function AdminDashboard() {
                                                     Target: Naikkan rasio belanja meja lainnya sebesar 15%.
                                                 </p>
                                             </div>
-                                            <div className="p-6 bg-white/10 rounded-3xl backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all cursor-default">
+                                            <div className="p-6 bg-white/10 rounded-3xl  border border-white/10 hover:bg-white/20 transition-all cursor-default">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <Lock className="w-4 h-4 text-rose-300" />
                                                     <span className="text-[10px] font-black uppercase tracking-widest">Integrity & Upsell</span>
@@ -2888,7 +2888,7 @@ export default function AdminDashboard() {
                 {/* Payroll Detail Modal */}
                 {showPayrollDetail && selectedPayrollDetail && (
                     <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowPayrollDetail(false)} />
+                        <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowPayrollDetail(false)} />
                         <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
                             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
                                 <div>
@@ -2976,7 +2976,7 @@ export default function AdminDashboard() {
                 {/* Staff Sales Detail Drill-down Modal */}
                 {selectedAuditStaff && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedAuditStaff(null)} />
+                        <div className="absolute inset-0 bg-slate-900/40 " onClick={() => setSelectedAuditStaff(null)} />
                         <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300">
                             <div className="p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
                                 <div className="flex justify-between items-start">

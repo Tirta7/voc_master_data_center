@@ -266,7 +266,7 @@ export default function LockerPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Shield className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Operational Security</span>
@@ -274,10 +274,10 @@ export default function LockerPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight leading-tight">Locker Penitipan Barang</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1 max-w-lg">Kelola penyimpanan barang barang berharga customer dengan sistem verifikasi PIN terenkripsi dan terintegrasi dengan tier member.</p>
                             <div className="flex flex-wrap gap-2 md:flex-nowrap mt-5">
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                <span className="bg-white/15  px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
                                     <Package className="w-4 h-4" /> Total {stats.total} Locker
                                 </span>
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                <span className="bg-white/15  px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
                                     <Activity className="w-4 h-4" /> {stats.available} Tersedia
                                 </span>
                             </div>
@@ -286,7 +286,7 @@ export default function LockerPage() {
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                             <button
                                 onClick={() => fetchData()}
-                                className="flex-1 lg:flex-none bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2.5 transition-all active:scale-95 group"
+                                className="flex-1 lg:flex-none bg-white/10 hover:bg-white/20  border border-white/20 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2.5 transition-all active:scale-95 group"
                             >
                                 <RefreshCw className="w-5 h-5 transition-transform group-hover:rotate-180 duration-500" />
                                 <span className="whitespace-nowrap">Refresh Data</span>
@@ -385,7 +385,7 @@ export default function LockerPage() {
                                             {locker.label && <span className="text-[10px] font-black opacity-60 uppercase truncate w-full px-2 tracking-tight">{locker.label}</span>}
                                         </div>
 
-                                        <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 ${locker.status === 'AVAILABLE' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-white/20 text-white backdrop-blur-sm'
+                                        <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 ${locker.status === 'AVAILABLE' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-white/20 text-white '
                                             }`}>
                                             {locker.status === 'AVAILABLE' ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
                                             {locker.status}
@@ -408,7 +408,7 @@ export default function LockerPage() {
                                     {locker.status === 'OCCUPIED' && locker.activeSession && (
                                         <>
                                             <div className="absolute top-4 right-4 flex flex-col items-center gap-1.5 z-20">
-                                                <div className="bg-white/15 p-1.5 rounded-lg backdrop-blur-md border border-white/10">
+                                                <div className="bg-white/15 p-1.5 rounded-lg  border border-white/10">
                                                     <User className="w-3.5 h-3.5" />
                                                 </div>
                                                 {locker.activeSession.isMemberFree && (
@@ -421,7 +421,7 @@ export default function LockerPage() {
                                                 <div className="text-[10px] font-black text-white/90 truncate w-full text-center">
                                                     {locker.activeSession.customerName}
                                                 </div>
-                                                <div className="flex items-center gap-1.5 bg-black/20 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
+                                                <div className="flex items-center gap-1.5 bg-black/20  px-2 py-0.5 rounded-full border border-white/10">
                                                     <Clock className="w-2.5 h-2.5 text-white/70" />
                                                     <span className="text-[9px] font-black text-white/80 tabular-nums">
                                                         {formatDuration(getElapsedMinutes(locker.activeSession.startTime))}
@@ -460,7 +460,7 @@ export default function LockerPage() {
 
                             <div
                                 onClick={() => setAddModal(true)}
-                                className="aspect-square border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center gap-3 text-slate-300 hover:border-indigo-400 hover:text-indigo-500 hover:bg-white hover:shadow-xl hover:shadow-indigo-50 cursor-pointer transition-all active:scale-95 bg-white/30 backdrop-blur-sm"
+                                className="aspect-square border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center gap-3 text-slate-300 hover:border-indigo-400 hover:text-indigo-500 hover:bg-white hover:shadow-xl hover:shadow-indigo-50 cursor-pointer transition-all active:scale-95 bg-white/30 "
                             >
                                 <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
                                     <Plus className="w-8 h-8" />
@@ -567,7 +567,7 @@ export default function LockerPage() {
             {
                 deleteConfirm.open && deleteConfirm.locker && (
                     <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setDeleteConfirm({ open: false, locker: null })} />
+                        <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setDeleteConfirm({ open: false, locker: null })} />
                         <div className="relative bg-white rounded-[2.5rem] w-full max-w-sm shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200 p-8">
                             <div className="flex flex-col items-center text-center gap-4">
                                 <div className="w-16 h-16 bg-rose-100 rounded-3xl flex items-center justify-center mb-2">
@@ -679,14 +679,14 @@ function HistoryView() {
 function CheckInModal({ modal, onClose, onCheckIn, form, setForm, onSearchMember }: any) {
     return (
         <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="absolute inset-0 bg-slate-900/80 " onClick={onClose} />
             <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
                         <X className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-4 mb-4">
-                        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md shadow-xl border border-white/10">
+                        <div className="bg-white/20 p-3 rounded-2xl  shadow-xl border border-white/10">
                             <Lock className="w-6 h-6" />
                         </div>
                         <div>
@@ -773,14 +773,14 @@ function CheckInModal({ modal, onClose, onCheckIn, form, setForm, onSearchMember
 function CheckOutModal({ locker, onClose, onCheckOut, pin, setPin, isVerifying, onForceCheckOut }: any) {
     return (
         <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="absolute inset-0 bg-slate-900/80 " onClick={onClose} />
             <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="bg-gradient-to-br from-rose-600 to-rose-700 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
                         <X className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-4">
-                        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md border border-white/10 shadow-xl">
+                        <div className="bg-white/20 p-3 rounded-2xl  border border-white/10 shadow-xl">
                             <Shield className="w-6 h-6" />
                         </div>
                         <div>
@@ -911,14 +911,14 @@ function AddLockerModal({ onClose, onRefresh }: { onClose: () => void, onRefresh
 
     return (
         <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="absolute inset-0 bg-slate-900/80 " onClick={onClose} />
             <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="bg-slate-900 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
                         <X className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-4 mb-2">
-                        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md border border-white/10">
+                        <div className="bg-white/20 p-3 rounded-2xl  border border-white/10">
                             <Plus className="w-6 h-6" />
                         </div>
                         <div>
@@ -1026,7 +1026,7 @@ function EditLockerModal({ locker, onClose, onSave }: { locker: any; onClose: ()
 
     return (
         <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="absolute inset-0 bg-slate-900/80 " onClick={onClose} />
             <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 text-white relative">
@@ -1034,7 +1034,7 @@ function EditLockerModal({ locker, onClose, onSave }: { locker: any; onClose: ()
                         <X className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-4">
-                        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md border border-white/10">
+                        <div className="bg-white/20 p-3 rounded-2xl  border border-white/10">
                             <Edit2 className="w-6 h-6" />
                         </div>
                         <div>

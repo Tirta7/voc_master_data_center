@@ -335,7 +335,7 @@ export function StockAuditView({
                 
                 <div className="relative z-10 flex flex-col xl:flex-row justify-between items-center gap-12">
                     <div className="flex items-center gap-8">
-                        <div className="w-20 h-20 bg-white/10 backdrop-blur-2xl rounded-[2.5rem] flex items-center justify-center text-white border border-white/20 shadow-2xl">
+                        <div className="w-20 h-20 bg-white/10  rounded-[2.5rem] flex items-center justify-center text-white border border-white/20 shadow-2xl">
                             <Save className="w-10 h-10" />
                         </div>
                         <div className="space-y-2">

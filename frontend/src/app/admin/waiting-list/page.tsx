@@ -157,7 +157,7 @@ export default function WaitingListPage() {
 
                     <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="flex items-center gap-4">
-                            <Link href="/admin/dashboard" className="p-3 bg-white/10 border border-white/20 rounded-2xl text-white hover:bg-white/20 backdrop-blur-sm transition-all shadow-md">
+                            <Link href="/admin/dashboard" className="p-3 bg-white/10 border border-white/20 rounded-2xl text-white hover:bg-white/20  transition-all shadow-md">
                                 <ArrowLeft className="w-5 h-5" />
                             </Link>
                             <div>
@@ -182,13 +182,13 @@ export default function WaitingListPage() {
                                     placeholder="Cari nama atau no. hp..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-medium text-white placeholder:text-white/50 focus:bg-white/20 outline-none transition-all backdrop-blur-sm"
+                                    className="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-medium text-white placeholder:text-white/50 focus:bg-white/20 outline-none transition-all "
                                 />
                             </div>
                             <div className="flex items-center gap-2 w-full sm:w-auto">
                                 <button
                                     onClick={() => fetchData()}
-                                    className="p-3 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20 backdrop-blur-sm transition-all shadow-md"
+                                    className="p-3 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20  transition-all shadow-md"
                                     title="Refresh Data"
                                 >
                                     <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -397,7 +397,7 @@ export default function WaitingListPage() {
             {/* Flat Form Overlay */}
             {isFormOpen && (
                 <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setIsFormOpen(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setIsFormOpen(false)} />
                     <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <div className="flex items-center gap-3">

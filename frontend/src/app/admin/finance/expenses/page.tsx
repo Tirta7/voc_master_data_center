@@ -460,7 +460,7 @@ export default function ExpensePage() {
             {/* ── Professional Expense Entry Modal ───────────────────────── */}
             {showModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/60 " onClick={() => setShowModal(false)} />
                     <div className="relative bg-white w-full max-w-xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <header className="p-6 md:p-10 bg-slate-900 text-white flex justify-between items-center">
                             <div className="flex items-center gap-4">

@@ -802,7 +802,7 @@ export default function KitchenBarUnifiedPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative selection:bg-blue-500/30">
+        <div className="h-screen w-screen overflow-hidden bg-black text-slate-100 flex flex-col relative selection:bg-blue-500/30">
 
 
             {/* CANCELLATION REQUEST MODAL (DANGER) */}
@@ -942,8 +942,8 @@ export default function KitchenBarUnifiedPage() {
                 </div>
             )}
 
-            {/* Header */}
-            <header className="sticky top-0 h-16 md:h-20 bg-slate-900/80  border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
+            {/* Header / Topbar */}
+            <header className="sticky top-0 z-[100] bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 py-3 md:py-4 flex justify-between items-center shadow-sm">
                 <div className="flex items-center gap-2 md:gap-6">
                     <button
                         onClick={() => setIsSummaryOpen(!isSummaryOpen)}
@@ -1014,11 +1014,11 @@ export default function KitchenBarUnifiedPage() {
             </header>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-hidden relative flex flex-row bg-[#020617]">
-                {/* AGGREGATION SIDEBAR - fixed always, like BDS */}
-                <aside className={`absolute z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-950/95 md:bg-slate-900/60  md: border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100 shadow-[20px_0_50px_-10px_rgba(0,0,0,0.5)]' : '-translate-x-full opacity-0 pointer-events-none'}`}>
+            <div className="flex-1 overflow-hidden relative flex flex-row bg-black">
+                {/* AGGREGATION SIDEBAR - integrated into flex flow */}
+                <aside className={`flex flex-col shrink-0 h-full w-72 md:w-80 bg-[#1C1C1E]/95 backdrop-blur-3xl md:border-r border-white/5 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] z-[150] ${isSummaryOpen ? 'ml-0 opacity-100 shadow-[8px_0_30px_rgba(0,0,0,0.5)]' : '-ml-72 md:-ml-80 opacity-0 pointer-events-none'}`}>
                     {/* Header Summary - BDS style */}
-                    <div className="p-6 md:p-8 border-b border-white/5 bg-white/[0.02]">
+                    <div className="p-6 md:p-8 border-b border-white/5 bg-[#1C1C1E] shrink-0 relative z-10 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xs font-black text-blue-500 uppercase tracking-[0.2em] flex items-center gap-2">
                                 <LayoutGrid className="w-4 h-4" />
@@ -1139,7 +1139,7 @@ export default function KitchenBarUnifiedPage() {
 
                 {/* Main Grid */}
                 <div
-                    className={`h-full flex-1 p-2 sm:p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${isSummaryOpen ? 'sm:pl-[288px] md:pl-[340px]' : ''} ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}
+                    className={`h-full flex-1 min-w-0 p-2 sm:p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}
                     style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
                     onTouchMove={(e) => e.stopPropagation()}
                 >
@@ -1155,10 +1155,10 @@ export default function KitchenBarUnifiedPage() {
                             return (
                                 <div
                                     key={order.orderId}
-                                    className={`relative group rounded-[2rem] flex flex-col overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_-10px_rgba(0,0,0,0.5)] border-2 ${isLate ? 'bg-red-950/30 border-red-500/50 shadow-[0_0_20px_-5px_rgba(239,68,68,0.2)]' :
-                                        order.status === 'READY' ? 'bg-emerald-950/30 border-emerald-500/50' :
-                                            order.status === 'COOKING' ? 'bg-amber-950/30 border-amber-500/50' :
-                                                'bg-slate-900/40 border-white/10 hover:border-blue-500/40'
+                                    className={`relative group rounded-[2rem] flex flex-col overflow-hidden transition-all duration-300 border ${isLate ? 'bg-rose-950/40 border-rose-500/30' :
+                                        order.status === 'READY' ? 'bg-emerald-950/40 border-emerald-500/30' :
+                                            order.status === 'COOKING' ? 'bg-amber-950/40 border-amber-500/30' :
+                                                'bg-[#1C1C1E] border-white/10 hover:border-white/20'
                                         } `}
                                 >
                                     <div className="p-4 md:p-6 flex flex-col h-full">
@@ -1204,7 +1204,7 @@ export default function KitchenBarUnifiedPage() {
                                             </div>
                                             
                                             {/* Timer Badge */}
-                                            <div className={`flex flex-col items-center justify-center shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl border transition-colors ${isLate ? 'border-red-500 bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' : order.status === 'READY' ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400' : 'border-white/10 bg-white/5 text-slate-300'
+                                            <div className={`flex flex-col items-center justify-center shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl border transition-colors ${isLate ? 'border-rose-500 bg-rose-500 text-white' : order.status === 'READY' ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400' : 'border-white/10 bg-[#2C2C2E] text-slate-300'
                                                 }`}>
                                                 <span className="text-lg md:text-2xl font-black leading-none">{elapsed}</span>
                                                 <span className="text-[8px] md:text-[9px] uppercase font-black tracking-widest mt-0.5 opacity-80">Min</span>
@@ -1217,19 +1217,19 @@ export default function KitchenBarUnifiedPage() {
                                                 const isKDS = item.station?.toUpperCase() !== 'BDS';
                                                 
                                                 return (
-                                                <div key={idx} className={`group/item flex flex-col gap-1.5 p-2.5 md:p-3 rounded-xl transition-all border ${item.status === 'CANCEL_REQUESTED' ? 'bg-red-500/10 animate-pulse border-red-500/50' : item.status === 'DONE' ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : isKDS ? 'bg-amber-900/10 border-amber-500/10 hover:border-amber-500/30' : 'bg-blue-900/10 border-blue-500/10 hover:border-blue-500/30'}`}>
+                                                <div key={idx} className={`group/item flex flex-col gap-1.5 p-2.5 md:p-3 rounded-[18px] transition-all border ${item.status === 'CANCEL_REQUESTED' ? 'bg-rose-500/10 animate-pulse border-rose-500/50' : item.status === 'DONE' ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : isKDS ? 'bg-black/30 border-white/5' : 'bg-black/30 border-white/5'}`}>
                                                     <div className="flex justify-between items-start gap-3">
                                                         <div className="flex items-start gap-3 flex-1 min-w-0">
                                                             <button
                                                                 disabled={item.status === 'CANCEL_REQUESTED'}
                                                                 onClick={() => updateStatusForItem(order, item, item.status === 'DONE' ? 'PENDING' : 'DONE')}
                                                                 className={`w-6 h-6 md:w-8 md:h-8 shrink-0 rounded-lg flex items-center justify-center border-2 transition-all duration-300 ${item.status === 'DONE'
-                                                                    ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                                                                    ? 'bg-emerald-500 border-emerald-400 text-white'
                                                                     : item.status === 'PROCESSING'
-                                                                        ? 'bg-blue-500 border-blue-400 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]'
+                                                                        ? 'bg-blue-500 border-blue-400 text-white'
                                                                         : item.status === 'CANCEL_REJECTED'
-                                                                            ? 'bg-orange-500 border-orange-400 text-white shadow-[0_0_10px_rgba(249,115,22,0.3)] animate-pulse'
-                                                                            : 'border-white/20 hover:border-emerald-500/50 text-transparent hover:text-emerald-500/50 bg-black/20'
+                                                                            ? 'bg-orange-500 border-orange-400 text-white animate-pulse'
+                                                                            : 'border-white/20 hover:border-emerald-500/50 text-transparent hover:text-emerald-500/50 bg-[#2C2C2E]'
                                                                     }`}
                                                             >
                                                                 {item.status === 'CANCEL_REQUESTED' ? <X className="w-4 h-4" /> :

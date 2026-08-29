@@ -30,7 +30,7 @@ export default function GlobalSidebarToggle() {
                 'bg-[#0F172A] text-slate-400',
                 'rounded-r-full border-y border-r border-slate-700/50',
                 'shadow-[2px_0_12px_rgba(0,0,0,0.5)]',
-                'backdrop-blur-md',
+                '',
                 // States
                 'hover:bg-slate-800 hover:text-white hover:border-indigo-500/50 hover:w-10',
                 'active:scale-95',

@@ -49,7 +49,7 @@ export function RegisterModal({
     <div className="fixed inset-0 z-[1000000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300"
+        className="fixed inset-0 bg-slate-900/80  animate-in fade-in duration-300"
         onClick={() => {
           setShowRegisterModal(false);
           resetRegisterForm();

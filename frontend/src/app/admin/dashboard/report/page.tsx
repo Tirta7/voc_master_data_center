@@ -120,7 +120,7 @@ export default function OwnerReportPage() {
             `}</style>
 
             {/* Sticky Action Bar */}
-            <div className="no-print sticky top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 lg:px-10 py-4 flex items-center justify-between shadow-sm">
+            <div className="no-print sticky top-0 left-0 right-0 z-50 bg-white/80  border-b border-slate-200 px-4 lg:px-10 py-4 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-4">
                     <button onClick={() => window.close()} className="p-2 hover:bg-slate-100 rounded-xl lg:hidden text-slate-500">
                         <X className="w-6 h-6" />
@@ -166,7 +166,7 @@ export default function OwnerReportPage() {
                                 <p className="text-slate-400 text-xs font-bold">{fDate(printDate)} · {fTime(printDate)}</p>
                             </div>
                             <div className="text-left sm:text-right">
-                                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+                                <div className="bg-white/10  rounded-2xl p-4 border border-white/10">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Net Profit</p>
                                     <p className={`text-2xl lg:text-3xl font-black leading-none ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmt(netProfit)}</p>
                                 </div>

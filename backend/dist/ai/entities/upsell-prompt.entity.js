@@ -9,9 +9,9 @@ Object.defineProperty(exports, "UpsellPrompt", {
     }
 });
 const _typeorm = require("typeorm");
-const _menuitementity = require("../../cafe/entities/menu-item.entity.js");
-const _businessdayentity = require("../../finance/entities/business-day.entity.js");
-const _promoentity = require("../../promo/entities/promo.entity.js");
+const _menuitementity = require("../../cafe/entities/menu-item.entity");
+const _businessdayentity = require("../../finance/entities/business-day.entity");
+const _promoentity = require("../../promo/entities/promo.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);

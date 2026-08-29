@@ -552,7 +552,7 @@ export default function FloorPlanEditorPage() {
                 {/* Main Canvas Area */}
                 <div className="flex-1 flex flex-col bg-slate-200 relative">
                     
-                    <div className="bg-white/90 backdrop-blur-md p-2 m-4 rounded-2xl flex items-center gap-2 absolute top-0 left-0 z-20 shadow-md border border-slate-200">
+                    <div className="bg-white/90  p-2 m-4 rounded-2xl flex items-center gap-2 absolute top-0 left-0 z-20 shadow-md border border-slate-200">
                         {floors.map(f => (
                             <button 
                                 key={f.id}

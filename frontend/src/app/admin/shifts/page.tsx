@@ -115,7 +115,7 @@ export default function ShiftManagementPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Clock className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Real-time Presence</span>
@@ -123,14 +123,14 @@ export default function ShiftManagementPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Manajemen Shift</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1">Pantau keberadaan staf dan status keuangan shift secara langsung</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Timer className="w-4 h-4" /> {stats.active} Shift Berjalan
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <AlertTriangle className="w-4 h-4" /> {stats.late} Terlambat
                                 </div>
                                 {stats.emergency > 0 && (
-                                    <div className="bg-orange-400/30 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5 border border-orange-400/40">
+                                    <div className="bg-orange-400/30  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5 border border-orange-400/40">
                                         ⚡ {stats.emergency} Cover Darurat
                                     </div>
                                 )}
@@ -145,7 +145,7 @@ export default function ShiftManagementPage() {
                                     placeholder="Cari staf / shift..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-11 pr-4 py-3 bg-white/20 backdrop-blur-sm border border-white/20 rounded-2xl font-bold text-white text-sm placeholder:text-white/50 focus:outline-none focus:bg-white/30"
+                                    className="w-full pl-11 pr-4 py-3 bg-white/20  border border-white/20 rounded-2xl font-bold text-white text-sm placeholder:text-white/50 focus:outline-none focus:bg-white/30"
                                 />
                             </div>
                         </div>

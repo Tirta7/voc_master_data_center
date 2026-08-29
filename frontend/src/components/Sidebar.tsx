@@ -262,26 +262,13 @@ export default function Sidebar() {
 
     return (
         <>
-            {/* Swipe Hint Indicator (Mobile Only) */}
-            {!isOpen && (
-                <div 
-                    onClick={() => setIsOpen(true)}
-                    className="fixed top-1/2 left-0 -translate-y-1/2 z-[90] lg:hidden print:hidden flex items-center opacity-60 hover:opacity-100 transition-opacity cursor-pointer active:scale-95"
-                >
-                    <div className="bg-[#0F172A]/80 backdrop-blur-sm border-y border-r border-slate-700/50 py-3 pl-1 pr-2 rounded-r-xl flex flex-col items-center gap-2 shadow-[2px_0_8px_rgba(0,0,0,0.3)]">
-                        <ChevronRight className="w-3 h-3 text-indigo-400 animate-pulse" />
-                        <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                            MENU
-                        </span>
-                    </div>
-                </div>
-            )}
+
 
             {/* Backdrop Overlay (Mobile Only) */}
             {isOpen && (
                 <div
                     onClick={() => setIsOpen(false)}
-                    className="fixed inset-0 bg-slate-900/60 z-[99] backdrop-blur-sm lg:hidden animate-in fade-in duration-300 print:hidden"
+                    className="fixed inset-0 bg-slate-900/60 z-[99]  lg:hidden animate-in fade-in duration-300 print:hidden"
                 />
             )}
 
@@ -316,7 +303,7 @@ export default function Sidebar() {
                             'bg-[#0F172A] text-slate-400',
                             'rounded-r-full border-y border-r border-slate-700/50',
                             'shadow-[2px_0_12px_rgba(0,0,0,0.5)]',
-                            'backdrop-blur-md',
+                            '',
                             'hover:bg-slate-800 hover:text-white hover:border-indigo-500/50 hover:w-10',
                             'active:scale-95 transition-all duration-300 ease-in-out',
                             'hidden lg:flex'

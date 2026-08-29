@@ -32,7 +32,7 @@ export function DetailedPayrollAuditModal({
   return createPortal(
     <div className="fixed inset-0 z-[1000000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       <div
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300"
+        className="absolute inset-0 bg-slate-950/80  animate-in fade-in duration-300"
         onClick={() => setShowDetailedModal(false)}
       />
       <div className="relative w-full max-w-5xl bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[92vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-8 sm:zoom-in-95 duration-300">

@@ -415,7 +415,7 @@ export default function PlaystationPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20">
       {/* Header Nav */}
-      <nav className="bg-white border-b border-slate-100 px-6 py-4 sticky top-16 lg:top-0 z-30 shadow-sm backdrop-blur-md bg-white/80 hidden md:block">
+      <nav className="bg-white border-b border-slate-100 px-6 py-4 sticky top-16 lg:top-0 z-30 shadow-sm  bg-white/80 hidden md:block">
         <div className="max-w-[1800px] mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-violet-100">

@@ -9,10 +9,10 @@ Object.defineProperty(exports, "BattlePlanItem", {
     }
 });
 const _typeorm = require("typeorm");
-const _battleplanentity = require("./battle-plan.entity.js");
-const _menuitementity = require("../../cafe/entities/menu-item.entity.js");
-const _billiardpackageentity = require("../../billiard/entities/billiard-package.entity.js");
-const _promoentity = require("../../promo/entities/promo.entity.js");
+const _battleplanentity = require("./battle-plan.entity");
+const _menuitementity = require("../../cafe/entities/menu-item.entity");
+const _billiardpackageentity = require("../../billiard/entities/billiard-package.entity");
+const _promoentity = require("../../promo/entities/promo.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);

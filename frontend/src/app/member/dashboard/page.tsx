@@ -94,7 +94,7 @@ export default function DashboardPage() {
       <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-3 w-full px-6 max-w-md pointer-events-none">
          {bigWins.map((win, i) => (
             <div key={i} className="animate-in fade-in slide-in-from-top-4 duration-500">
-               <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent backdrop-blur-xl border border-yellow-500/20 p-4 rounded-2xl flex items-center gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+               <div className="bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-transparent  border border-yellow-500/20 p-4 rounded-2xl flex items-center gap-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                   <div className="relative">
                      <div className="absolute inset-0 bg-yellow-400 blur-md opacity-20 animate-pulse"></div>
                      <div className="w-10 h-10 bg-yellow-500 rounded-xl flex items-center justify-center relative">
@@ -184,7 +184,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ELITE MEMBERSHIP CAMPAIGN SECTION */}
-      <div className="relative overflow-hidden bg-slate-900/40 backdrop-blur-3xl rounded-[2.5rem] p-8 border border-white/5 shadow-2xl group">
+      <div className="relative overflow-hidden bg-slate-900/40  rounded-[2.5rem] p-8 border border-white/5 shadow-2xl group">
          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
             <Cpu className="w-24 h-24 text-cyan-500" />
          </div>
@@ -314,7 +314,7 @@ export default function DashboardPage() {
          </div>
 
          <div className="grid grid-cols-2 gap-4">
-            <Link href={`/member/redeem?id=${id}`} className="group relative overflow-hidden bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-center shadow-lg transition-all duration-300 hover:border-cyan-500/50">
+            <Link href={`/member/redeem?id=${id}`} className="group relative overflow-hidden bg-white/5  border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-center shadow-lg transition-all duration-300 hover:border-cyan-500/50">
                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                <div className="p-3 bg-gray-950 rounded-2xl mb-3 border border-gray-800 relative z-10 transition-transform group-hover:scale-110">
                   <Gift className="text-cyan-400 w-5 h-5" />
@@ -322,7 +322,7 @@ export default function DashboardPage() {
                <h3 className="font-black text-[10px] text-gray-400 uppercase tracking-[0.2em] relative z-10">Klaim Reward</h3>
             </Link>
 
-            <Link href={`/member/play/scratch-bomb?id=${id}`} className="group relative overflow-hidden bg-white/5 backdrop-blur-md border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-center shadow-lg transition-all duration-300 hover:border-yellow-500/50">
+            <Link href={`/member/play/scratch-bomb?id=${id}`} className="group relative overflow-hidden bg-white/5  border border-white/5 p-6 rounded-[2rem] flex flex-col items-center justify-center shadow-lg transition-all duration-300 hover:border-yellow-500/50">
                <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                <div className="p-3 bg-gray-950 rounded-2xl mb-3 border border-gray-800 relative z-10 transition-transform group-hover:scale-110">
                   <div className="absolute inset-0 bg-yellow-400/10 blur animate-pulse rounded-2xl"></div>
@@ -332,7 +332,7 @@ export default function DashboardPage() {
             </Link>
          </div>
 
-         <Link href={`/member/play/mahjong-ways?id=${id}`} className="group relative overflow-hidden bg-gradient-to-r from-emerald-900/40 to-emerald-800/20 backdrop-blur-md border border-emerald-500/20 p-6 rounded-[2rem] flex items-center justify-between shadow-lg transition-all duration-300 hover:border-emerald-500/50 w-full">
+         <Link href={`/member/play/mahjong-ways?id=${id}`} className="group relative overflow-hidden bg-gradient-to-r from-emerald-900/40 to-emerald-800/20  border border-emerald-500/20 p-6 rounded-[2rem] flex items-center justify-between shadow-lg transition-all duration-300 hover:border-emerald-500/50 w-full">
             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex items-center gap-4 relative z-10">
                <div className="p-3 bg-gray-950/50 rounded-2xl border border-emerald-500/30 relative">

@@ -1092,7 +1092,7 @@ export default function LedgerPage() {
                                     <p className="text-slate-400 text-xs md:text-sm font-bold uppercase tracking-widest opacity-60">Konsolidasi Arus Kas Real-Time</p>
                                 </div>
                                 <div className="text-right w-full md:w-auto">
-                                    <div className="bg-indigo-600/20 backdrop-blur-md px-6 py-4 rounded-[1.5rem] border border-indigo-500/30 shadow-xl inline-block w-full md:w-auto">
+                                    <div className="bg-indigo-600/20  px-6 py-4 rounded-[1.5rem] border border-indigo-500/30 shadow-xl inline-block w-full md:w-auto">
                                         <p className="text-2xl md:text-3xl font-black text-indigo-400 leading-none">{pctIn}%</p>
                                         <p className="text-[9px] md:text-[10px] font-black text-indigo-400/60 uppercase tracking-widest mt-2 italic">Cash Inflow Efficiency</p>
                                     </div>
@@ -1217,7 +1217,7 @@ export default function LedgerPage() {
                                         {dayIdx !== groupEntries.length - 1 && (
                                             <div className="absolute left-[31px] top-20 bottom-0 w-0.5 bg-gradient-to-b from-slate-200 to-transparent" />
                                         )}
-                                        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 sticky top-24 z-30 bg-slate-50/90 backdrop-blur-md py-4 rounded-2xl">
+                                        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 sticky top-24 z-30 bg-slate-50/90  py-4 rounded-2xl">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-[64px] h-[64px] rounded-[1.5rem] bg-white border border-slate-200 shadow-xl flex flex-col items-center justify-center p-2">
                                                     <p className="text-[10px] font-black text-indigo-600 uppercase leading-none mb-1">{date.split(' ')[1]?.substring(0, 3) || ''}</p>

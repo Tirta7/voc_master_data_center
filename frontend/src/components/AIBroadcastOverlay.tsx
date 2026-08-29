@@ -43,8 +43,8 @@ export const AIBroadcastOverlay: React.FC = () => {
                 visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
         >
-            <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-sm pointer-events-auto" onClick={handleDismiss} />
-            <div className={`relative w-full max-w-sm md:max-w-md bg-gradient-to-br ${bgGradient} backdrop-blur-2xl rounded-[2rem] p-6 md:p-8 shadow-[0_20px_40px_-10px_rgba(79,70,229,0.5)] border border-white/30 pointer-events-auto overflow-hidden animate-in zoom-in-95 duration-500 max-h-[85vh]`}>
+            <div className="absolute inset-0 bg-slate-950/20  pointer-events-auto" onClick={handleDismiss} />
+            <div className={`relative w-full max-w-sm md:max-w-md bg-gradient-to-br ${bgGradient}  rounded-[2rem] p-6 md:p-8 shadow-[0_20px_40px_-10px_rgba(79,70,229,0.5)] border border-white/30 pointer-events-auto overflow-hidden animate-in zoom-in-95 duration-500 max-h-[85vh]`}>
                 {/* Decorative Elements */}
                 <div className="absolute top-0 right-0 p-6 opacity-20 pointer-events-none">
                     <Sparkles className="w-24 h-24 text-white animate-pulse" />
@@ -55,7 +55,7 @@ export const AIBroadcastOverlay: React.FC = () => {
                 <div className="relative space-y-5">
                     {/* Badge */}
                     <div className="flex items-center gap-2">
-                        <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30 flex items-center gap-1.5">
+                        <div className="bg-white/20  px-3 py-1.5 rounded-full border border-white/30 flex items-center gap-1.5">
                             <Zap className="w-3 h-3 text-yellow-300 fill-yellow-300" />
                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">
                                 {isCombo ? 'AI Market Basket' : 'AI Guidance'}
@@ -68,7 +68,7 @@ export const AIBroadcastOverlay: React.FC = () => {
                         <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight pr-6">
                             {isCombo ? 'Combo Discovery! 🍱' : 'New Opportunity! 🚀'}
                         </h2>
-                        <div className="p-4 md:p-5 bg-white/10 rounded-2xl border border-white/20 backdrop-blur-md">
+                        <div className="p-4 md:p-5 bg-white/10 rounded-2xl border border-white/20 ">
                             <p className="text-base md:text-lg font-bold text-white leading-snug">
                                 {lastUpsellPrompt?.message}
                             </p>

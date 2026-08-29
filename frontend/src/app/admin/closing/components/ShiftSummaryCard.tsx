@@ -28,7 +28,7 @@ export default function ShiftSummaryCard({ performance, onBack }: ShiftSummaryCa
                     <Trophy className="w-32 h-32 rotate-12" />
                 </div>
                 <div className="relative">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest mb-4">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20  rounded-full text-[10px] font-black uppercase tracking-widest mb-4">
                         <Star className="w-3 h-3 fill-current" />
                         Shift Summary
                     </div>

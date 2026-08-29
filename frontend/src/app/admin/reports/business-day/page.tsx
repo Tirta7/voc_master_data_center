@@ -1894,7 +1894,7 @@ export default function BusinessDayDashboard() {
             {/* Stock Report Modal */}
             {showStockModal && (
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowStockModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => setShowStockModal(false)} />
                     <div className="relative bg-white w-full max-w-xl rounded-t-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                         <div className="p-6 sm:p-8 pt-4 pb-4 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0">
                             <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4 sm:hidden shrink-0 self-center" />
@@ -1984,7 +1984,7 @@ export default function BusinessDayDashboard() {
             {/* Custom Range WhatsApp Modal */}
             {showCustomRangeModal && (
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowCustomRangeModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => setShowCustomRangeModal(false)} />
                     <div className="relative bg-white w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] flex flex-col">
                         <div className="p-6 sm:p-10 pt-4 sm:pt-10 flex-1 overflow-y-auto no-scrollbar pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-10">
                             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden shrink-0" />

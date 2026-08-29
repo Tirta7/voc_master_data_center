@@ -55,7 +55,7 @@ export default function CustomerFacingDisplay() {
                     </h1>
 
                     {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl w-full">
-                        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] group hover:bg-white/10 transition-all">
+                        <div className="bg-white/5  border border-white/10 p-10 rounded-[3rem] group hover:bg-white/10 transition-all">
                             <div className="w-20 h-20 bg-indigo-500 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-2xl shadow-indigo-500/20">
                                 <Trophy className="w-10 h-10" />
                             </div>
@@ -63,7 +63,7 @@ export default function CustomerFacingDisplay() {
                             <p className="text-slate-400 text-sm font-medium">Main billiard dan dapatkan Scratch Card berhadiah langsung setiap transaksi tertentu!</p>
                         </div>
 
-                        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[3rem] group hover:bg-white/10 transition-all">
+                        <div className="bg-white/5  border border-white/10 p-10 rounded-[3rem] group hover:bg-white/10 transition-all">
                             <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center text-white mx-auto mb-6 shadow-2xl shadow-emerald-500/20">
                                 <Percent className="w-10 h-10" />
                             </div>
@@ -77,7 +77,7 @@ export default function CustomerFacingDisplay() {
                     </div>
                 </div>
 
-                <div className="p-8 border-t border-white/5 bg-white/5 backdrop-blur-md flex justify-between items-center relative z-10">
+                <div className="p-8 border-t border-white/5 bg-white/5  flex justify-between items-center relative z-10">
                     <div>
                         <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Meja Anda</p>
                         <p className="text-white text-3xl font-black tracking-tight uppercase">{table.tableName}</p>

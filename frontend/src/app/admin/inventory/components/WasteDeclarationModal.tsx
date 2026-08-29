@@ -52,7 +52,7 @@ export function WasteDeclarationModal({ isOpen, onClose, items, onSuccess }: Was
 
     return (
         <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" />
+            <div className="absolute inset-0 bg-slate-900/60  animate-in fade-in duration-300" />
             <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 flex flex-col max-h-[85vh] sm:max-h-[90vh]" onClick={e => e.stopPropagation()}>
                 <div className="pt-4 pb-4 sm:py-8 px-6 sm:px-8 border-b border-slate-50 flex flex-col bg-rose-50/50 shrink-0">
                     <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />

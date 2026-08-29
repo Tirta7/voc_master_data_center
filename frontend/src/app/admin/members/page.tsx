@@ -592,7 +592,7 @@ export default function MembershipPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Users className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Management System</span>
@@ -601,13 +601,13 @@ export default function MembershipPage() {
                             <p className="text-white/60 text-sm font-semibold mt-1">Kelola loyalitas & royalty tier pelanggan</p>
                             {/* Quick stats in header */}
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Users className="w-4 h-4" /> {members.length} Member
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <CheckCircle2 className="w-4 h-4" /> {members.filter(m => m.isActive).length} Aktif
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Wallet className="w-4 h-4" /> {fmtK(members.reduce((a, c) => a + Number(c.balance), 0))}
                                 </div>
                             </div>
@@ -615,7 +615,7 @@ export default function MembershipPage() {
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                             {hasPermission('MEMBER_MANAGE') && (
                                 <Link href="/admin/members/tiers"
-                                    className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20">
+                                    className="bg-white/20 hover:bg-white/30  text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20">
                                     <Award className="w-4 h-4" /> KELOLA TIER
                                 </Link>
                             )}
@@ -626,7 +626,7 @@ export default function MembershipPage() {
                                         setDisplayScanUuid(uuid);
                                         socket.emit('request_display_scan', { uuid, type: 'CHECK_BALANCE' });
                                     }}
-                                    className="bg-white/20 hover:bg-indigo-500/80 backdrop-blur-sm text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20 active:scale-95 shadow-lg shadow-indigo-900/30">
+                                    className="bg-white/20 hover:bg-indigo-500/80  text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20 active:scale-95 shadow-lg shadow-indigo-900/30">
                                     <Monitor className="w-4 h-4" /> SCAN DISPLAY
                                 </button>
                             )}
@@ -885,7 +885,7 @@ export default function MembershipPage() {
             {/* ── Membership Modals (Refined with high z-index and full-screen blur) ── */}
             {showAddModal && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
+                    <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
                     <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
 
                         {/* Gradient Header */}
@@ -1025,7 +1025,7 @@ export default function MembershipPage() {
 
             {showTopupModal && (topupStep !== 'IDLE') && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-600"></div>
                         {topupStep === 'SCAN_VALIDATION' && (
@@ -1138,7 +1138,7 @@ export default function MembershipPage() {
             {/* ── Global Modals (Moved to root for full-screen coverage and stacking) ── */}
             {showReceiptModal && lastTransaction && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowReceiptModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowReceiptModal(false)} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="absolute top-0 right-0 p-6 z-10">
                             <button 
@@ -1163,7 +1163,7 @@ export default function MembershipPage() {
 
             {showSuccessModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={closeQrModal} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={closeQrModal} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300 overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                         {/* Elegant Header Background */}
                         <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-indigo-50 to-white pointer-events-none" />
@@ -1261,7 +1261,7 @@ export default function MembershipPage() {
 
             {showLogModal && selectedMember && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowLogModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowLogModal(false)} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-2xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <header className="p-8 pb-4 flex justify-between items-start sticky top-0 bg-white z-10">
                             <div>
@@ -1393,7 +1393,7 @@ export default function MembershipPage() {
             
             {displayScanUuid && (
                 <div className="fixed inset-0 z-[1100] flex items-center sm:items-center justify-center p-4 sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { socket.emit('cancel_display_scan', { uuid: displayScanUuid }); setDisplayScanUuid(null); }} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => { socket.emit('cancel_display_scan', { uuid: displayScanUuid }); setDisplayScanUuid(null); }} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] p-8 max-w-sm w-full shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] text-center space-y-6 animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto animate-pulse">
                             <QrCode className="w-10 h-10" />

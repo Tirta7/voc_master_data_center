@@ -122,7 +122,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
         <AlertContext.Provider value={{ showAlert, showConfirm }}>
             {children}
             {state?.isOpen && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-all duration-300 overscroll-contain">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40  transition-all duration-300 overscroll-contain">
                     {/* Modal Card */}
                     <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
                         <div className="p-6 text-center">

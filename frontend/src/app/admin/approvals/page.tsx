@@ -691,7 +691,7 @@ export default function ApprovalCenterPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <ShieldCheck className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Governance &amp; Control</span>
@@ -699,13 +699,13 @@ export default function ApprovalCenterPage() {
                             <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-none">Approval Center</h1>
                             <p className="text-white/60 text-[11px] font-semibold mt-1">Verifikasi hirarkis untuk operasional &amp; finansial</p>
                             <div className="flex flex-wrap gap-2 md:flex-nowrap mt-5">
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                <span className="bg-white/15  px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
                                     <Clock className="w-4 h-4" /> {stats.pending} Menunggu
                                 </span>
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                <span className="bg-white/15  px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
                                     <CheckCircle className="w-4 h-4" /> {stats.approved} Disetujui
                                 </span>
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                <span className="bg-white/15  px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
                                     <Target className="w-4 h-4" /> {stats.myActions} Aksi Saya
                                 </span>
                             </div>
@@ -714,7 +714,7 @@ export default function ApprovalCenterPage() {
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                             {/* Business Day Toggle — same pattern as Audit page */}
                             <div
-                                className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer"
+                                className="flex items-center gap-2 bg-white/10  border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer"
                                 onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}
                             >
                                 <div className="flex flex-col items-start pr-2 border-r border-white/10">
@@ -729,7 +729,7 @@ export default function ApprovalCenterPage() {
                             </div>
 
                             <button onClick={() => { fetchRequests(); fetchStats(); }}
-                                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all text-[11px] border border-white/20">
+                                className="bg-white/20 hover:bg-white/30  text-white px-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all text-[11px] border border-white/20">
                                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Sync
                             </button>
                         </div>

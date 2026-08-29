@@ -180,7 +180,7 @@ export default function ShiftOvertimeNotifier() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8 }}
-                        className="fixed bottom-6 right-4 lg:top-24 lg:bottom-auto z-[90] lg:right-8 bg-amber-500/10 border border-amber-500/30 shadow-lg backdrop-blur-md px-3 py-2 rounded-xl flex items-center gap-2 cursor-pointer hover:bg-amber-500/20 transition-colors"
+                        className="fixed bottom-6 right-4 lg:top-24 lg:bottom-auto z-[90] lg:right-8 bg-amber-500/10 border border-amber-500/30 shadow-lg  px-3 py-2 rounded-xl flex items-center gap-2 cursor-pointer hover:bg-amber-500/20 transition-colors"
                         onClick={() => {
                             if (!ignored) setShowModal(true);
                         }}
@@ -203,7 +203,7 @@ export default function ShiftOvertimeNotifier() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                            className="absolute inset-0 bg-slate-900/60 "
                             onClick={() => {}} // Do not close on backdrop click
                         />
                         <motion.div 

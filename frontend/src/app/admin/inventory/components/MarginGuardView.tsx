@@ -368,7 +368,7 @@ export const MarginGuardView: React.FC<MarginGuardViewProps> = ({ menuItems, ing
                 
                 <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     <div>
-                        <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-indigo-500/10 rounded-full mb-10 border border-indigo-500/20 backdrop-blur-sm">
+                        <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-indigo-500/10 rounded-full mb-10 border border-indigo-500/20 ">
                             <Zap className="w-4 h-4 text-indigo-400 animate-pulse" />
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300">AI FINANCIAL GOVERNANCE</span>
                         </div>

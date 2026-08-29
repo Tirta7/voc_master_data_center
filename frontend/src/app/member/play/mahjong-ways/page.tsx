@@ -215,7 +215,7 @@ export default function MahjongWaysPage() {
             <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-full px-6 max-w-sm pointer-events-none">
                 {bigWins.map((win, i) => (
                     <div key={i} className="animate-in fade-in zoom-in duration-500">
-                        <div className="bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent backdrop-blur-2xl border border-amber-500/30 p-4 rounded-3xl flex items-center gap-4 shadow-2xl">
+                        <div className="bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent  border border-amber-500/30 p-4 rounded-3xl flex items-center gap-4 shadow-2xl">
                             <div className="w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.5)]">
                                 <Trophy className="w-5 h-5 text-black" />
                             </div>
@@ -239,7 +239,7 @@ export default function MahjongWaysPage() {
 
             {/* PAYTABLE MODAL */}
             {showPaytable && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90  animate-in fade-in duration-300">
                     <div className="w-full max-w-lg bg-[#064E3B] border-2 border-yellow-500/30 rounded-[3rem] p-10 overflow-hidden relative">
                         <div className="flex justify-between items-center mb-10">
                             <h2 className="text-2xl font-black text-yellow-500 tracking-[0.2em] uppercase">Symbol Value Table</h2>
@@ -264,7 +264,7 @@ export default function MahjongWaysPage() {
             <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between pointer-events-none">
                 <button 
                     onClick={() => window.location.href=`/member/dashboard?id=${id}`} 
-                    className="p-3 bg-black/40 backdrop-blur-xl border border-white/5 rounded-2xl text-amber-500/50 hover:text-amber-500 hover:bg-black/60 transition-all pointer-events-auto mechanical-btn"
+                    className="p-3 bg-black/40  border border-white/5 rounded-2xl text-amber-500/50 hover:text-amber-500 hover:bg-black/60 transition-all pointer-events-auto mechanical-btn"
                 >
                     <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -276,7 +276,7 @@ export default function MahjongWaysPage() {
                     </div>
                 </div>
 
-                <div onClick={() => window.location.reload()} className="p-3 bg-black/40 backdrop-blur-xl border border-white/5 rounded-2xl text-amber-500/50 hover:text-amber-500 hover:bg-black/60 transition-all pointer-events-auto mechanical-btn cursor-pointer">
+                <div onClick={() => window.location.reload()} className="p-3 bg-black/40  border border-white/5 rounded-2xl text-amber-500/50 hover:text-amber-500 hover:bg-black/60 transition-all pointer-events-auto mechanical-btn cursor-pointer">
                     <RotateCcw className="w-5 h-5" />
                 </div>
             </div>
@@ -433,7 +433,7 @@ export default function MahjongWaysPage() {
             </main>
 
             {/* Premium Mobile Navigation Bar */}
-            <nav className="fixed bottom-4 left-4 right-4 z-50 bg-black/40 backdrop-blur-xl border border-white/10 px-8 py-4 rounded-[2.5rem] flex justify-around shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            <nav className="fixed bottom-4 left-4 right-4 z-50 bg-black/40  border border-white/10 px-8 py-4 rounded-[2.5rem] flex justify-around shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                 <NavIcon icon={Home} label="Lobby" onClick={() => window.location.href='/member/play'} />
                 <NavIcon icon={LayoutDashboard} label="Admin" onClick={() => window.location.href='/member/dashboard'} />
                 <NavIcon icon={Database} label="Vault" active />

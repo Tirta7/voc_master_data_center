@@ -741,7 +741,7 @@ export default function BusinessSettings() {
 
                             <div className="flex items-center gap-3 mb-3">
 
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
 
                                     <Settings2 className="w-5 h-5 text-white" />
 
@@ -759,7 +759,7 @@ export default function BusinessSettings() {
 
                         {showSuccess && (
 
-                            <div className="flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-100 border border-emerald-400 px-4 py-3 rounded-2xl text-sm font-black animate-bounce shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+                            <div className="flex items-center gap-2 bg-emerald-500/20  text-emerald-100 border border-emerald-400 px-4 py-3 rounded-2xl text-sm font-black animate-bounce shadow-[0_0_15px_rgba(16,185,129,0.5)]">
 
                                 <CheckCircle2 className="w-5 h-5 text-emerald-300" /> {t('settings.savedSuccess')}
 
@@ -777,7 +777,7 @@ export default function BusinessSettings() {
 
                     {/* Top Navigation - Grouped Horizontal Bar */}
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 bg-white/40 backdrop-blur-md p-6 rounded-[3rem] border border-white shadow-xl shadow-slate-200/40">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 bg-white/40  p-6 rounded-[3rem] border border-white shadow-xl shadow-slate-200/40">
 
                         {/* Group 1: Inti Bisnis */}
 
@@ -1195,7 +1195,7 @@ export default function BusinessSettings() {
 
                                                 <div className="absolute inset-x-4 bottom-4 opacity-0 group-hover/logo:opacity-100 transition-opacity">
 
-                                                    <div className="bg-slate-900/80 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest text-center">Live Preview</div>
+                                                    <div className="bg-slate-900/80  text-white px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest text-center">Live Preview</div>
 
                                                 </div>
 
@@ -2104,7 +2104,7 @@ export default function BusinessSettings() {
 
                                             <div className="flex items-center gap-3 mb-4">
 
-                                                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                                <div className="p-2 bg-white/20 rounded-xl ">
 
                                                     <Settings2 className="w-5 h-5" />
 
@@ -2312,7 +2312,7 @@ export default function BusinessSettings() {
                                                     <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
                                                     
                                                     {/* Upload Overlay */}
-                                                    <label className="absolute inset-0 bg-indigo-600/60 backdrop-blur-sm flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                                                    <label className="absolute inset-0 bg-indigo-600/60  flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
                                                         <Upload className="w-8 h-8 text-white mb-2" />
                                                         <span className="text-xs font-black text-white uppercase tracking-widest">Update Wallpaper</span>
                                                         <input 
@@ -2905,7 +2905,7 @@ export default function BusinessSettings() {
                                     {/* Confirm Dialog */}
 
                                     {confirmOpen && typeof document !== 'undefined' && createPortal(
-                                        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300">
+                                        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60  animate-in fade-in duration-300">
                                             <div className="absolute inset-0" onClick={() => setConfirmOpen(false)} />
                                             
                                             <div className="relative bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
@@ -3197,7 +3197,7 @@ export default function BusinessSettings() {
 
                                     {/* Role Editor Modal */}
                                     {showRoleModal && typeof window !== 'undefined' && createPortal(
-                                        <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                                        <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 bg-slate-900/60  animate-in fade-in duration-300">
                                             <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                                                 <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                                     <div className="flex items-center gap-4">
@@ -3589,7 +3589,7 @@ export default function BusinessSettings() {
 
 
 
-                                                            <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+                                                            <div className="bg-white/5  rounded-2xl p-6 border border-white/10">
 
                                                                 <div className="flex items-start gap-4">
 
@@ -3795,7 +3795,7 @@ export default function BusinessSettings() {
 
                                                             <div className="flex items-center gap-3 mb-4">
 
-                                                                <span className="px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-lg text-[9px] font-black uppercase tracking-[0.2em]">{promo.tag || 'PROMO'}</span>
+                                                                <span className="px-3 py-1.5 bg-white/20  rounded-lg text-[9px] font-black uppercase tracking-[0.2em]">{promo.tag || 'PROMO'}</span>
 
                                                                 <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
 
@@ -3807,7 +3807,7 @@ export default function BusinessSettings() {
 
                                                         </div>
 
-                                                        <div className="absolute top-6 left-6 w-12 h-12 bg-black/30 backdrop-blur-xl text-white rounded-2xl flex items-center justify-center font-black text-lg border border-white/10 italic">
+                                                        <div className="absolute top-6 left-6 w-12 h-12 bg-black/30  text-white rounded-2xl flex items-center justify-center font-black text-lg border border-white/10 italic">
 
                                                             {idx + 1}
 
@@ -4123,7 +4123,7 @@ export default function BusinessSettings() {
 
                                                 <div className="flex items-center gap-4 mb-8">
 
-                                                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10">
+                                                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center  border border-white/10">
 
                                                         <Zap className="w-6 h-6 text-indigo-400" />
 
@@ -4815,7 +4815,7 @@ export default function BusinessSettings() {
             {/* ── PRINTER CONFIGURATION MODAL ── */}
             {showPrinterModal && (
                 <div className="fixed inset-0 z-[2000] flex items-center justify-center overscroll-contain p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setShowPrinterModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/60 " onClick={() => setShowPrinterModal(false)} />
                     
                     <div className="relative bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="bg-indigo-600 p-8 text-white relative">

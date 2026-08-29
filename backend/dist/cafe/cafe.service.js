@@ -982,8 +982,8 @@ let CafeService = class CafeService {
     /**
    * Get all active orders (QUEUED/PROCESSING) for KDS regeneration
    */ async getActiveOrders() {
-        // Fetch all items that are not DONE or CANCELLED
-        const items = await this.orderItemRepository.find({
+        // 1. Find all active items (not DONE or CANCELLED) to identify active transactions
+        const activeItems = await this.orderItemRepository.find({
             where: [
                 {
                     status: _orderitementity.OrderItemStatus.QUEUED
@@ -998,6 +998,20 @@ let CafeService = class CafeService {
                     status: _orderitementity.OrderItemStatus.CANCEL_REJECTED
                 }
             ],
+            select: [
+                'transactionId'
+            ]
+        });
+        if (!activeItems.length) return [];
+        const activeTransactionIds = [
+            ...new Set(activeItems.map((i)=>i.transactionId).filter(Boolean))
+        ];
+        if (!activeTransactionIds.length) return [];
+        // 2. Fetch ALL items (including DONE) for those active transactions
+        const items = await this.orderItemRepository.find({
+            where: {
+                transactionId: (0, _typeorm1.In)(activeTransactionIds)
+            },
             relations: [
                 'menuItem',
                 'menuItem.category',

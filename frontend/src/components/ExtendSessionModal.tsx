@@ -248,7 +248,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60  animate-in fade-in duration-300">
             <div className="bg-white w-full max-h-[92vh] sm:h-auto rounded-t-[2rem] sm:rounded-[2.5rem] sm:max-w-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)] overflow-hidden overscroll-contain animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 flex flex-col relative">
                 
                 {/* Drag Indicator for Mobile */}
@@ -258,7 +258,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
                 {/* Full-screen Loading Overlay for Safety */}
                 {loading && (
-                    <div className="absolute inset-0 z-[160] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[160] bg-white/60  flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-16 h-16 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin shadow-xl" />
                         <div className="flex flex-col items-center animate-pulse">
                             <p className="text-slate-900 font-black uppercase tracking-widest text-base">Menambah Waktu...</p>

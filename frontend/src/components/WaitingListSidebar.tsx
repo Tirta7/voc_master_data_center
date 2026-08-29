@@ -140,12 +140,12 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
 
     return (
         <div className="fixed inset-0 z-[110] flex justify-end">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose} />
+            <div className="absolute inset-0 bg-slate-900/60  animate-in fade-in duration-300" onClick={onClose} />
 
             <div className="relative w-[85vw] sm:w-[400px] max-w-full bg-white h-[100dvh] shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col border-l border-slate-200">
                 {/* Submission Overlay for Double Click Safety */}
                 {isSubmitting && (
-                    <div className="absolute inset-0 z-[120] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[120] bg-white/80  flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
                         <p className="text-indigo-600 font-black uppercase tracking-widest text-[10px]">Memproses...</p>
                     </div>

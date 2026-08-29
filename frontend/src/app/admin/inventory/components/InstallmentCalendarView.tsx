@@ -163,7 +163,7 @@ export function InstallmentCalendarView() {
                         <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
                         <div className="relative z-10">
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10 backdrop-blur-md rounded-xl md:rounded-2xl flex items-center justify-center border border-white/10 group-hover:rotate-12 transition-transform duration-500">
+                                <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10  rounded-xl md:rounded-2xl flex items-center justify-center border border-white/10 group-hover:rotate-12 transition-transform duration-500">
                                     <CalendarIcon className="w-5 h-5 md:w-6 md:h-6 text-indigo-400" />
                                 </div>
                                 <div>
@@ -186,7 +186,7 @@ export function InstallmentCalendarView() {
                                         <div className="space-y-2 md:space-y-3">
                                             <p className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase tracking-[0.2em] mb-1 md:mb-2">Tagihan Cicilan</p>
                                             {selectedEvents.installments.map((it: any) => (
-                                                <div key={it.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
+                                                <div key={it.id} className="bg-white/5  border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
                                                     <div className="flex justify-between items-start mb-2 md:mb-4">
                                                         <div className="flex items-center gap-2 md:gap-3">
                                                             <div className="w-8 h-8 md:w-9 md:h-9 bg-rose-500/20 text-rose-400 rounded-lg md:rounded-xl flex items-center justify-center border border-rose-500/20 shrink-0">
@@ -208,7 +208,7 @@ export function InstallmentCalendarView() {
                                         <div className="space-y-2 md:space-y-3">
                                             <p className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] mb-1 md:mb-2">Barang Expired</p>
                                             {selectedEvents.expiry.map((ing: any) => (
-                                                <div key={ing.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
+                                                <div key={ing.id} className="bg-white/5  border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
                                                     <div className="flex justify-between items-start">
                                                         <div className="flex items-center gap-2 md:gap-3">
                                                             <div className="w-8 h-8 md:w-9 md:h-9 bg-amber-500/20 text-amber-400 rounded-lg md:rounded-xl flex items-center justify-center border border-amber-500/20 shrink-0">

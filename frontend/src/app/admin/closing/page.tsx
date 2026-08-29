@@ -206,7 +206,7 @@ export default function ShiftClosing() {
                     <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20">
+                                <div className="w-12 h-12 bg-white/10  rounded-2xl flex items-center justify-center border border-white/20">
                                     <LogOut className="w-6 h-6 text-indigo-400" />
                                 </div>
                                 <div>
@@ -215,15 +215,15 @@ export default function ShiftClosing() {
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-3">
-                                <div className="bg-white/5 backdrop-blur-sm px-4 py-2 rounded-xl text-xs font-bold border border-white/10">
+                                <div className="bg-white/5  px-4 py-2 rounded-xl text-xs font-bold border border-white/10">
                                     🕒 {new Date(activeShift!.startTime).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
                                 </div>
-                                <div className="bg-white/5 backdrop-blur-sm px-4 py-2 rounded-xl text-xs font-bold border border-white/10">
+                                <div className="bg-white/5  px-4 py-2 rounded-xl text-xs font-bold border border-white/10">
                                     👤 {activeShift!.startedBy}
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-indigo-600/20 backdrop-blur-md px-8 py-6 rounded-[2rem] border border-white/10 text-right">
+                        <div className="bg-indigo-600/20  px-8 py-6 rounded-[2rem] border border-white/10 text-right">
                             <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Ekspektasi Kas Sistem</p>
                             <p className="text-3xl font-black tracking-tighter text-indigo-400">{fmt(activeShift!.cashSystem)}</p>
                         </div>
@@ -394,7 +394,7 @@ export default function ShiftClosing() {
                                                             <button 
                                                                 type="button"
                                                                 onClick={() => setAttachmentUrl('')}
-                                                                className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black transition-colors"
+                                                                className="absolute top-2 right-2 w-8 h-8 bg-black/60  text-white rounded-full flex items-center justify-center hover:bg-black transition-colors"
                                                             >
                                                                 <X className="w-4 h-4" />
                                                             </button>

@@ -53,7 +53,7 @@ export const WaiterPerformanceLeaderboard: React.FC = () => {
     };
 
     if (loading) return (
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 animate-pulse">
+        <div className="bg-slate-900/40  border border-white/5 rounded-[2.5rem] p-8 animate-pulse">
             <div className="h-8 bg-white/5 rounded-full w-48 mb-6" />
             <div className="space-y-4">
                 {[1, 2, 3].map(i => <div key={i} className="h-20 bg-white/5 rounded-2xl" />)}
@@ -62,7 +62,7 @@ export const WaiterPerformanceLeaderboard: React.FC = () => {
     );
 
     return (
-        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-8 lg:p-10 shadow-2xl relative overflow-hidden">
+        <div className="bg-slate-900/40  border border-white/5 rounded-[2.5rem] p-8 lg:p-10 shadow-2xl relative overflow-hidden">
             {/* Background Decorations */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 blur-[100px] pointer-events-none" />
             

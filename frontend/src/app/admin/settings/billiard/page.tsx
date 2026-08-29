@@ -277,7 +277,7 @@ export default function BilliardPricingPage() {
                     <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <DollarSign className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Game Tariffs Configuration</span>
@@ -288,7 +288,7 @@ export default function BilliardPricingPage() {
                         {/* Import Button in Header */}
                         <button
                             onClick={() => setShowImportModal(true)}
-                            className="flex items-center gap-3 px-6 py-3.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 rounded-2xl text-white font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg"
+                            className="flex items-center gap-3 px-6 py-3.5 bg-white/15 hover:bg-white/25  border border-white/20 rounded-2xl text-white font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg"
                         >
                             <FileSpreadsheet className="w-4 h-4" />
                             Import dari Excel
@@ -524,7 +524,7 @@ export default function BilliardPricingPage() {
 
                 {/* Form Section */}
                 <div className="lg:col-span-12 xl:col-span-5">
-                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8 h-[calc(100vh-4rem)] flex flex-col">
+                    <div className="bg-white/80  p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8 h-[calc(100vh-4rem)] flex flex-col">
                         <div className="relative z-10 flex flex-col h-full">
                             <div className="flex items-center justify-between mb-8 shrink-0">
                                 <div>
@@ -662,7 +662,7 @@ export default function BilliardPricingPage() {
 
                                             <div className="space-y-3">
                                                 {(formData.timeSlots || []).map((slot: { start: string; end: string; price: number; validDays?: string[] }, idx) => (
-                                                    <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-indigo-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
+                                                    <div key={idx} className="bg-white/70  p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-indigo-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
                                                         <div className="absolute top-0 left-0 w-0.5 h-full bg-indigo-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
@@ -787,7 +787,7 @@ export default function BilliardPricingPage() {
 
                                                 <div className="space-y-3">
                                                     {(formData.timeSlots || []).map((slot, idx) => (
-                                                        <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-amber-100/5 transition-all group relative animate-in slide-in-from-right-4 duration-300 overflow-hidden">
+                                                        <div key={idx} className="bg-white/70  p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-amber-100/5 transition-all group relative animate-in slide-in-from-right-4 duration-300 overflow-hidden">
                                                             <div className="absolute top-0 left-0 w-0.5 h-full bg-amber-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                                             <div className="flex flex-col gap-2">
                                                                 <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
@@ -901,7 +901,7 @@ export default function BilliardPricingPage() {
 
                 {/* List Section */}
                 <div className="lg:col-span-12 xl:col-span-7">
-                    <div className="bg-white/80 backdrop-blur-xl p-6 lg:p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8 h-[calc(100vh-4rem)] flex flex-col">
+                    <div className="bg-white/80  p-6 lg:p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8 h-[calc(100vh-4rem)] flex flex-col">
                         
                         {/* Header stays at top */}
                         <div className="flex-shrink-0">
@@ -974,7 +974,7 @@ export default function BilliardPricingPage() {
                                     }`}
                                 >
                                     {/* Actions Overlay Top Right */}
-                                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-xl shadow-sm border border-slate-100 z-10">
+                                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80  p-1 rounded-xl shadow-sm border border-slate-100 z-10">
                                         <button
                                             onClick={() => handleEditPackage(pkg)}
                                             className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"

@@ -231,7 +231,7 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm transition-all"
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60  transition-all"
              style={{ paddingTop: 'max(72px, env(safe-area-inset-top))', paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
             <motion.div 
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}

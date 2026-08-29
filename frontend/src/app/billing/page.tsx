@@ -426,7 +426,7 @@ function BillingContent() {
     return (
         <>
         <div className="h-[100dvh] bg-[#F0F4F8] flex flex-col font-sans text-slate-900 overflow-hidden print:hidden selection:bg-indigo-100 italic-none">
-            <header className="min-h-[4rem] pt-[env(safe-area-inset-top)] bg-white/90 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 lg:px-12 flex items-center justify-between z-50 flex-shrink-0 sticky top-0 shadow-sm shadow-slate-200/20">
+            <header className="min-h-[4rem] pt-[env(safe-area-inset-top)] bg-white/90  border-b border-slate-200/60 px-4 sm:px-8 lg:px-12 flex items-center justify-between z-50 flex-shrink-0 sticky top-0 shadow-sm shadow-slate-200/20">
                 <div className="flex items-center gap-2 sm:gap-4 lg:gap-8">
                     <button 
                         onClick={() => router.push(tableType === 'cafe' ? '/cafe' : '/')} 
@@ -474,7 +474,7 @@ function BillingContent() {
                                     <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/10 blur-[80px] rounded-full"></div>
                                     
                                     <div className="flex items-center gap-3 sm:gap-6 relative z-10 flex-1 min-w-0">
-                                        <div className="w-9 h-9 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-inner flex-shrink-0">
+                                        <div className="w-9 h-9 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/10  flex items-center justify-center border border-white/10 shadow-inner flex-shrink-0">
                                             <Timer className="w-4 h-4 sm:w-7 sm:h-7 text-indigo-300" />
                                         </div>
                                         <div className="min-w-0 flex-1">
@@ -574,7 +574,7 @@ function BillingContent() {
                     </div>
 
                     {/* 02c. LEFT FOOTER: CRYSTAL SUMMARY — Desktop only */}
-                    <div className="hidden lg:block p-8 pb-12 bg-white/20 backdrop-blur-md border-t border-white/40 mt-auto">
+                    <div className="hidden lg:block p-8 pb-12 bg-white/20  border-t border-white/40 mt-auto">
                         <div className="max-w-3xl mx-auto">
                             <div className="grid grid-cols-6 gap-6 mb-8">
                                 <div className="space-y-1">
@@ -632,7 +632,7 @@ function BillingContent() {
                         </div>
                     </div>
                     {/* Mobile Proceed to Payment Button */}
-                    <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-slate-100 z-30 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] pb-safe">
+                    <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/90  border-t border-slate-100 z-30 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] pb-safe">
                         <button 
                             onClick={() => setIsMobileCheckoutOpen(true)}
                             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-between px-6 group"
@@ -649,7 +649,7 @@ function BillingContent() {
                     ${isMobileCheckoutOpen ? 'fixed inset-0 z-[100] bg-slate-900 animate-in slide-in-from-bottom-4 duration-300 flex' : 'hidden lg:flex relative h-auto'}
                 `}>
                     {/* Mobile Popup Header */}
-                    <div className="lg:hidden flex flex-col px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] border-b border-white/10 shrink-0 relative z-50 bg-slate-900/50 backdrop-blur-md">
+                    <div className="lg:hidden flex flex-col px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] border-b border-white/10 shrink-0 relative z-50 bg-slate-900/50 ">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
@@ -668,7 +668,7 @@ function BillingContent() {
                             </button>
                         </div>
                         {/* Mobile Mini Summary in Checkout */}
-                        <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10 backdrop-blur-sm">
+                        <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10 ">
                             <div className="flex flex-col text-center w-1/4">
                                 <span className="text-[7px] font-black text-white/40 uppercase tracking-widest mb-0.5">Subtotal</span>
                                 <span className="text-[9px] font-black text-white">Rp {displaySubtotal.toLocaleString()}</span>
@@ -695,11 +695,11 @@ function BillingContent() {
                     <div className="relative lg:flex-1 lg:overflow-y-auto p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 custom-scrollbar scrollbar-dark">
                         
                         {/* INPUT NOMINAL */}
-                        <div className="bg-white/5 backdrop-blur-2xl rounded-xl sm:rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
+                        <div className="bg-white/5  rounded-xl sm:rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
                             <div className="p-3 sm:p-6 border-b border-white/5">
                                 <div className="flex justify-between items-center mb-2 sm:mb-4">
                                     <div className="flex items-center gap-2 sm:gap-3">
-                                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-indigo-500/20 backdrop-blur-md flex items-center justify-center border border-indigo-400/20 flex-shrink-0">
+                                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-indigo-500/20  flex items-center justify-center border border-indigo-400/20 flex-shrink-0">
                                             <Monitor className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-indigo-400" />
                                         </div>
                                         <div>

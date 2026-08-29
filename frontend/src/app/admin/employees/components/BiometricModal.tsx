@@ -30,7 +30,7 @@ export function BiometricModal({
   return createPortal(
     <div className="fixed inset-0 z-[3000000] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-900/90 backdrop-blur-xl"
+        className="absolute inset-0 bg-slate-900/90 "
         onClick={() => {
           if (!biometricScanning) handleCloseBiometricModal();
         }}

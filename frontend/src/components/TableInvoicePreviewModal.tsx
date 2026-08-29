@@ -182,7 +182,7 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
                 }
             `}</style>
 
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity no-print-modal" onClick={onClose}></div>
+            <div className="absolute inset-0 bg-slate-900/60  transition-opacity no-print-modal" onClick={onClose}></div>
 
             <div className="relative bg-white rounded-t-[2rem] sm:rounded-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.2)] w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] sm:h-auto animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 z-[10000] no-print-modal">
                 

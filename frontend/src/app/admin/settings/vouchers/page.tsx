@@ -360,7 +360,7 @@ export default function VoucherPage() {
           </div>
 
           {simulation && (
-            <div className="w-full md:w-auto bg-white/60 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm min-w-[280px]">
+            <div className="w-full md:w-auto bg-white/60  rounded-2xl p-4 border border-white/40 shadow-sm min-w-[280px]">
               <div className="flex items-center gap-2 mb-3 text-xs sm:text-sm font-black text-slate-500 uppercase tracking-widest">
                 <Activity className="w-4 h-4 text-indigo-500" />
                 Simulasi Bagi Hasil
@@ -402,7 +402,7 @@ export default function VoucherPage() {
           <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-inner">
+                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center shadow-inner">
                   <Ticket className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-white/60 text-[10px] sm:text-sm font-black uppercase tracking-[0.3em]">Promo & Discount Engine</span>
@@ -806,11 +806,11 @@ export default function VoucherPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40  animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
             
             {/* Modal Header */}
-            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-100 flex justify-between items-center bg-white/90 backdrop-blur-md z-10">
+            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-100 flex justify-between items-center bg-white/90  z-10">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
                   <Ticket className="w-6 h-6 text-white" />

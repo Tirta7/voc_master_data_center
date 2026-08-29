@@ -120,7 +120,7 @@ export default function RedeemPage() {
 
       {/* Modal */}
       {showModal && selectedItem && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-black/80  animate-in fade-in duration-200">
            <div className="bg-gradient-to-b from-gray-900 to-black w-full max-w-sm rounded-3xl p-6 border border-gray-700 shadow-2xl relative">
               <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 p-2 bg-gray-800 rounded-full text-gray-400 hover:text-white">
                  <CircleOff className="w-5 h-5"/>

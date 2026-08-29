@@ -41,7 +41,7 @@ export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, o
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 print:hidden overscroll-contain">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60  animate-in fade-in duration-200 print:hidden overscroll-contain">
             <div className="bg-white rounded-2xl shadow-2xl max-w-[280px] w-full overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
 
                 {isPaid ? (

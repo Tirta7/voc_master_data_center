@@ -37,7 +37,7 @@ export function ViolationModal({
   return (
     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-6 lg:p-0">
       <div
-        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300"
+        className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300"
         onClick={() => setShowViolationModal(false)}
       />
       <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] z-10 overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 max-h-[85vh] flex flex-col">

@@ -116,7 +116,7 @@ export default function DebtsPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/10">
+                                <div className="w-12 h-12 bg-white/10  rounded-2xl flex items-center justify-center border border-white/10">
                                     <BaggageClaim className="w-6 h-6 text-white" />
                                 </div>
                                 <div>
@@ -128,11 +128,11 @@ export default function DebtsPage() {
                             <p className="text-white/40 text-sm font-semibold max-w-md">Monitor tagihan "Bayar Nanti" secara real-time dengan sistem pencatatan otomatis.</p>
                             
                             <div className="flex flex-wrap gap-3 mt-6">
-                                <div className="bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-full text-[10px] font-black border border-white/5 flex items-center gap-2">
+                                <div className="bg-white/5  px-5 py-2.5 rounded-full text-[10px] font-black border border-white/5 flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                                     {filteredDebts.length} TAGIHAN AKTIF
                                 </div>
-                                <div className="bg-white/5 backdrop-blur-md px-5 py-2.5 rounded-full text-[10px] font-black border border-white/5 text-indigo-300">
+                                <div className="bg-white/5  px-5 py-2.5 rounded-full text-[10px] font-black border border-white/5 text-indigo-300">
                                     💰 SISA: {fmtK(totalSisa)}
                                 </div>
                             </div>
@@ -146,7 +146,7 @@ export default function DebtsPage() {
                                     placeholder="Cari invoice, pelanggan, atau nominal..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-12 pr-6 py-4 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[1.5rem] font-bold text-white text-sm placeholder:text-white/20 focus:outline-none focus:bg-white/10 focus:border-indigo-500/50 transition-all duration-300 shadow-xl shadow-black/20"
+                                    className="w-full pl-12 pr-6 py-4 bg-white/5  border border-white/10 rounded-[1.5rem] font-bold text-white text-sm placeholder:text-white/20 focus:outline-none focus:bg-white/10 focus:border-indigo-500/50 transition-all duration-300 shadow-xl shadow-black/20"
                                 />
                             </div>
                         </div>

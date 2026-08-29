@@ -1388,7 +1388,7 @@ export default function EmployeePage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Shield className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">
@@ -1403,10 +1403,10 @@ export default function EmployeePage() {
                                 terintegrasi
                             </p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Users className="w-4 h-4" /> Total {employees.length} Karyawan
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Activity className="w-4 h-4" /> {employees.filter((e) => e.status === "ACTIVE").length}{" "}
                                     Aktif
                                 </div>
@@ -1417,7 +1417,7 @@ export default function EmployeePage() {
                             {hasPermission("USER_MANAGE") && (
                                 <button
                                     onClick={handleClearAllBiometrics}
-                                    className="flex-1 lg:flex-none bg-rose-500/10 hover:bg-rose-500/20 backdrop-blur-sm border border-rose-500/30 text-rose-200 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 group text-xs"
+                                    className="flex-1 lg:flex-none bg-rose-500/10 hover:bg-rose-500/20  border border-rose-500/30 text-rose-200 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 group text-xs"
                                     title="Reset Sensor"
                                 >
                                     <Trash2 className="w-4 h-4" />
@@ -1427,7 +1427,7 @@ export default function EmployeePage() {
                             {hasPermission("USER_ROLE") && (
                                 <button
                                     onClick={() => setShowRoleModal(true)}
-                                    className="flex-1 lg:flex-none bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 group text-xs"
+                                    className="flex-1 lg:flex-none bg-white/10 hover:bg-white/20  border border-white/20 text-white px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 group text-xs"
                                 >
                                     <Shield className="w-4 h-4" />
                                     <span className="whitespace-nowrap">Roles</span>
@@ -1436,7 +1436,7 @@ export default function EmployeePage() {
                             {hasPermission("USER_MANAGE") && (
                                 <button
                                     onClick={() => setShowImportEmployeeModal(true)}
-                                    className="flex-1 lg:flex-none bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-sm border border-emerald-400/40 text-emerald-100 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs"
+                                    className="flex-1 lg:flex-none bg-emerald-500/20 hover:bg-emerald-500/30  border border-emerald-400/40 text-emerald-100 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
                                     <span className="whitespace-nowrap">Import Excel</span>
@@ -1445,7 +1445,7 @@ export default function EmployeePage() {
                             {hasPermission("USER_MANAGE") && (
                                 <button
                                     onClick={handleExportExcel}
-                                    className="flex-1 lg:flex-none bg-indigo-500/20 hover:bg-indigo-500/30 backdrop-blur-sm border border-indigo-400/40 text-indigo-100 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs"
+                                    className="flex-1 lg:flex-none bg-indigo-500/20 hover:bg-indigo-500/30  border border-indigo-400/40 text-indigo-100 px-4 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                                     <span className="whitespace-nowrap">Export</span>

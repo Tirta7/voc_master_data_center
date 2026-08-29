@@ -569,7 +569,7 @@ export default function TableManagementPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Server className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Table Configuration</span>
@@ -577,13 +577,13 @@ export default function TableManagementPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Manajemen Meja</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1">Kelola meja billiard IoT dan meja cafe dari satu halaman</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Gamepad2 className="w-4 h-4" /> {sortedBilliardTables.length} Billiard
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Coffee className="w-4 h-4" /> {sortedCafeTables.length} Cafe
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Activity className="w-4 h-4" /> {activeBilliard + activeCafe} Aktif
                                 </div>
                             </div>
@@ -591,7 +591,7 @@ export default function TableManagementPage() {
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 relative">
                             {hasPermission('TABLE_BULK_CONFIG') && (
                                 <button onClick={openBulkConfig}
-                                    className="bg-white/15 backdrop-blur-sm border border-white/20 text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-xs hover:bg-white/25 w-full sm:w-auto">
+                                    className="bg-white/15  border border-white/20 text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 text-xs hover:bg-white/25 w-full sm:w-auto">
                                     <Layers className="w-4 h-4" /> BULK CONFIG
                                 </button>
                             )}
@@ -908,7 +908,7 @@ export default function TableManagementPage() {
             {/* ════════════════ MODALS ════════════════ */}
 
             {modalMode && (
-                    <div className="fixed inset-0 bg-slate-900/60 z-[1000] backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 lg:p-0 animate-in fade-in duration-300" onClick={handleCloseModal}>
+                    <div className="fixed inset-0 bg-slate-900/60 z-[1000]  flex items-end sm:items-center justify-center p-0 sm:p-4 lg:p-0 animate-in fade-in duration-300" onClick={handleCloseModal}>
                         {/* ── Bulk Config Modal ── */}
                         {modalMode === 'bulk-config' && (
                             <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.35)] w-full max-w-7xl overflow-hidden flex flex-col max-h-[92vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>

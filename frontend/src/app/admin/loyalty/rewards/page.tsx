@@ -219,13 +219,13 @@ export default function RewardsAdminPage() {
                 )}
                 
                 {/* Points Badge */}
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg border border-white flex items-center gap-2">
+                <div className="absolute top-4 right-4 bg-white/90  px-4 py-2 rounded-2xl shadow-lg border border-white flex items-center gap-2">
                    <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
                    <span className="font-black text-slate-800 text-sm">{reward.pointCost.toLocaleString()} Pts</span>
                 </div>
 
                 {/* Category Badge */}
-                <div className="absolute bottom-4 left-4 bg-indigo-600/80 backdrop-blur-sm px-3 py-1 rounded-xl text-[10px] font-black text-white uppercase tracking-widest border border-indigo-400/30">
+                <div className="absolute bottom-4 left-4 bg-indigo-600/80  px-3 py-1 rounded-xl text-[10px] font-black text-white uppercase tracking-widest border border-indigo-400/30">
                    {reward.category === 'BILLIARD' ? <Layers className="w-3 h-3 inline mr-1" /> : <ShoppingBag className="w-3 h-3 inline mr-1" />}
                    {reward.category}
                 </div>
@@ -278,7 +278,7 @@ export default function RewardsAdminPage() {
       {/* Premium Redemption Modal */}
       {showModal && (
         <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowModal(false)} />
+           <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowModal(false)} />
            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] max-w-xl w-full p-8 md:p-10 border border-slate-200 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_auto] animate-[gradient_3s_linear_infinite]"></div>
               

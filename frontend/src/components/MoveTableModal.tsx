@@ -38,7 +38,7 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
     return (
         /* ── BACKDROP ─────────────────────────────────────────────── */
         <div
-            className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center animate-in fade-in duration-200"
+            className="fixed inset-0 z-[100] bg-slate-900/70  flex items-end sm:items-center justify-center animate-in fade-in duration-200"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             {/*
@@ -58,7 +58,7 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
             ">
                 {/* ── SAFETY OVERLAY ────────────────────────────────────── */}
                 {isLoading && (
-                    <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[110] bg-white/60  flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
                         <p className="text-slate-900 font-bold uppercase tracking-widest text-[10px] sm:text-[12px]">Memindahkan Meja...</p>
                     </div>

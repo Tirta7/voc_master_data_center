@@ -104,7 +104,7 @@ const GLOBAL_SCRATCH_STYLES = `
 `;
 
 const GlobalWinToast = ({ win }: any) => (
-  <div className="fixed top-20 right-4 z-[9999] animate-bounce-in bg-slate-900/95 backdrop-blur-xl border-2 border-yellow-500/50 rounded-2xl p-4 shadow-2xl max-w-[280px]">
+  <div className="fixed top-20 right-4 z-[9999] animate-bounce-in bg-slate-900/95  border-2 border-yellow-500/50 rounded-2xl p-4 shadow-2xl max-w-[280px]">
     <div className="flex items-center gap-4">
       <div className="w-12 h-12 bg-yellow-500 rounded-xl flex items-center justify-center shadow-lg shadow-yellow-500/40">
         <Sparkles className="w-6 h-6 text-black" />
@@ -385,7 +385,7 @@ export default function ScratchBombPage() {
 
       <AnimatePresence>
         {showPaytable && (
-           <div className="fixed inset-0 z-[200] flex items-center sm:items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+           <div className="fixed inset-0 z-[200] flex items-center sm:items-center justify-center p-4 bg-black/80 ">
               <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="w-full max-w-[420px] glass-card rounded-[3rem] p-10 border-white/10">
                  <div className="flex items-center justify-between mb-10">
                     <h3 className="text-2xl font-black gold-text tracking-widest">ROYAL PAYTABLE</h3>
@@ -415,8 +415,8 @@ export default function ScratchBombPage() {
       </div>
 
       <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between pointer-events-none">
-          <Link href={`/member/dashboard?id=${id}`} className="p-3 bg-black/40 backdrop-blur-xl border border-white/5 rounded-2xl pointer-events-auto"><ChevronLeft className="w-5 h-5"/></Link>
-          <button onClick={() => setShowPaytable(true)} className="p-3 bg-black/40 backdrop-blur-xl border border-white/5 rounded-2xl pointer-events-auto"><TrendingUp className="w-5 h-5"/></button>
+          <Link href={`/member/dashboard?id=${id}`} className="p-3 bg-black/40  border border-white/5 rounded-2xl pointer-events-auto"><ChevronLeft className="w-5 h-5"/></Link>
+          <button onClick={() => setShowPaytable(true)} className="p-3 bg-black/40  border border-white/5 rounded-2xl pointer-events-auto"><TrendingUp className="w-5 h-5"/></button>
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden relative z-10 px-5 pt-20 pb-2">
@@ -509,7 +509,7 @@ export default function ScratchBombPage() {
                   </div>
                </div>
 
-               <div className="w-full mt-10 bg-black/40 backdrop-blur-xl rounded-[2rem] p-6 border border-white/5 max-w-[420px] mb-20 relative overflow-hidden shadow-2xl">
+               <div className="w-full mt-10 bg-black/40  rounded-[2rem] p-6 border border-white/5 max-w-[420px] mb-20 relative overflow-hidden shadow-2xl">
                   <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent"></div>
                   
                   <div className="flex items-center justify-between mb-5">
@@ -543,7 +543,7 @@ export default function ScratchBombPage() {
 
       <AnimatePresence>
         {showResultOverlay && (
-           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
+           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/90 ">
               <motion.div initial={{ opacity:0, scale:0.9 }} animate={{ opacity:1, scale:1 }} className={`relative w-full max-w-[380px] rounded-[3rem] border-2 glass-card p-10 flex flex-col items-center ${isWonGame ? "border-amber-500/50" : "border-white/10"}`}>
                   <div className={`w-24 h-24 mb-8 rounded-full flex items-center justify-center border-4 ${isWonGame ? "border-amber-500/50 bg-amber-500/10 shadow-[0_0_30px_rgba(245,158,11,0.2)]" : "border-slate-500/50 bg-slate-500/10 shadow-[0_0_30px_rgba(100,116,139,0.2)]"}`}>
                      {isWonGame ? <Sparkles className="w-12 h-12 text-amber-500" /> : <Bomb className="w-12 h-12 text-slate-400" />}

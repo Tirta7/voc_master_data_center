@@ -179,7 +179,7 @@ export default function ARMEMonitoringPage() {
             
             <div className="relative z-10 flex flex-col h-screen">
                 {/* GLOBAL TOP NAV */}
-                <header className="border-b border-white/5 bg-black/40 backdrop-blur-xl px-12 py-6 flex items-center justify-between">
+                <header className="border-b border-white/5 bg-black/40  px-12 py-6 flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg ring-1 ring-white/20">
                             <Orbit className="w-6 h-6 text-white animate-spin-slow" />
@@ -209,7 +209,7 @@ export default function ARMEMonitoringPage() {
 
                 <div className="flex-1 flex overflow-hidden">
                     {/* LEFT CONTROL SIDEBAR */}
-                    <aside className="w-[420px] border-r border-white/5 bg-black/20 backdrop-blur-3xl overflow-y-auto no-scrollbar p-10 space-y-12">
+                    <aside className="w-[420px] border-r border-white/5 bg-black/20  overflow-y-auto no-scrollbar p-10 space-y-12">
                         {/* AUTO PILOT MASTER CARD */}
                         <div className={`p-8 rounded-[3rem] border-2 transition-all duration-1000 relative overflow-hidden group ${settings.gamificationAutoPilot ? "bg-indigo-500/10 border-indigo-500/40 shadow-[0_0_50px_rgba(99,102,241,0.1)]" : "bg-white/5 border-white/10"}`}>
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -740,7 +740,7 @@ export default function ARMEMonitoringPage() {
             {/* NEURAL OVERRIDE MODAL */}
             {showOverrideModal && (
                 <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowOverrideModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowOverrideModal(false)} />
                     <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 p-12">
                         <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
                         <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase mb-2 italic">
@@ -775,7 +775,7 @@ export default function ARMEMonitoringPage() {
             {/* POINT ADJUST MODAL */}
             {showAdjustModal && (
                 <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowAdjustModal(false)} />
+                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowAdjustModal(false)} />
                     <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 p-12">
                         <div className="absolute top-0 left-0 w-full h-2 bg-slate-900"></div>
                         <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase mb-2 italic">Point Adjust</h2>

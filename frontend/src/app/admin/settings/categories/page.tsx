@@ -115,7 +115,7 @@ export default function CategoryMasterPage() {
                     <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Box className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Master Data</span>
@@ -225,7 +225,7 @@ export default function CategoryMasterPage() {
 
             {/* Modal Form */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/60 z-[200] backdrop-blur-sm flex items-center justify-center p-4 lg:p-0 animate-in fade-in duration-300">
+                <div className="fixed inset-0 bg-slate-900/60 z-[200]  flex items-center justify-center p-4 lg:p-0 animate-in fade-in duration-300">
                     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-6 lg:p-8">
                             <div className="flex items-center justify-between mb-8">

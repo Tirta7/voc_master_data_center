@@ -278,7 +278,7 @@ export default function AuditPage() {
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <History className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Security & Monitoring</span>
@@ -286,10 +286,10 @@ export default function AuditPage() {
                             <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-none">Audit Trail</h1>
                             <p className="text-white/60 text-[11px] font-semibold mt-1">Monitoring keamanan real-time</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <Activity className="w-4 h-4" /> {stats?.totalToday || 0} Aktivitas Hari Ini
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                <div className="bg-white/15  px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <AlertTriangle className="w-4 h-4" /> {stats?.criticalToday || 0} Kritis
                                 </div>
                             </div>
@@ -297,7 +297,7 @@ export default function AuditPage() {
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                             {/* Business Day Toggle */}
                             <div 
-                                className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer group/toggle" 
+                                className="flex items-center gap-2 bg-white/10  border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer group/toggle" 
                                 onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}
                             >
                                 <div className="flex flex-col items-start pr-2 border-r border-white/10">
@@ -312,7 +312,7 @@ export default function AuditPage() {
                             </div>
                             
                             <button onClick={() => { fetchStats(); fetchLogs(); }}
-                                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all text-[11px] border border-white/20">
+                                className="bg-white/20 hover:bg-white/30  text-white px-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all text-[11px] border border-white/20">
                                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Sync
                             </button>
                             {hasPermission('AUDIT_EXPORT') && (
@@ -350,7 +350,7 @@ export default function AuditPage() {
                     {/* Header */}
                     <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-500/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-indigo-500/30">
+                            <div className="w-10 h-10 bg-indigo-500/20  rounded-2xl flex items-center justify-center border border-indigo-500/30">
                                 <Brain className="w-5 h-5 text-indigo-300" />
                             </div>
                             <div>
@@ -762,7 +762,7 @@ function KpiCard({ title, value, subtitle, icon, color, loading }: { title: stri
     return (
         <div className={`relative overflow-hidden rounded-2xl lg:rounded-[2rem] p-5 lg:p-6 text-white shadow-xl ${colors[color] || 'bg-slate-700'}`}>
             <div className="relative z-10">
-                <div className="w-8 lg:w-10 h-8 lg:h-10 rounded-xl bg-white/10 flex items-center justify-center mb-3 lg:mb-4 border border-white/20 backdrop-blur-md">
+                <div className="w-8 lg:w-10 h-8 lg:h-10 rounded-xl bg-white/10 flex items-center justify-center mb-3 lg:mb-4 border border-white/20 ">
                     {icon}
                 </div>
                 {loading ? (

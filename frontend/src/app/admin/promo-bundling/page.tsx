@@ -373,7 +373,7 @@ export default function PromoBundlingPage() {
                     <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center">
                                     <Gift className="w-5 h-5 text-white" />
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Marketing Center</span>
@@ -478,7 +478,7 @@ export default function PromoBundlingPage() {
                 {/* ITEM LIBRARY MODAL */}
                 {showItemLibrary && (
                     <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl" onClick={() => setShowItemLibrary(false)} />
+                        <div className="absolute inset-0 bg-slate-900/40 " onClick={() => setShowItemLibrary(false)} />
                         <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[3.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                             {/* Header */}
                             <div className="p-8 border-b border-slate-100 flex flex-col gap-6">
@@ -556,7 +556,7 @@ export default function PromoBundlingPage() {
                 {/* Editor Modal/Card */}
                 {isAdding && (
                     <div className="fixed inset-0 z-[1000] flex items-center sm:items-center justify-center p-0 sm:p-4 overscroll-contain animate-in fade-in duration-300">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} />
+                        <div className="absolute inset-0 bg-slate-900/80 " onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} />
                         <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-full sm:zoom-in duration-500 overflow-hidden flex flex-col max-h-[95vh]">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none -mt-32 -mr-32" />
 
@@ -833,7 +833,7 @@ export default function PromoBundlingPage() {
 
                                                     {/* RIGHT COLUMN: Product Gallery (Col 7) */}
                                                     <div className="xl:col-span-7 flex flex-col h-[600px] bg-slate-50/50 rounded-[2rem] border border-slate-100 overflow-hidden">
-                                                        <div className="p-5 md:p-6 border-b border-slate-50 bg-white/50 backdrop-blur-sm sticky top-0 z-20 flex flex-col gap-5">
+                                                        <div className="p-5 md:p-6 border-b border-slate-50 bg-white/50  sticky top-0 z-20 flex flex-col gap-5">
                                                             <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar scroll-smooth whitespace-nowrap px-1">
                                                                 {Array.from(new Set(['All', ...menuItems.map(m => typeof m.category === 'object' ? m.category?.name : m.category).filter(Boolean)])).map((cat: any) => {
                                                                     const isSelected = selectedCategory === cat;

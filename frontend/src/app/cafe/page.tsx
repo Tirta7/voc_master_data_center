@@ -73,7 +73,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                     <div className={`w-2 h-2 rounded-full shrink-0 ${isMember && isOccupied ? 'bg-white animate-ping' : isOccupied ? 'bg-indigo-500 animate-pulse' : isBooked ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></div>
                     <span className={`text-sm font-black truncate tracking-tight ${isMember && isOccupied ? 'text-white' : 'text-slate-800'}`}>{table.tableName}</span>
                     {isMember && isOccupied && (
-                        <div className="flex items-center gap-1 bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[8px] font-black border border-white/30 shrink-0 tracking-widest uppercase">
+                        <div className="flex items-center gap-1 bg-white/20  text-white px-2 py-0.5 rounded-full text-[8px] font-black border border-white/30 shrink-0 tracking-widest uppercase">
                             {tierName}
                         </div>
                     )}
@@ -542,7 +542,7 @@ export default function CafeDashboardPage() {
 
             {/* DESKTOP NAV */}
             <nav className="hidden md:block relative z-30 bg-transparent">
-                <div className="bg-gradient-to-r from-indigo-800/95 to-indigo-700/95 backdrop-blur-sm border-b border-white/10 px-8 py-4">
+                <div className="bg-gradient-to-r from-indigo-800/95 to-indigo-700/95  border-b border-white/10 px-8 py-4">
                     <div className="max-w-[1600px] mx-auto flex justify-between items-center">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center text-white font-black shadow-lg border border-white/20">
@@ -569,7 +569,7 @@ export default function CafeDashboardPage() {
                 <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
                     {/* MOBILE ONLY: Top bar */}
                     <div className="flex md:hidden items-center justify-between gap-3 mb-5">
-                        <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-inner">
+                        <div className="flex-1 bg-white/10  border border-white/20 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-inner">
                             <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0">
                                 <span className="text-[10px] font-black text-white">{(settings?.businessName || 'C').charAt(0)}</span>
                             </div>
@@ -581,7 +581,7 @@ export default function CafeDashboardPage() {
                     <AIBattlePlanWidget />
 
                     {/* CAFE STATION CARD - inside banner */}
-                    <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-3.5 md:px-5 md:py-3.5 mt-3 mb-4 flex flex-wrap md:flex-nowrap items-center gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+                    <div className="bg-white/10  border border-white/20 rounded-2xl p-3.5 md:px-5 md:py-3.5 mt-3 mb-4 flex flex-wrap md:flex-nowrap items-center gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
                         {/* Left: Summary Info */}
                         <div className="flex items-center gap-3 min-w-0 order-1 mr-auto">
                             <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">

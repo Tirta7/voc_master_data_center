@@ -655,7 +655,7 @@ export default function PanelControlPage() {
                                                 <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> TEST LAMPU (IoT)
                                             </button>
                                             {testModeDropdown && (
-                                                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setTestModeDropdown(false)}>
+                                                <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60  animate-in fade-in duration-300" onClick={() => setTestModeDropdown(false)}>
                                                     <div className="w-full max-w-sm bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 border border-slate-100 max-h-[85vh] sm:max-h-[65vh] flex flex-col" onClick={e => e.stopPropagation()}>
                                                         <div className="pt-4 pb-4 sm:p-4 bg-gradient-to-br from-indigo-50 to-white border-b border-indigo-100 flex flex-col shrink-0">
                                                             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 sm:hidden shrink-0" />

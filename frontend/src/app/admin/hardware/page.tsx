@@ -313,7 +313,7 @@ export default function AdminHardwarePage() {
               placeholder="Cari Meja, IP, atau MAC..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-slate-900/40 border border-slate-800 rounded-2xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-all placeholder:text-slate-600 backdrop-blur-md"
+              className="w-full pl-12 pr-4 py-3 bg-slate-900/40 border border-slate-800 rounded-2xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-all placeholder:text-slate-600 "
             />
           </div>
           <button
@@ -348,7 +348,7 @@ export default function AdminHardwarePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Status Card */}
-          <div className={`relative overflow-hidden rounded-[2rem] border p-6 backdrop-blur-xl transition-all ${
+          <div className={`relative overflow-hidden rounded-[2rem] border p-6  transition-all ${
             gwOnline
               ? 'bg-violet-500/5 border-violet-500/20'
               : 'bg-slate-900/40 border-slate-800'
@@ -409,7 +409,7 @@ export default function AdminHardwarePage() {
           </div>
 
           {/* Peer Stats Card */}
-          <div className="relative overflow-hidden rounded-[2rem] border bg-slate-900/40 border-slate-800 p-6 backdrop-blur-xl">
+          <div className="relative overflow-hidden rounded-[2rem] border bg-slate-900/40 border-slate-800 p-6 ">
             <div className="flex items-center gap-3 mb-5">
               <Users className="w-5 h-5 text-cyan-400" />
               <p className="text-white font-black text-sm uppercase tracking-widest">Prajurit Terdaftar</p>
@@ -470,7 +470,7 @@ export default function AdminHardwarePage() {
           </div>
 
           {/* Register Prajurit Card */}
-          <div className="relative overflow-hidden rounded-[2rem] border bg-slate-900/40 border-slate-800 p-6 backdrop-blur-xl">
+          <div className="relative overflow-hidden rounded-[2rem] border bg-slate-900/40 border-slate-800 p-6 ">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <Plus className="w-5 h-5 text-emerald-400" />
@@ -608,7 +608,7 @@ export default function AdminHardwarePage() {
             hover: 'hover:border-rose-500/30',
           },
         ].map((s, i) => (
-          <div key={i} className={`group relative overflow-hidden bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8 backdrop-blur-xl transition-all ${s.hover}`}>
+          <div key={i} className={`group relative overflow-hidden bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8  transition-all ${s.hover}`}>
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <s.icon className="w-24 h-24" />
             </div>
@@ -754,7 +754,7 @@ export default function AdminHardwarePage() {
           </div>
         )}
 
-        <div className="bg-slate-900/30 border border-slate-800/60 rounded-[3rem] overflow-hidden shadow-2xl backdrop-blur-sm">
+        <div className="bg-slate-900/30 border border-slate-800/60 rounded-[3rem] overflow-hidden shadow-2xl ">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>

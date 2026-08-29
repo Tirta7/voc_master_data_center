@@ -229,7 +229,7 @@ export function AIInsightsView({
                     {/* AI Advice Card */}
                     <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-200/50">
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center ">
                                 <Target className="w-6 h-6 text-white" />
                             </div>
                             <h3 className="font-black uppercase tracking-tight">Smart Suggestion</h3>

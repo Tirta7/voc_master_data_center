@@ -97,13 +97,13 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60  animate-in fade-in duration-300"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden overscroll-contain animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 relative">
                 {/* Full-screen Loading Overlay for Safety */}
                 {isLoading && (
-                    <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[110] bg-white/60  flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
                         <p className="text-stone-900 font-bold uppercase tracking-widest text-xs sm:text-sm">Membuka Meja...</p>
                     </div>
@@ -195,7 +195,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                                 </div>
                                 <div className="relative z-10">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] sm:text-[12px] font-black uppercase tracking-widest border border-white/30">
+                                        <div className="px-3 py-1 bg-white/20  rounded-full text-[10px] sm:text-[12px] font-black uppercase tracking-widest border border-white/30">
                                             {member.tier?.name || 'MEMBER'}
                                         </div>
                                         <div className="text-right">
@@ -205,11 +205,11 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                                     </div>
                                     <h4 className="text-xl font-black uppercase tracking-tight mb-4">{member.name}</h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
+                                        <div className="bg-white/10  p-3 rounded-2xl border border-white/10">
                                             <p className="text-[8px] sm:text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">Saldo</p>
                                             <p className="text-sm font-black text-white/90">Rp {Number(member.balance).toLocaleString()}</p>
                                         </div>
-                                        <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
+                                        <div className="bg-white/10  p-3 rounded-2xl border border-white/10">
                                             <p className="text-[8px] sm:text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">Expiry</p>
                                             <p className="text-sm font-black text-white/90">{member.expiryDate ? new Date(member.expiryDate).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Lifetime'}</p>
                                         </div>

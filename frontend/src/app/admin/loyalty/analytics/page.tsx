@@ -514,7 +514,7 @@ export default function LoyaltyAnalyticsPage() {
       {/* Adjust Modal */}
       {showAdjustModal && (
          <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowAdjustModal(false)} />
+           <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowAdjustModal(false)} />
            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] max-w-md w-full p-8 md:p-10 border border-slate-200 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="absolute top-0 left-0 w-full h-2 bg-slate-900"></div>
               <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase mb-6">Point Adjust</h2>
@@ -533,7 +533,7 @@ export default function LoyaltyAnalyticsPage() {
       {/* Neural Override Modal */}
       {showOverrideModal && (
          <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowOverrideModal(false)} />
+           <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowOverrideModal(false)} />
            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] max-w-md w-full p-8 md:p-10 border border-slate-200 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
               <div className="mb-8">

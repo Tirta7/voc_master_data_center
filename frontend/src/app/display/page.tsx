@@ -582,7 +582,7 @@ function SmartDisplayContent() {
     // --- SUB-RENDERERS ---
 
     const renderScratchOverlay = () => (
-        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-8">
+        <div className="fixed inset-0 z-[200] bg-black/90  flex items-center justify-center p-8">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card w-full max-w-2xl rounded-[3.5rem] p-12 border-white/10 flex flex-col items-center">
                 <div className="flex items-center gap-4 mb-8">
                     <Sparkles className="w-10 h-10 text-amber-500 animate-pulse" />
@@ -751,7 +751,7 @@ function SmartDisplayContent() {
         return (
             <div className="fixed inset-0 z-10 py-6 sm:py-10 flex flex-col overflow-hidden bg-[#020617] animate-in fade-in zoom-in-95 duration-700">
                 {/* Header - Fixed with Intelligence */}
-                <div className="flex justify-between items-center px-8 sm:px-14 mb-8 sm:mb-12 shrink-0 py-8 bg-[#020617]/40 backdrop-blur-3xl border-b border-white/5 shadow-2xl z-20">
+                <div className="flex justify-between items-center px-8 sm:px-14 mb-8 sm:mb-12 shrink-0 py-8 bg-[#020617]/40  border-b border-white/5 shadow-2xl z-20">
                     <div className="flex flex-col text-left space-y-3">
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_12px_#10b981]"></div>
@@ -788,12 +788,12 @@ function SmartDisplayContent() {
                     <div className="flex gap-6 sm:gap-10 items-center">
                         <button
                             onClick={() => setEmptyView('PROMO')}
-                            className="bg-white/5 hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/20 rounded-2xl px-8 py-5 flex items-center gap-4 text-white transition-all active:scale-95 group shadow-2xl backdrop-blur-3xl"
+                            className="bg-white/5 hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/20 rounded-2xl px-8 py-5 flex items-center gap-4 text-white transition-all active:scale-95 group shadow-2xl "
                         >
                             <X className="w-5 h-5 text-slate-500 group-hover:text-rose-400 transition-colors" />
                             <span className="text-xs font-black uppercase tracking-[0.3em] italic">Close</span>
                         </button>
-                        <div className="hidden sm:flex w-20 h-20 bg-white/5 backdrop-blur-3xl rounded-[2rem] border border-white/5 shadow-2xl items-center justify-center overflow-hidden p-4 group hover:scale-105 transition-transform">
+                        <div className="hidden sm:flex w-20 h-20 bg-white/5  rounded-[2rem] border border-white/5 shadow-2xl items-center justify-center overflow-hidden p-4 group hover:scale-105 transition-transform">
                             {settings?.logoPath ? (
                                 <img src={getFullImageUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain" />
                             ) : (
@@ -852,7 +852,7 @@ function SmartDisplayContent() {
                                     key={t.id}
                                     className={`relative group rounded-[3rem] p-1 transition-all duration-500 shadow-2xl active:scale-95 cursor-pointer ${cardStyle}`}
                                 >
-                                    <div className={`relative h-full w-full rounded-[2.9rem] p-6 flex flex-col items-center justify-between gap-6 overflow-hidden border bg-[#0F172A]/80 backdrop-blur-xl ${!isAvailable ? '' : 'bg-transparent border-white/5'}`}>
+                                    <div className={`relative h-full w-full rounded-[2.9rem] p-6 flex flex-col items-center justify-between gap-6 overflow-hidden border bg-[#0F172A]/80  ${!isAvailable ? '' : 'bg-transparent border-white/5'}`}>
 
                                         {/* Status Glow */}
                                         <div className={`absolute -top-10 -right-10 w-24 h-24 blur-3xl rounded-full ${glowStyle}`}></div>
@@ -913,7 +913,7 @@ function SmartDisplayContent() {
                 </div>
 
                 {/* Legend & Stats Overlay - Subtle glass */}
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-10 py-4 bg-white/[0.02] border border-white/5 rounded-[2.5rem] backdrop-blur-3xl flex items-center gap-8 shadow-3xl">
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-10 py-4 bg-white/[0.02] border border-white/5 rounded-[2.5rem]  flex items-center gap-8 shadow-3xl">
                     <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div>
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Available</span>
@@ -939,7 +939,7 @@ function SmartDisplayContent() {
 
                 {/* Footer - Consistent with Waitlist */}
                 <div className="px-6 sm:px-20 pb-8 pt-4 shrink-0 bg-transparent z-40">
-                    <div className="flex gap-6 p-3 bg-white/[0.02] backdrop-blur-3xl rounded-[3rem] border border-white/5 shadow-2xl max-w-lg mx-auto">
+                    <div className="flex gap-6 p-3 bg-white/[0.02]  rounded-[3rem] border border-white/5 shadow-2xl max-w-lg mx-auto">
                         <button
                             onClick={() => setEmptyView('WAITING_FORM')}
                             className="flex-1 py-4 sm:py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl sm:rounded-3xl font-black uppercase tracking-widest text-[10px] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95"
@@ -985,12 +985,12 @@ function SmartDisplayContent() {
                     <div className="flex items-center gap-6">
                         <button
                             onClick={() => setEmptyView('PROMO')}
-                            className="bg-white/5 hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/20 rounded-2xl px-8 py-5 flex items-center gap-4 text-white transition-all active:scale-95 group shadow-2xl backdrop-blur-3xl"
+                            className="bg-white/5 hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/20 rounded-2xl px-8 py-5 flex items-center gap-4 text-white transition-all active:scale-95 group shadow-2xl "
                         >
                             <X className="w-5 h-5 text-slate-500 group-hover:text-rose-400 transition-colors" />
                             <span className="text-xs font-black uppercase tracking-[0.3em] italic">Close</span>
                         </button>
-                        <div className="hidden sm:flex w-20 h-20 bg-white/5 backdrop-blur-3xl rounded-[2rem] border border-white/5 shadow-2xl items-center justify-center overflow-hidden p-4 group hover:scale-105 transition-transform">
+                        <div className="hidden sm:flex w-20 h-20 bg-white/5  rounded-[2rem] border border-white/5 shadow-2xl items-center justify-center overflow-hidden p-4 group hover:scale-105 transition-transform">
                             {settings?.logoPath ? (
                                 <img src={getFullImageUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain" />
                             ) : (
@@ -1000,7 +1000,7 @@ function SmartDisplayContent() {
                     </div>
                 </div>
 
-                <div className="glass-card rounded-[4rem] p-1 shadow-3xl bg-white/[0.01] backdrop-blur-3xl border-white/5 w-full flex flex-col max-h-[60vh] overflow-hidden relative">
+                <div className="glass-card rounded-[4rem] p-1 shadow-3xl bg-white/[0.01]  border-white/5 w-full flex flex-col max-h-[60vh] overflow-hidden relative">
                     <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-[#020617] to-transparent z-10 opacity-50 pointer-events-none"></div>
                     <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-[#020617] to-transparent z-10 opacity-50 pointer-events-none"></div>
 
@@ -1090,7 +1090,7 @@ function SmartDisplayContent() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-10 pt-6">
-                    <div className="flex items-center gap-8 px-10 py-5 bg-white/[0.02] border border-white/5 rounded-[2.5rem] shadow-inner backdrop-blur-xl">
+                    <div className="flex items-center gap-8 px-10 py-5 bg-white/[0.02] border border-white/5 rounded-[2.5rem] shadow-inner ">
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div>
                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">0-15m</span>
@@ -1374,7 +1374,7 @@ function SmartDisplayContent() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="fixed inset-0 z-[400] flex items-center justify-center p-4 sm:p-12 bg-[#020617]/95 backdrop-blur-3xl overflow-y-auto"
+                className="fixed inset-0 z-[400] flex items-center justify-center p-4 sm:p-12 bg-[#020617]/95  overflow-y-auto"
             >
                 <div className="w-full max-w-6xl min-h-[80vh] bg-white/[0.02] border border-white/5 rounded-[3.5rem] overflow-hidden shadow-2xl flex flex-col relative">
                     {/* Header */}
@@ -1461,7 +1461,7 @@ function SmartDisplayContent() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl"
+                                className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/95 "
                             >
                                 <div className="max-w-md w-full text-center space-y-10">
                                     {redeemStatus === 'PENDING' ? (
@@ -1537,7 +1537,7 @@ function SmartDisplayContent() {
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="fixed inset-0 z-[400] flex items-center justify-center p-4 sm:p-8 bg-[#020617]/90 backdrop-blur-2xl"
+                className="fixed inset-0 z-[400] flex items-center justify-center p-4 sm:p-8 bg-[#020617]/90 "
             >
                 <div className="w-full max-w-4xl bg-white/[0.03] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl relative">
                     <div className="p-8 sm:p-12 border-b border-white/5 bg-gradient-to-br from-indigo-600/20 to-purple-600/20 flex flex-col sm:flex-row justify-between items-center gap-8 text-center sm:text-left">
@@ -1724,7 +1724,7 @@ function SmartDisplayContent() {
                                         </div>
                                     </div>
 
-                                    <div className="bg-white/10 rounded-2xl p-6 text-center border border-white/20 backdrop-blur-sm">
+                                    <div className="bg-white/10 rounded-2xl p-6 text-center border border-white/20 ">
                                         <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.3em] mb-2 text-center">Current Balance</p>
                                         <p className="text-4xl font-black text-white tabular-nums tracking-tighter">Rp {topupSuccess.newBalance.toLocaleString()}</p>
                                     </div>
@@ -1747,7 +1747,7 @@ function SmartDisplayContent() {
                             exit={{ opacity: 0, scale: 0.8, y: 20 }}
                             className="fixed top-10 left-1/2 -translate-x-1/2 z-[501]"
                         >
-                            <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl flex items-center gap-6 min-w-[320px]">
+                            <div className="bg-slate-900/90  border border-white/10 rounded-3xl p-6 shadow-2xl flex items-center gap-6 min-w-[320px]">
                                 <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
                                     <CheckCircle2 className="w-8 h-8 text-white" />
                                 </div>
@@ -1866,7 +1866,7 @@ function SmartDisplayContent() {
                 {/* Status Overlay: Setup Warning - REFINED */}
                 {terminalId && !socket.connected && (
                     <div className="absolute top-10 left-10 z-50 animate-pulse">
-                        <div className="bg-rose-500/10 backdrop-blur-3xl border border-rose-500/30 px-6 py-3 rounded-[1.5rem] flex items-center gap-4 shadow-[0_20px_50px_-15px_rgba(244,63,94,0.3)]">
+                        <div className="bg-rose-500/10  border border-rose-500/30 px-6 py-3 rounded-[1.5rem] flex items-center gap-4 shadow-[0_20px_50px_-15px_rgba(244,63,94,0.3)]">
                             <div className="w-3 h-3 bg-rose-500 rounded-full shadow-[0_0_15px_#f43f5e]"></div>
                             <span className="text-[11px] font-black text-rose-500 uppercase tracking-[0.5em] italic">Connecting...</span>
                         </div>
@@ -2069,7 +2069,7 @@ function SmartDisplayContent() {
                 <style jsx global>{` body { overflow: hidden; } `}</style>
                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_white/10,_transparent)]"></div>
                 <div className="relative z-10 space-y-12 max-w-xl">
-                    <div className="p-8 bg-white/10 backdrop-blur-xl rounded-[3rem] inline-block mb-4">
+                    <div className="p-8 bg-white/10  rounded-[3rem] inline-block mb-4">
                         <CheckCircle2 className="w-20 h-20 text-white animate-bounce" />
                     </div>
                     <div className="space-y-4">
@@ -2118,7 +2118,7 @@ function SmartDisplayContent() {
                 </button>
             </div>
 
-            <div className="h-24 px-10 flex justify-between items-center border-b border-white/5 relative z-50 bg-[#020617]/60 backdrop-blur-3xl shadow-2xl">
+            <div className="h-24 px-10 flex justify-between items-center border-b border-white/5 relative z-50 bg-[#020617]/60  shadow-2xl">
                 <div className="flex flex-col text-left">
                     <span className="text-base font-black tracking-tighter text-white uppercase italic leading-none">{settings?.businessName || "VOC SYSTEM PREMIUM"}</span>
                     <div className="flex items-center gap-2 mt-2">
@@ -2135,7 +2135,7 @@ function SmartDisplayContent() {
                             {table?.tableName || tx?.invoiceNumber || 'GUEST-01'}
                         </span>
                     </div>
-                    <div className="w-12 h-12 bg-white/5 rounded-[1.25rem] border border-white/5 flex items-center justify-center overflow-hidden p-2 backdrop-blur-3xl shadow-2xl">
+                    <div className="w-12 h-12 bg-white/5 rounded-[1.25rem] border border-white/5 flex items-center justify-center overflow-hidden p-2  shadow-2xl">
                         {settings?.logoPath ? (
                             <img src={getFullImageUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain" onError={(e) => { (e.target as any).style.display = 'none'; }} />
                         ) : (
@@ -2193,7 +2193,7 @@ function SmartDisplayContent() {
                 </div>
 
                 {/* Right side: Summary & Dynamic */}
-                <div className="w-full lg:w-[42%] h-auto lg:h-full bg-[#030712]/40 backdrop-blur-md flex flex-col p-6 sm:p-10 gap-6 sm:gap-8 relative">
+                <div className="w-full lg:w-[42%] h-auto lg:h-full bg-[#030712]/40  flex flex-col p-6 sm:p-10 gap-6 sm:gap-8 relative">
                     {/* Summary Card */}
                     {!(paymentState && (paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId?.toString() === table?.id?.toString() && paymentState.tableId !== null)) && paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString) && (
                     <div className="glass-card rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 sm:space-y-6 relative z-10 overflow-hidden shrink-0">
@@ -2428,7 +2428,7 @@ function SmartDisplayContent() {
                         initial={{ opacity: 0 }} 
                         animate={{ opacity: 1 }} 
                         exit={{ opacity: 0 }} 
-                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#020617]/80 backdrop-blur-xl p-4 sm:p-6"
+                        className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#020617]/80  p-4 sm:p-6"
                     >
                         {!ratingSubmitted ? (
                             <motion.div 

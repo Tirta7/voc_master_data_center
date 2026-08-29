@@ -495,7 +495,7 @@ export default function AttendancePage() {
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
                     <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white backdrop-blur-sm border border-white/20 shrink-0">
+                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white  border border-white/20 shrink-0">
                                 <CalendarDays className="w-7 h-7" />
                             </div>
                             <div>
@@ -640,7 +640,7 @@ export default function AttendancePage() {
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 bg-white/80 backdrop-blur-md">
+                            <thead className="sticky top-0 bg-white/80 ">
                                 <tr className="border-b border-slate-100">
                                     {['Tanggal', 'Karyawan', 'Shift', 'Masuk', 'Keluar', 'Durasi', 'Lembur', 'Status', 'Aksi'].map(h => (
                                         <th key={h} className={`px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ${h === 'Aksi' ? 'text-right' : ''}`}>{h}</th>
@@ -936,7 +936,7 @@ export default function AttendancePage() {
             {/* ══════════════════════════ MODAL: RFID & PIN ══════════════════════════ */}
             {isPinModalOpen && (
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => {
+                    <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => {
                         setIsPinModalOpen(false);
                         axios.post('/attendance/public/prompt', { mode: 'RESET' }).catch(() => { });
                     }} />
@@ -1018,7 +1018,7 @@ export default function AttendancePage() {
 
             {/* ══════════════════════════ MODAL: ASSIGN SHIFT ══════════════════════════ */}
             {isAssignOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 ">
                     <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-8 space-y-5">
                             <div>
@@ -1068,7 +1068,7 @@ export default function AttendancePage() {
 
             {/* ══════════════════════════ MODAL: SWAP SHIFT ══════════════════════════ */}
             {isSwapOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 ">
                     <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-8 space-y-5">
                             <div>
@@ -1126,7 +1126,7 @@ export default function AttendancePage() {
 
             {/* ══════════════════════════ MODAL: CLOSURE ══════════════════════════ */}
             {isClosureOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 ">
                     <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="p-8 space-y-5">
                             <div className="flex items-center gap-3">
@@ -1186,7 +1186,7 @@ export default function AttendancePage() {
                             </div>
                             <div className="flex items-center justify-between relative z-10">
                                 <div className="flex items-center gap-3.5">
-                                    <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center border-0 shrink-0">
+                                    <div className="w-10 h-10 bg-white/20  rounded-2xl flex items-center justify-center border-0 shrink-0">
                                         <Plus className="w-5 h-5 text-white" />
                                     </div>
                                     <div>

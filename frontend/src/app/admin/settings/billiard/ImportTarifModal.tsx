@@ -186,7 +186,7 @@ export function ImportTarifModal({ isOpen, onClose, onSuccess }: ImportTarifModa
 
     return (
         <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 pt-12 sm:pt-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={handleReset} />
+            <div className="absolute inset-0 bg-slate-900/60  animate-in fade-in" onClick={handleReset} />
             <div className="relative bg-white flex flex-col rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] shadow-2xl animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 pb-safe">
                 {/* Header (Sticky untuk mobile scroll) */}
                 <div className="p-6 sm:p-8 border-b border-slate-50 flex items-center justify-between bg-indigo-50/50 shrink-0 rounded-t-[2rem] sm:rounded-t-[2.5rem]">
@@ -276,7 +276,7 @@ export function ImportTarifModal({ isOpen, onClose, onSuccess }: ImportTarifModa
                                 </div>
                             )}
 
-                            <div className="p-6 sm:p-8 shrink-0 border-t border-slate-50 bg-white/80 backdrop-blur-md rounded-b-[2.5rem]">
+                            <div className="p-6 sm:p-8 shrink-0 border-t border-slate-50 bg-white/80  rounded-b-[2.5rem]">
                                 <button
                                     onClick={handleSubmit}
                                     disabled={!file || isSubmitting}

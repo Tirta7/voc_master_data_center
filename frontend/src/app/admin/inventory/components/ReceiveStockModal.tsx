@@ -104,7 +104,7 @@ export function ReceiveStockModal({
 
     return (
         <div className="fixed inset-0 z-[2500] flex items-center justify-center p-4 sm:p-6 lg:p-12 overflow-y-auto">
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-700" onClick={onClose} />
+            <div className="fixed inset-0 bg-slate-900/40  animate-in fade-in duration-700" onClick={onClose} />
 
             <div className="relative bg-white rounded-[3rem] w-full max-w-7xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col lg:flex-row min-h-[750px]">
                 {/* Left Panel: Item & Quantity */}

@@ -65,6 +65,8 @@ export interface MenuItem {
     productionTarget?: 'KDS' | 'BDS' | 'NONE';
     expiryDate?: string;
     price: number;
+    discountPrice?: number;
+    isDiscountActive?: boolean;
     sku?: string;
     description?: string;
     imageUrl?: string;

@@ -21,13 +21,15 @@ import { Users, Bell, LayoutGrid, Flame, Sparkles, Wrench, CircleDashed } from '
 import { useLanguage } from '@/context/LanguageContext';
 import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
 import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
-import { MessageSquare, AlertOctagon, RefreshCw, Search } from 'lucide-react';
+import { MessageSquare, AlertOctagon, RefreshCw, Search, Menu } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import { socket } from '@/lib/socket';
+import { useSidebar } from '@/components/SidebarContext';
 
 
 export default function Dashboard() {
   const { user, activeShift, hasPermission, refetchShift } = useAuth();
+  const { setIsOpen } = useSidebar();
   const { subscribe } = useMqtt();
   // ── Global real-time data from MQTT-driven context (no local fetch needed) ──
   const {
@@ -448,7 +450,13 @@ export default function Dashboard() {
         <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
           {/* MOBILE ONLY: Search/Profile Bar */}
           <div className="flex md:hidden items-center justify-between gap-3 mb-5">
-            <div className="flex-1 bg-white/10  border border-white/20 rounded-full px-4 py-2.5 flex items-center gap-3 shadow-inner">
+            <button
+                onClick={() => setIsOpen(true)}
+                className="w-11 h-11 rounded-full flex items-center justify-center bg-white/10 text-white border border-white/20 shrink-0 shadow-md active:scale-95 transition-all"
+            >
+                <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex-1 bg-white/10 border border-white/20 rounded-full px-4 py-2.5 flex items-center gap-3 shadow-inner min-w-0">
               <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0">
                 <span className="text-[10px] font-black text-white">{(settings?.businessName || 'S').charAt(0)}</span>
               </div>

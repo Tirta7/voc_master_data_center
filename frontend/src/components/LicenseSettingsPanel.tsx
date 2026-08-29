@@ -158,14 +158,14 @@ export function LicenseSettingsPanel() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 md:gap-4 mt-2 relative z-10">
-            <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50 backdrop-blur-sm min-w-0">
+            <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50  min-w-0">
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                 <Clock size={12} /> Expired Date
               </span>
               <p className="text-xs md:text-base font-black text-slate-800 truncate">{expiredDate}</p>
             </div>
             {licenseState?.daysLeft !== undefined && (
-              <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50 backdrop-blur-sm min-w-0">
+              <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50  min-w-0">
                 <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                   Sisa Waktu
                 </span>
@@ -291,7 +291,7 @@ export function LicenseSettingsPanel() {
           <p className="text-slate-300 text-sm font-medium leading-relaxed max-w-lg mb-6">
             Dapatkan kode lisensi instan dengan melakukan pembayaran via QRIS. Scan QR Code di samping menggunakan aplikasi e-Wallet atau Mobile Banking Anda.
           </p>
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-4 flex flex-col gap-2 max-w-sm mx-auto md:mx-0 backdrop-blur-sm">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-4 flex flex-col gap-2 max-w-sm mx-auto md:mx-0 ">
             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Cara Perpanjang:</p>
             <ol className="text-xs text-slate-300 space-y-1.5 list-decimal list-inside font-medium text-left">
               <li>Scan QRIS menggunakan aplikasi Bank/e-Wallet.</li>

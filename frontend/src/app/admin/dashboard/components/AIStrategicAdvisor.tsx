@@ -102,7 +102,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
 
     // Helper to render skeleton for a single card
     const CardSkeleton = () => (
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 h-[180px] animate-pulse flex flex-col justify-center items-center gap-3">
+        <div className="bg-white/5  border border-white/10 rounded-2xl p-5 h-[180px] animate-pulse flex flex-col justify-center items-center gap-3">
             <Loader2 className="w-6 h-6 text-indigo-400/20 animate-spin" />
             <div className="h-2 w-24 bg-white/5 rounded" />
         </div>
@@ -140,7 +140,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                     </div>
                 </div>
 
-                <div className="hidden md:flex items-center gap-2 bg-white/5 backdrop-blur-md border border-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                <div className="hidden md:flex items-center gap-2 bg-white/5  border border-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest text-indigo-300">
                     <Zap className="w-3 h-3 text-amber-400" />
                     Real-time Intelligence
                 </div>
@@ -150,7 +150,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
             <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* 1. Target Pulse */}
                 {loadingTarget ? <CardSkeleton /> : (
-                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
+                <div className="bg-white/5  border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
                     <div className="flex items-center gap-2 text-indigo-300 mb-4">
                         <Target className="w-4 h-4" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Recommended Target</span>
@@ -180,7 +180,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
 
                 {/* 2. Traffic Radar */}
                 {loadingTraffic ? <CardSkeleton /> : (
-                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
+                <div className="bg-white/5  border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
                     <div className="flex items-center gap-2 text-emerald-400 mb-4">
                         <Clock className="w-4 h-4" />
                         <span className="text-[10px] font-black uppercase tracking-widest">Traffic Forecast</span>
@@ -207,7 +207,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
 
                 {/* 3. Strategic Move & Staffing */}
                 {loadingMission ? <CardSkeleton /> : (
-                <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
+                <div className="bg-white/5  border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2 text-violet-400">
                             <Zap className="w-4 h-4" />
