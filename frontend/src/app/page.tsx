@@ -414,10 +414,13 @@ export default function Dashboard() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen" style={{background: 'linear-gradient(180deg, #F1F5FE 0%, #F8FAFC 100%)'}}>
+    <div
+      className="min-h-screen"
+      style={{ background: 'linear-gradient(180deg, #F1F5FE 0%, #F8FAFC 100%)', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+    >
       {/* DESKTOP NAV (Hidden on Mobile) */}
       <nav className="hidden md:block relative z-30 bg-transparent">
-        <div className="bg-gradient-to-r from-indigo-800/95 to-indigo-700/95 backdrop-blur-sm border-b border-white/10 px-8 py-4">
+        <div className="bg-gradient-to-r from-indigo-800/95 to-indigo-700/95  border-b border-white/10 px-8 py-4">
           <div className="max-w-[1600px] mx-auto flex justify-between items-center">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center text-white font-black shadow-lg border border-white/20">
@@ -445,7 +448,7 @@ export default function Dashboard() {
         <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
           {/* MOBILE ONLY: Search/Profile Bar */}
           <div className="flex md:hidden items-center justify-between gap-3 mb-5">
-            <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-2.5 flex items-center gap-3 shadow-inner">
+            <div className="flex-1 bg-white/10  border border-white/20 rounded-full px-4 py-2.5 flex items-center gap-3 shadow-inner">
               <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0">
                 <span className="text-[10px] font-black text-white">{(settings?.businessName || 'S').charAt(0)}</span>
               </div>
@@ -459,7 +462,7 @@ export default function Dashboard() {
                 className={`w-11 h-11 rounded-full flex items-center justify-center relative shrink-0 transition-all shadow-md ${
                     unreadChatCount > 0 
                     ? 'bg-rose-500 text-white animate-pulse' 
-                    : 'bg-white/10 text-white backdrop-blur-md border border-white/20'
+                    : 'bg-white/10 text-white  border border-white/20'
                 }`}
             >
                 <MessageSquare className="w-5 h-5" />
@@ -473,7 +476,7 @@ export default function Dashboard() {
           <AIBattlePlanWidget />
 
           {/* RENTAL STATION CARD - inside the banner */}
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-3.5 md:px-5 md:py-4 mt-3 mb-4 flex flex-wrap md:flex-nowrap items-center gap-3 md:gap-4 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+          <div className="bg-white/10  border border-white/20 rounded-3xl p-3.5 md:px-5 md:py-4 mt-3 mb-4 flex flex-wrap md:flex-nowrap items-center gap-3 md:gap-4 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
             {/* Left: Summary Info */}
             <div className="flex items-center gap-3 md:gap-4 min-w-0 order-1 mr-auto">
               <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">

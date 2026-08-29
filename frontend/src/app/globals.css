@@ -94,7 +94,7 @@ button, a, input, select, textarea {
 
 /* Semua element scrollable: matikan overscroll bounce yang membutuhkan
    GPU compositing layer tambahan */
-* {
+html, body {
   overscroll-behavior: none;
 }
 
