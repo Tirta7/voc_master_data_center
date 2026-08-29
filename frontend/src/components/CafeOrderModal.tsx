@@ -586,7 +586,11 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     return (
         <div
-            className="fixed inset-0 z-[110] bg-white flex flex-col"
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/70 p-0 md:p-4 lg:p-6"
+            style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+        >
+        <div
+            className="relative w-full h-full md:h-auto md:max-h-[92vh] md:max-w-5xl lg:max-w-6xl md:rounded-2xl overflow-hidden flex flex-col bg-white shadow-2xl"
             style={{ contain: 'strict' }}
         >
             {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
@@ -752,11 +756,11 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             </div>
 
             {/* ── BODY (MENU GRID + DESKTOP SIDEBAR) ────────────────────── */}
-            <div className="flex flex-1 min-h-0 bg-slate-100">
-                {/* Menu Grid - using flexbox instead of CSS Grid for Android GPU stability */}
+            <div className="flex flex-1 min-h-0 bg-slate-50">
+                {/* Menu Grid */}
                 <div
                     className="flex-1 overflow-y-auto p-3 no-scrollbar"
-                    style={{ contain: 'layout paint', overscrollBehavior: 'none' }}
+                    style={{ overscrollBehavior: 'contain' }}
                 >
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
@@ -769,7 +773,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tidak ada menu ditemukan</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2.5">
                             {filteredMenu.map((item: any) => {
                                 const qty = cart.find(c => c.id === item.id)?.quantity || 0;
                                 const inCart = qty > 0;
@@ -789,12 +793,11 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                         key={item.id}
                                         disabled={isOutOfStock || isTooExpensive}
                                         onClick={() => addToCart(item)}
-                                        style={{ width: 'calc(50% - 4px)', flexShrink: 0 }}
-                                        className={`flex flex-col justify-between text-left border p-2.5 rounded-lg ${isOutOfStock || isTooExpensive
+                                        className={`flex flex-col justify-between text-left border p-2.5 rounded-xl transition-all ${isOutOfStock || isTooExpensive
                                             ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed'
                                             : inCart
-                                                ? 'bg-indigo-50 border-2 border-indigo-500'
-                                                : 'bg-white border-slate-200'
+                                                ? 'bg-indigo-50 border-2 border-indigo-500 shadow-sm shadow-indigo-100'
+                                                : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
                                             }`}
                                     >
                                         {/* Header: Category Badge & Stock */}
@@ -903,7 +906,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 </div>
 
                 {/* Desktop Cart Sidebar */}
-                <div className="hidden md:flex flex-col w-[300px] lg:w-[340px] bg-white border-l border-slate-200 shrink-0 overflow-hidden">
+                <div className="hidden md:flex flex-col w-[280px] lg:w-[320px] bg-white border-l border-slate-200 shrink-0 overflow-hidden">
                     <CartContent
                         cart={cart}
                         total={cartTotal}
@@ -998,6 +1001,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     </div>
                 </div>
             )}
+        </div>
         </div>
     );
 }
