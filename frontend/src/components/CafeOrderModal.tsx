@@ -587,389 +587,405 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     return (
         <div
-            className="fixed inset-0 z-[110] bg-slate-950/65 backdrop-blur-sm flex flex-col justify-end md:justify-center animate-in fade-in duration-200"
-            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+            className="fixed inset-0 z-[110] bg-white flex flex-col"
+            style={{ contain: 'strict' }}
         >
-            {/* Modal Sheet Container - Stopped comfortably below Dynamic Island / Status Bar on Mobile */}
-            <div className="flex flex-col w-full h-[82vh] max-h-[calc(100vh-max(3.75rem,env(safe-area-inset-top)+1.5rem))] md:h-[88vh] md:w-[94vw] lg:w-[92vw] xl:w-[88vw] md:m-auto bg-slate-50 rounded-t-[2.25rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-200/80 animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 relative">
+            {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
+            {isSubmitting && (
+                <div className="absolute inset-0 z-[9000] bg-slate-900/80 flex flex-col items-center justify-center gap-6">
+                    <div className="w-16 h-16 border-4 border-slate-600 border-t-white rounded-full animate-spin" />
+                    <div className="flex flex-col items-center gap-1.5 text-center">
+                        <p className="text-white font-black uppercase tracking-[0.2em] text-base">Mengirim Pesanan...</p>
+                        <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest">Memproses ke dapur</p>
+                    </div>
+                </div>
+            )}
 
-                {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
-                {isSubmitting && (
-                    <div className="absolute inset-0 z-[9000] bg-slate-900/70 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
-                        <div className="relative">
-                            <div className="w-20 h-20 border-4 border-indigo-400/30 border-t-indigo-500 rounded-full animate-spin shadow-2xl" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <Utensils className="w-8 h-8 text-indigo-400 animate-pulse" />
+            {/* ── LOW BALANCE WARNING OVERLAY ───────────────────────────── */}
+            {lowBalanceWarning?.show && (
+                <div className="absolute inset-0 z-[9000] bg-slate-900/80 flex flex-col items-center justify-center p-6">
+                    <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden border border-slate-200">
+                        <div className="bg-rose-50 p-6 flex flex-col items-center text-center border-b border-rose-100">
+                            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mb-4 border border-rose-100">
+                                <AlertTriangle className="w-7 h-7 text-rose-600" />
+                            </div>
+                            <h3 className="text-lg font-black text-rose-600 tracking-tight uppercase mb-1">Peringatan Saldo Kritis!</h3>
+                            <p className="text-xs font-semibold text-rose-800 leading-relaxed">
+                                Pesanan sebesar <strong className="text-rose-950 font-black">Rp {lowBalanceWarning.cartTotal.toLocaleString()}</strong> akan mengurangi saldo member secara signifikan.
+                            </p>
+                        </div>
+                        <div className="p-4 space-y-2 bg-slate-50">
+                            <div className="flex justify-between items-center p-3 bg-white rounded-xl border border-slate-200">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Sisa Saldo Akhir</span>
+                                <span className="text-sm font-black text-slate-900 tabular-nums">Rp {lowBalanceWarning.newBalance.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-3 bg-rose-50 rounded-xl border border-rose-200">
+                                <span className="text-[10px] font-black uppercase text-rose-600 tracking-wider">Estimasi Sisa Main</span>
+                                <span className="text-sm font-black text-rose-700 tabular-nums">Sisa {lowBalanceWarning.remainingMinutes} Menit</span>
                             </div>
                         </div>
-                        <div className="flex flex-col items-center gap-1.5 text-center">
-                            <p className="text-white font-black uppercase tracking-[0.25em] text-lg">Mengirim Pesanan...</p>
-                            <p className="text-slate-300 text-xs font-semibold uppercase tracking-widest">Sistem POS sedang memproses ke dapur</p>
+                        <div className="p-4 grid gap-2 border-t border-slate-100">
+                            <button
+                                onClick={() => { window.open(`/admin/members`, '_blank'); setLowBalanceWarning(null); }}
+                                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Top-Up Saldo Member
+                            </button>
+                            <button
+                                onClick={() => { setLowBalanceWarning({ ...lowBalanceWarning, show: false }); handleCheckout(true); }}
+                                className="w-full py-3 bg-slate-100 text-slate-800 rounded-xl text-xs font-black uppercase tracking-widest border border-slate-200"
+                            >
+                                Lanjutkan Pesanan (Tempo)
+                            </button>
+                            <button
+                                onClick={() => setLowBalanceWarning(null)}
+                                className="w-full py-3 bg-white text-rose-600 rounded-xl text-xs font-black uppercase tracking-widest border border-rose-200"
+                            >
+                                Batal Order
+                            </button>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
 
-                {/* ── LOW BALANCE WARNING OVERLAY ───────────────────────────── */}
-                {lowBalanceWarning?.show && (
-                    <div className="absolute inset-0 z-[9000] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
-                        <div className="bg-white rounded-[2rem] max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
-                            <div className="bg-rose-50 p-6 flex flex-col items-center text-center border-b border-rose-100">
-                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20 mb-4 border border-rose-100">
-                                    <AlertTriangle className="w-8 h-8 text-rose-600" />
-                                </div>
-                                <h3 className="text-xl font-black text-rose-600 tracking-tight uppercase mb-1">Peringatan Saldo Kritis!</h3>
-                                <p className="text-xs font-semibold text-rose-800 leading-relaxed">
-                                    Pesanan makanan sebesar <strong className="text-rose-950 font-black">Rp {lowBalanceWarning.cartTotal.toLocaleString()}</strong> akan mengurangi saldo member secara signifikan.
-                                </p>
-                            </div>
-                            <div className="p-6 space-y-3 bg-slate-50">
-                                <div className="flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
-                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Sisa Saldo Akhir</span>
-                                    <span className="text-base font-black text-slate-900 tabular-nums">Rp {lowBalanceWarning.newBalance.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center p-4 bg-rose-100/60 rounded-2xl border border-rose-200 shadow-2xs">
-                                    <span className="text-[10px] font-black uppercase text-rose-600 tracking-wider">Estimasi Sisa Main</span>
-                                    <span className="text-base font-black text-rose-700 animate-pulse tabular-nums">Sisa {lowBalanceWarning.remainingMinutes} Menit</span>
-                                </div>
-                            </div>
-                            <div className="p-4 bg-white grid gap-2.5 border-t border-slate-100">
-                                <button
-                                    onClick={() => {
-                                        window.open(`/admin/members`, '_blank');
-                                        setLowBalanceWarning(null);
-                                    }}
-                                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Top-Up Saldo Member
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setLowBalanceWarning({ ...lowBalanceWarning, show: false });
-                                        handleCheckout(true);
-                                    }}
-                                    className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-slate-200"
-                                >
-                                    Lanjutkan Pesanan (Tempo)
-                                </button>
-                                <button
-                                    onClick={() => setLowBalanceWarning(null)}
-                                    className="w-full py-3 bg-white hover:bg-rose-50 text-rose-600 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-rose-200"
-                                >
-                                    Batal Order
-                                </button>
-                            </div>
+            {/* ── HEADER BAR ────────────────────────────────────────────── */}
+            <div className="shrink-0 bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
+                        <Utensils className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-base font-black text-white tracking-tight">Menu Pesanan</h2>
+                            <span className="bg-indigo-500 text-white px-2 py-0.5 rounded-lg text-[9px] font-black tracking-wider uppercase">
+                                {tableName || `Meja ${tableId}`}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400' : connectionStatus === 'connecting' ? 'bg-amber-400' : 'bg-rose-400'}`} />
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-400' : connectionStatus === 'connecting' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                {connectionStatus === 'connected' ? 'LIVE SYSTEM' : connectionStatus === 'connecting' ? 'WAIT' : 'OFFLINE'}
+                            </span>
                         </div>
                     </div>
-                )}
-
-                {/* ── MOBILE ELEGANT DRAG HANDLE ────────────────────────────── */}
-                <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0 bg-white sticky top-0 z-[40]">
-                    <div className="w-11 h-1 bg-slate-300/90 rounded-full" />
                 </div>
 
-                {/* ── HEADER ────────────────────────────────────────────────── */}
-                <div className="bg-white px-3.5 sm:px-5 pt-1 pb-2.5 md:pt-4 md:pb-4 border-b border-slate-200/80 shrink-0 z-30 sticky top-0">
-                    <div className="flex justify-between items-center gap-2">
-                        <div className="flex flex-col flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 flex items-center justify-center shadow-md shadow-slate-900/10 shrink-0 border border-slate-800">
-                                    <Utensils className="w-4 h-4 text-indigo-300" />
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                        <h2 className="text-sm sm:text-base md:text-2xl font-black text-slate-900 tracking-tight truncate">
-                                            Menu Pesanan
-                                        </h2>
-                                        <div className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg text-[9px] md:text-xs font-black tracking-wider uppercase border border-indigo-100 shrink-0">
-                                            {tableName || `Meja ${tableId}`}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
-                                        <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-rose-600'}`}>
-                                            {connectionStatus === 'connected' ? 'LIVE SYSTEM' : connectionStatus === 'connecting' ? 'WAIT' : 'OFFLINE'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Member Balance Metrics */}
-                            {isMemberSession && (
-                                <div className="flex overflow-x-auto no-scrollbar gap-1.5 mt-2 pt-2 border-t border-slate-100 -mx-1 px-1">
-                                    <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80 shrink-0">
-                                        <CreditCard className="w-3 h-3 text-slate-400" />
-                                        <div className="flex flex-col">
-                                            <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Saldo</span>
-                                            <span className="text-[11px] font-black text-slate-800 tabular-nums">
-                                                Rp {totalMemberBalance.toLocaleString('id-ID')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-1.5 bg-rose-50/60 px-2.5 py-1 rounded-xl border border-rose-100 shrink-0">
-                                        <Receipt className="w-3 h-3 text-rose-400" />
-                                        <div className="flex flex-col">
-                                            <span className="text-[7px] font-black text-rose-400 uppercase tracking-wider">Tagihan</span>
-                                            <span className="text-[11px] font-black text-rose-600 tabular-nums">
-                                                Rp {currentTableLiability.toLocaleString('id-ID')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border shrink-0 transition-all ${remainingBalance < 50000 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-slate-900 border-slate-800 text-white shadow-2xs'}`}>
-                                        <ShieldCheck className={`w-3 h-3 ${remainingBalance < 50000 ? 'text-rose-500' : 'text-indigo-400'}`} />
-                                        <div className="flex flex-col">
-                                            <span className={`text-[7px] font-black uppercase tracking-wider ${remainingBalance < 50000 ? 'text-rose-400' : 'text-slate-400'}`}>
-                                                Sisa Budget
-                                            </span>
-                                            <span className="text-[11px] font-black tabular-nums">
-                                                Rp {Math.max(0, remainingBalance).toLocaleString('id-ID')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {cartTotal > 0 && (
-                                        <div className="flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/80 shrink-0">
-                                            <Sparkles className="w-3 h-3 text-emerald-500" />
-                                            <div className="flex flex-col">
-                                                <span className="text-[7px] font-black text-emerald-600 uppercase tracking-wider">Estimasi</span>
-                                                <span className={`text-[11px] font-black tabular-nums ${remainingBalance < estimatedCartTotal ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                                    Rp {estimatedCartTotal.toLocaleString('id-ID')}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                <div className="flex items-center gap-2">
+                    {/* Member Balance */}
+                    {isMemberSession && (
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border shrink-0 ${remainingBalance < 50000 ? 'bg-rose-900 border-rose-700 text-rose-300' : 'bg-slate-800 border-slate-700 text-white'}`}>
+                            <CreditCard className="w-3.5 h-3.5 opacity-70" />
+                            <span className="text-[10px] font-black tabular-nums">Rp {remainingBalance.toLocaleString()}</span>
                         </div>
+                    )}
+                    <button
+                        onClick={onClose}
+                        className="w-9 h-9 bg-slate-800 hover:bg-slate-700 rounded-xl flex items-center justify-center border border-slate-700"
+                    >
+                        <X className="w-4 h-4 text-slate-300" />
+                    </button>
+                </div>
+            </div>
 
-                        {/* Top Action Controls */}
-                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                            <button
-                                onClick={() => { fetchAvailability(); fetchIngredients(); fetchMenu(); }}
-                                className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-500 transition-all active:scale-95 border border-slate-200/60"
-                                title="Refresh Menu"
-                            >
-                                <Clock className={`w-3.5 h-3.5 transition-transform ${loading ? 'animate-spin' : ''}`} />
-                            </button>
-                            <button
-                                onClick={onClose}
-                                className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-slate-100 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-slate-500 shrink-0 transition-all active:scale-95 border border-slate-200/60"
-                            >
-                                <X className="w-3.5 h-3.5" />
-                            </button>
-                        </div>
+            {/* Member balance row (mobile) */}
+            {isMemberSession && (
+                <div className="shrink-0 bg-slate-800 px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar border-b border-slate-700">
+                    <div className="flex items-center gap-1.5 bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-600 shrink-0">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Saldo</span>
+                        <span className="text-[10px] font-black text-white tabular-nums">Rp {totalMemberBalance.toLocaleString('id-ID')}</span>
                     </div>
+                    <div className="flex items-center gap-1.5 bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-600 shrink-0">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Tagihan</span>
+                        <span className="text-[10px] font-black text-amber-400 tabular-nums">Rp {currentTableLiability.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border shrink-0 ${remainingBalance < 50000 ? 'bg-rose-900 border-rose-700' : 'bg-slate-700 border-slate-600'}`}>
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Sisa</span>
+                        <span className={`text-[10px] font-black tabular-nums ${remainingBalance < 50000 ? 'text-rose-300' : 'text-emerald-400'}`}>Rp {remainingBalance.toLocaleString()}</span>
+                    </div>
+                </div>
+            )}
 
-                    {/* Filter & Search Bar */}
-                    <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-center mt-2.5 pt-2 border-t border-slate-100">
-                        {/* Horizontal Categories */}
-                        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1 flex-1">
-                            {categories.map(cat => {
-                                const isActive = activeCategory === cat.id;
+            {/* ── CATEGORY TABS ─────────────────────────────────────────── */}
+            <div className="shrink-0 bg-white border-b border-slate-200 px-3 py-2">
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                    {[{ id: 'ALL', name: 'Semua Menu' }, { id: 'BUNDLING', name: 'Paket Bundling' }, ...categories].map((cat: any) => {
+                        const isActive = activeCategory === cat.id;
+                        return (
+                            <button
+                                key={cat.id}
+                                onClick={() => setActiveCategory(cat.id)}
+                                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wide border whitespace-nowrap ${
+                                    isActive
+                                        ? 'bg-slate-900 text-white border-slate-900'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                                }`}
+                            >
+                                {cat.id === 'ALL' ? <Sparkles className="w-3 h-3" /> : cat.id === 'BUNDLING' ? <Tag className="w-3 h-3" /> : getCategoryIcon(cat.name)}
+                                {cat.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* ── SEARCH BAR ────────────────────────────────────────────── */}
+            <div className="shrink-0 bg-white border-b border-slate-100 px-3 py-2">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder="Cari menu favorit..."
+                        className="w-full pl-9 pr-9 py-2.5 bg-slate-100 rounded-xl text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-[9px] font-bold"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* ── BODY (MENU GRID + DESKTOP SIDEBAR) ────────────────────── */}
+            <div className="flex flex-1 min-h-0 bg-slate-100">
+                {/* Menu Grid - using flexbox instead of CSS Grid for Android GPU stability */}
+                <div
+                    className="flex-1 overflow-y-auto p-3 no-scrollbar"
+                    style={{ contain: 'layout paint', overscrollBehavior: 'none' }}
+                >
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
+                            <div className="w-8 h-8 border-4 border-slate-300 border-t-slate-800 rounded-full" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Memuat Menu...</span>
+                        </div>
+                    ) : filteredMenu.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full gap-2 py-20">
+                            <Utensils className="w-10 h-10 text-slate-300 stroke-[1.5px]" />
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tidak ada menu ditemukan</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {filteredMenu.map((item: any) => {
+                                const qty = cart.find(c => c.id === item.id)?.quantity || 0;
+                                const inCart = qty > 0;
+                                const isDiscounted = item.isDiscountActive && item.discountPrice !== null;
+                                const itemPrice = isDiscounted ? Number(item.discountPrice) : Number(item.price);
+                                const originalPrice = Number(item.price);
+                                const isPromo = !!item.isPromo;
+                                const itemStock = getItemStock(item);
+                                const isOutOfStock = itemStock <= 0;
+                                const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
+                                const theme = getCategoryTheme(catName);
+                                const estimatedIfAdded = (() => { const s = itemPrice; const scPct = financeSettings.serviceChargePercentage / 100; const vPct = financeSettings.ppnPercentage / 100; const sc2 = Math.round(s * scPct); const v2 = Math.round((s + sc2) * vPct); return s + sc2 + v2; })();
+                                const isTooExpensive = isMemberSession && (estimatedCartTotal + estimatedIfAdded) > remainingBalance && qty === 0;
+
                                 return (
                                     <button
-                                        key={cat.id}
-                                        onClick={() => setActiveCategory(cat.id)}
-                                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${isActive
-                                            ? 'bg-slate-900 text-white shadow-xs scale-[1.02]'
-                                            : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 shadow-2xs'
+                                        key={item.id}
+                                        disabled={isOutOfStock || isTooExpensive}
+                                        onClick={() => addToCart(item)}
+                                        style={{ width: 'calc(50% - 4px)', flexShrink: 0 }}
+                                        className={`flex flex-col justify-between text-left border p-2.5 rounded-lg ${isOutOfStock || isTooExpensive
+                                            ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed'
+                                            : inCart
+                                                ? 'bg-indigo-50 border-2 border-indigo-500'
+                                                : 'bg-white border-slate-200'
                                             }`}
                                     >
-                                        <span className={isActive ? 'text-indigo-400' : 'text-slate-400'}>{cat.icon}</span>
-                                        <span>{cat.label}</span>
+                                        {/* Header: Category Badge & Stock */}
+                                        <div className="flex justify-between items-center w-full min-w-0 mb-1.5 gap-1 overflow-hidden">
+                                            <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tight border min-w-0 shrink ${theme.badge}`}>
+                                                {isPromo ? <Tag className="w-2.5 h-2.5 text-amber-600 shrink-0" /> : getCategoryIcon(catName)}
+                                                <span className="truncate max-w-[65px]">{isPromo ? 'BUNDLING' : catName || 'MENU'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                {isOutOfStock ? (
+                                                    <span className="bg-rose-50 text-rose-600 text-[7px] font-black px-1.5 py-0.5 rounded-md border border-rose-200 uppercase">HABIS</span>
+                                                ) : isTooExpensive ? (
+                                                    <span className="bg-rose-100 text-rose-700 text-[7px] font-black px-1.5 py-0.5 rounded-md uppercase">SALDO</span>
+                                                ) : (
+                                                    <div className={`px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase tabular-nums shrink-0 ${Number(itemStock) < 10 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
+                                                        STK: {itemStock}
+                                                    </div>
+                                                )}
+                                                {inCart && (
+                                                    <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md border border-indigo-500 shrink-0">
+                                                        {qty}x
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Item Name */}
+                                        <div className="min-h-[2.25rem] my-1 flex items-center">
+                                            <h4 className="text-xs font-bold text-slate-900 leading-tight line-clamp-2">
+                                                {item.name}
+                                            </h4>
+                                        </div>
+
+                                        {/* Price & Add Button */}
+                                        <div className="flex items-center justify-between mt-1.5 pt-2 border-t border-slate-100 gap-1">
+                                            <div className="flex flex-col justify-center min-w-0">
+                                                {isDiscounted ? (
+                                                    <>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[7px] font-black text-rose-500 uppercase bg-rose-50 px-1 py-0.5 rounded-sm">PROMO</span>
+                                                            <span className="text-[8px] font-bold text-slate-400 line-through tabular-nums truncate">Rp {originalPrice.toLocaleString('id-ID')}</span>
+                                                        </div>
+                                                        <span className="text-xs font-black text-emerald-600 tabular-nums">Rp {itemPrice.toLocaleString('id-ID')}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-[7px] font-black text-slate-400 uppercase">Rp</span>
+                                                        <span className="text-xs font-black text-slate-900 tabular-nums truncate">{itemPrice.toLocaleString('id-ID')}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${inCart ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                                <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                            </div>
+                                        </div>
+
+                                        {/* Recipe toggle */}
+                                        {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
+                                            <div className="mt-1.5 pt-1.5 border-t border-dashed border-slate-200">
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); } }}
+                                                    className="flex items-center gap-1 text-[8px] font-black uppercase text-slate-400 hover:text-slate-600 tracking-wider cursor-pointer"
+                                                >
+                                                    <Info className="w-3 h-3 text-slate-400" />
+                                                    {showRecipeId === item.id ? 'Tutup Detail' : 'Stok Bahan'}
+                                                </div>
+                                                {showRecipeId === item.id && (
+                                                    <div className="mt-1 rounded-lg p-1.5 bg-slate-50 border border-slate-200 text-[8px] font-bold space-y-0.5">
+                                                        {item.recipes.map((re: any, idx: number) => {
+                                                            const ing = ingredients.find(i => i.id === re.ingredientId);
+                                                            const currentStock = ing ? Number(ing.stockQuantity) : 0;
+                                                            const isLow = currentStock < (Number(re.quantity) * 5);
+                                                            return (
+                                                                <div key={idx} className="flex justify-between items-center text-slate-600">
+                                                                    <span className="uppercase truncate max-w-[80px]">{re.ingredient?.name || 'Bahan'}:</span>
+                                                                    <span className={`tabular-nums font-black ${isLow ? 'text-rose-600' : 'text-slate-800'}`}>
+                                                                        {currentStock.toFixed(1)} {re.ingredient?.unit || re.unit}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Promo items preview */}
+                                        {isPromo && item.items?.length > 0 && (
+                                            <div className="mt-1.5 pt-1 border-t border-dashed border-slate-200 flex flex-wrap gap-1">
+                                                {item.items.slice(0, 2).map((sub: any, idx: number) => (
+                                                    <span key={idx} className="px-1 py-0.5 rounded bg-slate-100 text-slate-600 text-[7px] font-bold">
+                                                        {sub.quantity}x {sub.name}
+                                                    </span>
+                                                ))}
+                                                {item.items.length > 2 && <span className="text-[7px] text-slate-400 font-bold">+{item.items.length - 2}</span>}
+                                            </div>
+                                        )}
                                     </button>
                                 );
                             })}
                         </div>
-
-                        {/* Search Bar Input */}
-                        <div className="relative w-full md:w-[240px] shrink-0">
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Cari menu favorit..."
-                                className="w-full pl-8 pr-7 py-2 bg-slate-100/90 border border-slate-200 focus:bg-white focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/10 rounded-xl text-xs font-bold text-slate-900 placeholder:text-slate-400 transition-all outline-none"
-                            />
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                            {searchQuery && (
-                                <button
-                                    onClick={() => setSearchQuery('')}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-300 text-slate-700 flex items-center justify-center text-[9px] font-bold hover:bg-slate-400"
-                                >
-                                    ✕
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                    )}
                 </div>
 
-                {/* ── BODY (MENU GRID & DESKTOP CART SIDEBAR) ───────────────── */}
-                <div className="flex flex-1 min-h-0 overflow-hidden bg-slate-100/60">
-                    {/* Menu Area Grid */}
-                    <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 sm:p-4 md:p-6 no-scrollbar">
-                        {loading ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-2.5 text-slate-400 py-16">
-                                <div className="animate-spin rounded-full h-9 w-9 border-[3px] border-slate-200 border-t-slate-900" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Memuat Menu...</span>
+                {/* Desktop Cart Sidebar */}
+                <div className="hidden md:flex flex-col w-[300px] lg:w-[340px] bg-white border-l border-slate-200 shrink-0 overflow-hidden">
+                    <CartContent
+                        cart={cart}
+                        total={cartTotal}
+                        updateQuantity={updateQuantity}
+                        updateNote={updateNote}
+                        onCheckout={handleCheckout}
+                        isBalanceInsufficient={isBalanceInsufficient}
+                        potentialBalance={remainingBalance}
+                        scPercent={financeSettings.serviceChargePercentage}
+                        vatPercent={financeSettings.ppnPercentage}
+                        scAmount={estimatedSC}
+                        vatAmount={estimatedVAT}
+                        grandEstimate={estimatedCartTotal}
+                        isSubmitting={isSubmitting}
+                    />
+                </div>
+            </div>
+
+            {/* ── MOBILE BOTTOM BAR ─────────────────────────────────────── */}
+            <div className="md:hidden shrink-0 bg-white border-t border-slate-200 px-3 pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))]">
+                {cart.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setIsCartOpen(true)}
+                            className="flex items-center gap-2.5 flex-1 h-12 bg-slate-100 border border-slate-200 rounded-xl px-3 min-w-0"
+                        >
+                            <div className="relative shrink-0">
+                                <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                                    <ShoppingBag className="w-4 h-4 text-slate-800" />
+                                </div>
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-indigo-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white">
+                                    {totalItems}
+                                </span>
                             </div>
-                        ) : filteredMenu.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full gap-2 text-slate-400 py-16">
-                                <Utensils className="w-10 h-10 text-slate-300 stroke-[1.5px]" />
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tidak ada menu ditemukan</p>
+
+                            <div className="flex-1 text-left min-w-0 flex flex-col justify-center">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">TOTAL ESTIMASI</p>
+                                <p className="text-sm font-black text-slate-900 tabular-nums leading-tight mt-0.5">Rp {estimatedCartTotal.toLocaleString('id-ID')}</p>
                             </div>
-                        ) : (
-                            <div className={activeCategory === 'BUNDLING' ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3" : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3"}>
-                                {filteredMenu.map((item: any) => {
-                                    const qty = cart.find(c => c.id === item.id)?.quantity || 0;
-                                    const inCart = qty > 0;
-                                    const isDiscounted = item.isDiscountActive && item.discountPrice !== null;
-                                    const itemPrice = isDiscounted ? Number(item.discountPrice) : Number(item.price);
-                                    const originalPrice = Number(item.price);
-                                    const isPromo = !!item.isPromo;
-                                    const itemStock = getItemStock(item);
-                                    const isOutOfStock = itemStock <= 0;
+                            <ChevronDown className="w-4 h-4 text-slate-500 rotate-180 shrink-0" />
+                        </button>
 
-                                    const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
-                                    const theme = getCategoryTheme(catName);
-
-                                    const estimatedIfAdded = (() => { const s = itemPrice; const scPct = financeSettings.serviceChargePercentage / 100; const vPct = financeSettings.ppnPercentage / 100; const sc2 = Math.round(s * scPct); const v2 = Math.round((s + sc2) * vPct); return s + sc2 + v2; })();
-                                    const isTooExpensive = isMemberSession && (estimatedCartTotal + estimatedIfAdded) > remainingBalance && qty === 0;
-
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            disabled={isOutOfStock || isTooExpensive}
-                                            onClick={() => addToCart(item)}
-                                            className={`group relative flex flex-col justify-between w-full text-left rounded-2xl transition-all duration-200 overflow-hidden border p-2.5 sm:p-3 ${isOutOfStock || isTooExpensive
-                                                ? 'bg-slate-100/70 border-slate-200/60 opacity-60 cursor-not-allowed'
-                                                : inCart
-                                                    ? 'bg-indigo-50/60 border-2 border-indigo-600 shadow-md ring-2 ring-indigo-600/10 -translate-y-0.5'
-                                                    : 'bg-white border-slate-200/80 hover:border-indigo-400 hover:shadow-md hover:-translate-y-0.5'
-                                                }`}
-                                        >
-                                            {/* Header Row: Category Badge & Stock */}
-                                            <div className="flex justify-between items-center w-full min-w-0 mb-1.5 gap-1 overflow-hidden">
-                                                <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-black uppercase tracking-tight border min-w-0 shrink ${theme.badge}`}>
-                                                    {isPromo ? <Tag className="w-2.5 h-2.5 text-amber-600 shrink-0" /> : getCategoryIcon(catName)}
-                                                    <span className="truncate max-w-[65px] sm:max-w-[85px]">{isPromo ? 'BUNDLING' : catName || 'MENU'}</span>
-                                                </div>
-
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    {isOutOfStock ? (
-                                                        <span className="bg-rose-50 text-rose-600 text-[7px] font-black px-1.5 py-0.5 rounded-md border border-rose-200 uppercase">HABIS</span>
-                                                    ) : isTooExpensive ? (
-                                                        <span className="bg-rose-100 text-rose-700 text-[7px] font-black px-1.5 py-0.5 rounded-md uppercase">SALDO</span>
-                                                    ) : (
-                                                        <div className={`px-1.5 py-0.5 rounded-md border text-[8px] font-black uppercase tabular-nums shrink-0 ${Number(itemStock) < 10 ? 'bg-amber-50 border-amber-200 text-amber-700 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-500'}`}>
-                                                            STK: {itemStock}
-                                                        </div>
-                                                    )}
-
-                                                    {inCart && (
-                                                        <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-xs border border-indigo-500 animate-in zoom-in-75 duration-150 shrink-0">
-                                                            {qty}x
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Item Title */}
-                                            <div className="min-h-[2.25rem] my-1 flex items-center">
-                                                <h4 className="text-xs font-bold text-slate-900 leading-tight line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                                                    {item.name}
-                                                </h4>
-                                            </div>
-
-                                            {/* Price & Add Action Row */}
-                                            <div className="flex items-center justify-between mt-1.5 pt-2 border-t border-slate-100 gap-1">
-                                                <div className="flex flex-col justify-center min-w-0">
-                                                    {isDiscounted ? (
-                                                        <>
-                                                            <div className="flex items-center gap-1">
-                                                                <span className="text-[7px] font-black text-rose-500 uppercase leading-none bg-rose-50 px-1 py-0.5 rounded-sm">PROMO</span>
-                                                                <span className="text-[8px] font-bold text-slate-400 line-through tabular-nums truncate">Rp {originalPrice.toLocaleString('id-ID')}</span>
-                                                            </div>
-                                                            <div className="flex items-end mt-0.5">
-                                                                <span className="text-[7px] font-black text-emerald-600 uppercase leading-none mb-0.5 mr-0.5">Rp</span>
-                                                                <span className="text-xs sm:text-sm font-black text-emerald-600 tracking-tight tabular-nums leading-none truncate">{itemPrice.toLocaleString('id-ID')}</span>
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <span className="text-[7px] font-black text-slate-400 uppercase leading-none">Rp</span>
-                                                            <span className="text-xs sm:text-sm font-black text-slate-900 tracking-tight tabular-nums leading-tight mt-0.5 truncate">{itemPrice.toLocaleString('id-ID')}</span>
-                                                        </>
-                                                    )}
-                                                </div>
-
-                                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${inCart ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105' : 'bg-slate-100 group-hover:bg-indigo-600 group-hover:text-white text-slate-700'}`}>
-                                                    <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={2.5} />
-                                                </div>
-                                            </div>
-
-                                            {/* Recipe / Ingredient Breakdown Toggle */}
-                                            {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
-                                                <div className="mt-1.5 pt-1.5 border-t border-dashed border-slate-200">
-                                                    <div
-                                                        role="button"
-                                                        tabIndex={0}
-                                                        onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
-                                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); } }}
-                                                        className="flex items-center gap-1 text-[8px] font-black uppercase text-slate-400 hover:text-slate-600 tracking-wider transition-colors cursor-pointer"
-                                                    >
-                                                        <Info className="w-3 h-3 text-slate-400" />
-                                                        {showRecipeId === item.id ? 'Tutup Detail' : 'Stok Bahan'}
-                                                    </div>
-
-                                                    {showRecipeId === item.id && (
-                                                        <div className="mt-1 rounded-lg p-1.5 bg-slate-50 border border-slate-200 text-[8px] font-bold space-y-0.5">
-                                                            {item.recipes.map((re: any, idx: number) => {
-                                                                const ing = ingredients.find(i => i.id === re.ingredientId);
-                                                                const currentStock = ing ? Number(ing.stockQuantity) : 0;
-                                                                const isLow = currentStock < (Number(re.quantity) * 5);
-                                                                return (
-                                                                    <div key={idx} className="flex justify-between items-center text-slate-600">
-                                                                        <span className="uppercase truncate max-w-[80px]">{re.ingredient?.name || 'Bahan'}:</span>
-                                                                        <span className={`tabular-nums font-black ${isLow ? 'text-rose-600' : 'text-slate-800'}`}>
-                                                                            {currentStock.toFixed(1)} {re.ingredient?.unit || re.unit}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {/* Promo items preview */}
-                                            {isPromo && item.items?.length > 0 && (
-                                                <div className="mt-1.5 pt-1 border-t border-dashed border-slate-200 flex flex-wrap gap-1">
-                                                    {item.items.slice(0, 2).map((sub: any, idx: number) => (
-                                                        <span key={idx} className="px-1 py-0.5 rounded bg-slate-100 text-slate-600 text-[7px] font-bold">
-                                                            {sub.quantity}x {sub.name}
-                                                        </span>
-                                                    ))}
-                                                    {item.items.length > 2 && <span className="text-[7px] text-slate-400 font-bold">+{item.items.length - 2}</span>}
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
+                        <button
+                            onClick={() => handleCheckout()}
+                            disabled={isBalanceInsufficient || isSubmitting}
+                            className={`shrink-0 h-12 px-5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 ${isBalanceInsufficient ? 'bg-rose-50 text-rose-600 border border-rose-200' : isSubmitting ? 'bg-slate-100 text-slate-300' : 'bg-indigo-600 text-white'}`}
+                        >
+                            {isSubmitting ? <Clock className="w-4 h-4" /> : isBalanceInsufficient ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                            <span>{isBalanceInsufficient ? 'KURANG' : 'LANJUT'}</span>
+                        </button>
                     </div>
+                ) : (
+                    <div className="h-12 flex items-center justify-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] bg-slate-100 rounded-xl border border-dashed border-slate-300">
+                        Pilih menu untuk memesan
+                    </div>
+                )}
+            </div>
 
-                    {/* Desktop Cart Sidebar View */}
-                    <div className="hidden md:flex flex-col w-[330px] lg:w-[360px] bg-white border-l border-slate-200/80 shrink-0 overflow-hidden relative shadow-lg">
+            {/* ── MOBILE CART DRAWER ────────────────────────────────────── */}
+            {isCartOpen && (
+                <div className="md:hidden absolute inset-0 z-[120] bg-white flex flex-col">
+                    <div className="bg-white px-4 pt-3 pb-2.5 flex items-center justify-between border-b border-slate-200">
+                        <button
+                            onClick={() => setIsCartOpen(false)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-slate-800 font-black text-[11px] uppercase tracking-wider"
+                        >
+                            <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+                            <span>Pilih Menu</span>
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                            <ShoppingCart className="w-4 h-4 text-indigo-600" />
+                            <span className="font-black text-slate-900 tracking-widest uppercase text-xs">KERANJANG</span>
+                        </div>
+                        <div className="w-[78px]" />
+                    </div>
+                    <div className="flex-1 flex flex-col min-h-0 bg-slate-50 overflow-hidden">
                         <CartContent
                             cart={cart}
                             total={cartTotal}
                             updateQuantity={updateQuantity}
                             updateNote={updateNote}
-                            onCheckout={handleCheckout}
+                            onCheckout={() => { setIsCartOpen(false); handleCheckout(); }}
                             isBalanceInsufficient={isBalanceInsufficient}
                             potentialBalance={remainingBalance}
                             scPercent={financeSettings.serviceChargePercentage}
@@ -981,92 +997,10 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                         />
                     </div>
                 </div>
-
-                {/* ── MOBILE BOTTOM FLOATING BAR (Optimized for iOS Safe Area) ── */}
-                <div className="md:hidden shrink-0 z-30 bg-white/95 border-t border-slate-200/80 px-3 sm:px-4 pt-2.5 pb-[max(16px,env(safe-area-inset-bottom))] shadow-[0_-10px_25px_rgba(0,0,0,0.08)] overflow-visible">
-                    {cart.length > 0 ? (
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setIsCartOpen(true)}
-                                className="flex items-center gap-2.5 flex-1 h-12 sm:h-13 bg-slate-100/80 hover:bg-slate-100 border border-slate-200/70 rounded-2xl px-3 transition-all active:scale-[0.98] min-w-0"
-                            >
-                                <div className="relative shrink-0">
-                                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white shadow-2xs border border-slate-200/60 flex items-center justify-center">
-                                        <ShoppingBag className="w-4 h-4 text-slate-800" />
-                                    </div>
-                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-indigo-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-xs">
-                                        {totalItems}
-                                    </span>
-                                </div>
-                                <div className="flex-1 text-left min-w-0 flex flex-col justify-center">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest truncate leading-none">TOTAL ESTIMASI</p>
-                                    <p className="text-xs sm:text-sm font-black text-slate-900 tabular-nums truncate leading-tight mt-0.5">Rp {estimatedCartTotal.toLocaleString('id-ID')}</p>
-                                </div>
-                                <div className="w-6 h-6 rounded-full bg-slate-200/60 flex items-center justify-center shrink-0 text-slate-600">
-                                    <ChevronDown className="w-3.5 h-3.5 rotate-180" />
-                                </div>
-                            </button>
-                            
-                            <button
-                                onClick={() => handleCheckout()}
-                                disabled={isBalanceInsufficient || isSubmitting}
-                                className={`shrink-0 h-12 sm:h-13 px-5 sm:px-6 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-md ${isBalanceInsufficient ? 'bg-rose-50 text-rose-600 border border-rose-200 shadow-none' : isSubmitting ? 'bg-slate-100 text-slate-300 shadow-none' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white shadow-indigo-600/25'}`}
-                            >
-                                {isSubmitting ? <Clock className="w-4 h-4 animate-spin" /> : isBalanceInsufficient ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                                <span>{isBalanceInsufficient ? 'KURANG' : 'LANJUT'}</span>
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="h-12 flex items-center justify-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                            Pilih menu untuk memesan
-                        </div>
-                    )}
-                </div>
-
-                {/* ── MOBILE CART DRAWER (BOUNDED WITHIN SHEET) ───────────── */}
-                {isCartOpen && (
-                    <div className="md:hidden absolute inset-0 z-[120] bg-white flex flex-col animate-in slide-in-from-right duration-250 rounded-t-[2.25rem]">
-                        <div 
-                            className="bg-white px-3.5 pt-3 pb-2.5 flex items-center justify-between border-b border-slate-200/80 shadow-2xs relative z-[130]" 
-                        >
-                            <button 
-                                onClick={() => setIsCartOpen(false)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-xl text-slate-800 font-black text-[11px] uppercase tracking-wider transition-all"
-                            >
-                                <ChevronDown className="w-3.5 h-3.5 rotate-90" />
-                                <span>Pilih Menu</span>
-                            </button>
-                            <div className="flex items-center gap-1.5">
-                                <ShoppingCart className="w-4 h-4 text-indigo-600" />
-                                <span className="font-black text-slate-900 tracking-widest uppercase text-xs">KERANJANG</span>
-                            </div>
-                            <div className="w-[78px]" />
-                        </div>
-                        <div className="flex-1 flex flex-col min-h-0 bg-slate-50 overflow-hidden relative z-[125]">
-                            <CartContent
-                                cart={cart}
-                                total={cartTotal}
-                                updateQuantity={updateQuantity}
-                                updateNote={updateNote}
-                                onCheckout={() => { setIsCartOpen(false); handleCheckout(); }}
-                                isBalanceInsufficient={isBalanceInsufficient}
-                                potentialBalance={remainingBalance}
-                                scPercent={financeSettings.serviceChargePercentage}
-                                vatPercent={financeSettings.ppnPercentage}
-                                scAmount={estimatedSC}
-                                vatAmount={estimatedVAT}
-                                grandEstimate={estimatedCartTotal}
-                                isSubmitting={isSubmitting}
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
+            )}
         </div>
     );
 }
-
-/* ── CART SIDEBAR CONTENT COMPONENT ───────────────────────────────────────── */
 function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBalanceInsufficient, potentialBalance, scPercent, vatPercent, scAmount, vatAmount, grandEstimate, isSubmitting }: any) {
     const hasKitchenItems = cart.some((item: any) => {
         const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';

@@ -16,7 +16,10 @@
 
 html {
   overscroll-behavior-y: none;
-  -webkit-overflow-scrolling: touch;
+  /* CRITICAL: Do NOT use -webkit-overflow-scrolling: touch
+     It creates separate GPU compositing layers for every scrollable
+     container which causes screen tearing on Android Mali/Adreno GPU
+     when the background (billiard timers) repaint every second. */
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none;  /* IE and Edge */
 }
@@ -35,13 +38,68 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
-/* FIX ANDROID TABLET GLITCH: Disable glassmorphism globally */
+/* ─── FIX ANDROID TABLET GPU GLITCH ────────────────────────────────────────
+   Root cause: Timer billiard meng-update DOM setiap detik → browser repaint
+   seluruh background → Android GPU harus recomposite modal di atasnya →
+   tearing/glitch pada layer yang overlap.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* 1. Matikan total glassmorphism / backdrop-blur */
 * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  /* Matikan will-change di semua elemen — mencegah GPU membuat terlalu banyak
+     compositing layer yang saling tumpang tindih */
+  will-change: auto !important;
+}
+
+/* 2. Modal overlay (fixed inset-0): isolasi total dari background repaints.
+      "contain: layout style paint" memberitahu browser bahwa TIDAK ADA
+      yang di luar elemen ini yang perlu direpaint ulang ketika isi di dalam
+      berubah. Ini adalah fix utama untuk tearing. */
+.fixed {
+  contain: layout style paint;
+}
+
+/* 3. Matikan SEMUA animasi — termasuk animate-spin pada loader,
+      animate-pulse pada indicator, dll. */
+* {
+  animation-play-state: paused !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0ms !important;
+}
+
+/* 4. Aktifkan kembali hanya animasi yang diperlukan untuk UX dasar
+      (transition warna tombol saja) */
+button, a, input, select, textarea {
+  transition-duration: 50ms !important;
+  transition-property: background-color, color, border-color, opacity !important;
+}
+
+/* 5. Cegah GPU compositing yang tidak perlu pada scroll container */
+[style*="overflow"], .overflow-auto, .overflow-y-auto,
+.overflow-scroll, .overflow-y-scroll {
+  -webkit-overflow-scrolling: auto !important;
+}
+
+
+
+/* ─── FIX ANDROID SCROLLABLE CONTAINER TEARING ─────────────────────────────
+   CSS Grid di dalam overflow-y:scroll pada Android WebView menyebabkan GPU
+   tearing karena browser membuat compositing layer terpisah untuk scrolling.
+   Solusi: gunakan overscroll-behavior:none dan contain:layout paint.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Semua element scrollable: matikan overscroll bounce yang membutuhkan
+   GPU compositing layer tambahan */
+* {
+  overscroll-behavior: none;
 }
 
 /* FIX IOS SAFARI DATE & TIME INPUT OVERFLOW & VERTICAL ALIGNMENT */
+
 input[type="date"],
 input[type="time"] {
   min-width: 0 !important;

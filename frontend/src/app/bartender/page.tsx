@@ -742,7 +742,7 @@ export default function BartenderPage() {
 
             {/* CANCELLATION REQUEST MODAL (DANGER) */}
             {cancellationAlert && (
-                <div className="fixed inset-0 z-[210] bg-red-950/90 backdrop-blur-2xl flex items-center justify-center p-4 overscroll-contain">
+                <div className="fixed inset-0 z-[210] bg-red-950/90  flex items-center justify-center p-4 overscroll-contain">
                     <div className="bg-slate-900 border-2 md:border-4 border-red-500 rounded-3xl md:rounded-[3rem] p-6 md:p-10 max-w-2xl w-full text-center shadow-[0_0_60px_rgba(239,68,68,0.4)] relative overflow-hidden animate-bounce-slow">
                         {/* Red Pulse Overlay */}
                         <div className="absolute inset-0 bg-red-600/10 md:bg-red-600/20 animate-pulse"></div>
@@ -817,7 +817,7 @@ export default function BartenderPage() {
 
             {/* NEW ORDER MODAL */}
             {newOrderAlert && (
-                <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
+                <div className="fixed inset-0 z-[200] bg-slate-950/90  flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
                     <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
                         <div className="absolute inset-0 bg-amber-600/10 animate-pulse"></div>
                         <div className="relative z-10 space-y-8">
@@ -870,7 +870,7 @@ export default function BartenderPage() {
             )}
 
             {/* Header */}
-            <header className="fixed top-0 left-0 right-0 h-16 md:h-20 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
+            <header className="fixed top-0 left-0 right-0 h-16 md:h-20 bg-slate-900/80  border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
                 <div className="flex items-center gap-2 md:gap-6">
                     <button
                         onClick={() => setIsSummaryOpen(!isSummaryOpen)}
@@ -943,7 +943,7 @@ export default function BartenderPage() {
             <div className="flex-1 overflow-hidden relative pt-16 md:pt-20 flex flex-row bg-[#020617]">
 
                 {/* AGGREGATION SIDEBAR */}
-                <aside className={`fixed z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-900/60 backdrop-blur-2xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'}`}>
+                <aside className={`fixed z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-900/60  border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'}`}>
                     {/* Header */}
                     <div className="p-6 md:p-8 border-b border-white/5 bg-white/[0.02] mt-16 lg:mt-0">
                         <div className="flex justify-between items-center mb-6">
@@ -1074,7 +1074,7 @@ export default function BartenderPage() {
                                         order.status === 'READY' ? 'bg-emerald-950/40 border-emerald-500/50' :
                                             order.status === 'MIXING' ? 'bg-amber-950/40 border-amber-500/50' :
                                                 'bg-slate-900/40 border-white/5 hover:border-amber-500/40'
-                                        } backdrop-blur-xl`}
+                                        } `}
                                 >
                                     <div className="p-6 md:p-8 flex flex-col h-full">
                                         {/* Card Header */}
@@ -1275,7 +1275,7 @@ export default function BartenderPage() {
 
             {/* History Panel Overlay */}
             <div className={`fixed inset-y-0 right-0 w-full md:w-[600px] lg:w-[700px] bg-slate-900 shadow-[0_0_100px_rgba(0,0,0,0.8)] z-[200] transform transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] border-l border-white/5 ${showHistory ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="h-full flex flex-col bg-slate-900/95 backdrop-blur-3xl">
+                <div className="h-full flex flex-col bg-slate-900/95 ">
                     <div className="p-8 border-b border-white/5 flex flex-col gap-6 bg-white/[0.02]">
                         <div className="flex justify-between items-center">
                             <h2 className="text-4xl font-black text-white flex items-center gap-4 tracking-tighter">
@@ -1400,7 +1400,7 @@ export default function BartenderPage() {
             </div>
 
             {/* Bottom Stats Bar */}
-            <div className="fixed bottom-0 left-0 right-0 bg-slate-900/40 backdrop-blur-3xl border-t border-white/5 p-4 md:p-6 z-[180] transition-all duration-500">
+            <div className="fixed bottom-0 left-0 right-0 bg-slate-900/40  border-t border-white/5 p-4 md:p-6 z-[180] transition-all duration-500">
                 <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex-1 flex justify-around items-center">
                         <div className="text-center group cursor-help transition-all hover:scale-110">

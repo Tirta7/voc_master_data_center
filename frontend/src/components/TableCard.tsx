@@ -435,7 +435,14 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
 
     useEffect(() => {
         if (table.status === TableStatus.IN_USE || table.status === TableStatus.WARNING) {
+            let tickCount = 0;
+            
             const updateTimerAndPrice = () => {
+                // Jangan update sama sekali jika halaman sedang tersembunyi
+                // (misalnya modal menu terbuka di atas) → kurangi beban GPU Android
+                if (document.hidden) return;
+                
+                tickCount++;
                 const now = new Date().getTime();
 
                 // ── Timer Logic ──────────────────────────────────────
@@ -450,11 +457,16 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
 
                 } else if (table.startTime) {
                     const start = new Date(table.startTime).getTime();
-                    const diff = now - start;
+                    const diff = Math.max(0, now - start);
                     const hours = Math.floor(diff / 3600000);
                     const mins = Math.floor((diff % 3600000) / 60000);
                     const secs = Math.floor((diff % 60000) / 1000);
                     setTimeLeft(`${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+
+                    // ── REAL-TIME BILLING: update hanya tiap 5 detik ──
+                    // Mengurangi re-render dari 60x/menit menjadi 12x/menit
+                    // untuk mencegah GPU tearing pada Android tablet
+                    if (tickCount % 5 !== 0) return;
 
                     // ── REAL-TIME BILLING (Open Session) ─────────────
                     // Hitung tagihan estimasi dari ratePerHour × elapsed time
@@ -480,7 +492,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                 let totalMins = 0;
                                 if (typeof rawDuration === 'string') {
                                     if (rawDuration.includes(':')) {
-                                        const parts = rawDuration.split(':').map(val => parseInt(val, 10) || 0);
+                                        const parts = rawDuration.split(':').map((val: string) => parseInt(val, 10) || 0);
                                         if (parts.length >= 2) {
                                             totalMins = (parts[0] * 60) + parts[1];
                                         }
@@ -531,8 +543,14 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
     }, [table.status, table.endTime, table.startTime, table.sessionType, table.activeTransaction, table.grandTotal]);
 
 
-    const theme = stateThemes[table.status] || stateThemes[TableStatus.MAINTENANCE];
-    const isDark = [TableStatus.IN_USE, TableStatus.WARNING, TableStatus.WAITING_PAYMENT].includes(table.status);
+    // Frontend Guard: Jika status meja masih aktif tapi transaksi sudah hilang (sudah dibayar/checkout),
+    // paksa status menjadi AVAILABLE untuk menghindari delay/kartu nyangkut.
+    const effectiveStatus = (
+        (table.status === TableStatus.IN_USE || table.status === TableStatus.WARNING || table.status === TableStatus.WAITING_PAYMENT) && !table.activeTransaction
+    ) ? TableStatus.AVAILABLE : table.status;
+
+    const theme = stateThemes[effectiveStatus] || stateThemes[TableStatus.MAINTENANCE];
+    const isDark = [TableStatus.IN_USE, TableStatus.WARNING, TableStatus.WAITING_PAYMENT].includes(effectiveStatus);
     const activeOrderItems = table.activeTransaction?.orderItems?.filter(i => i.status?.toUpperCase() !== 'CANCELLED') || [];
     const hasOrders = activeOrderItems.length > 0;
     const orderCount = activeOrderItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0) || 0;
@@ -551,14 +569,14 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
     const [effectiveBalance, setEffectiveBalance] = useState<number>(0);
 
     useEffect(() => {
-        if (table.status === TableStatus.AVAILABLE) {
+        if (effectiveStatus === TableStatus.AVAILABLE) {
             setCurrentTotal(0);
             setTimeLeft('--:--');
         }
-    }, [table.status]);
+    }, [effectiveStatus]);
 
     useEffect(() => {
-        if (isMember && (table.status === TableStatus.IN_USE || table.status === TableStatus.WARNING)) {
+        if (isMember && (effectiveStatus === TableStatus.IN_USE || effectiveStatus === TableStatus.WARNING)) {
             const bill = Number(table.grandTotal || 0);
             const paid = Number(table.activeTransaction?.paidAmount || 0);
             const bal = Number(member.balance || 0);
@@ -582,12 +600,12 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
         } else {
             setBalanceState('NORMAL');
         }
-    }, [isMember, member?.balance, table.grandTotal, table.activeTransaction?.paidAmount, table.status]);
+    }, [isMember, member?.balance, table.grandTotal, table.activeTransaction?.paidAmount, effectiveStatus]);
 
     // ═══════════════════════════════════════════════════════════════
     // MAINTENANCE STATE — Simple, muted card
     // ═══════════════════════════════════════════════════════════════
-    if (table.status === TableStatus.MAINTENANCE) {
+    if (effectiveStatus === TableStatus.MAINTENANCE) {
         return (
             <div className="relative bg-slate-50 rounded-2xl overflow-hidden border border-slate-200/80 h-full min-h-[200px] flex flex-col items-center justify-center opacity-60">
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -620,18 +638,18 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
             ${theme.card}
             ${isOffline ? 'opacity-70' : ''} 
             flex flex-col h-full
-            ${table.status === TableStatus.AVAILABLE ? 'hover:shadow-lg hover:shadow-slate-200/50 hover:-translate-y-0.5' : ''}
-            ${table.status === TableStatus.IN_USE ? 'shadow-lg shadow-slate-900/20' : ''}
-            ${table.status === TableStatus.WARNING ? 'shadow-lg shadow-amber-900/20' : ''}
-            ${table.status === TableStatus.WAITING_PAYMENT ? 'shadow-lg shadow-violet-900/20' : ''}
+            ${effectiveStatus === TableStatus.AVAILABLE ? 'hover:shadow-lg hover:shadow-slate-200/50 hover:-translate-y-0.5' : ''}
+            ${effectiveStatus === TableStatus.IN_USE ? 'shadow-lg shadow-slate-900/20' : ''}
+            ${effectiveStatus === TableStatus.WARNING ? 'shadow-lg shadow-amber-900/20' : ''}
+            ${effectiveStatus === TableStatus.WAITING_PAYMENT ? 'shadow-lg shadow-violet-900/20' : ''}
         `} style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}>
 
             {/* ─── Header ─── */}
             <div className={`px-4 py-3 flex justify-between items-center ${isDark ? 'border-b border-white/[0.06]' : 'border-b border-slate-100'}`}>
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${theme.dot} ${table.status === TableStatus.IN_USE ? 'animate-pulse' :
-                        table.status === TableStatus.WARNING ? 'animate-pulse' :
-                            table.status === TableStatus.WAITING_PAYMENT ? 'animate-pulse' : ''
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${theme.dot} ${effectiveStatus === TableStatus.IN_USE ? 'animate-pulse' :
+                        effectiveStatus === TableStatus.WARNING ? 'animate-pulse' :
+                            effectiveStatus === TableStatus.WAITING_PAYMENT ? 'animate-pulse' : ''
                         }`}></div>
                     <div className="flex flex-col min-w-0">
                         <span className={`text-sm font-extrabold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
@@ -670,7 +688,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
             </div>
 
             {/* ─── Balance Alerts ─── */}
-            {(balanceState !== 'NORMAL' || (table.status === TableStatus.WAITING_PAYMENT && isMember && effectiveBalance <= 5000)) && (
+            {(balanceState !== 'NORMAL' || (effectiveStatus === TableStatus.WAITING_PAYMENT && isMember && effectiveBalance <= 5000)) && (
                 <div className={`px-4 py-1.5 flex flex-wrap gap-1.5 ${isDark ? 'border-b border-white/[0.06]' : 'border-b border-slate-100'}`}>
                     {balanceState === 'URGENT' && (
                         <div className="bg-rose-500/20 text-rose-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 text-[8px] sm:text-[10px] font-bold border border-rose-500/20 animate-pulse">
@@ -684,7 +702,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                             SALDO TIPIS
                         </div>
                     )}
-                    {table.status === TableStatus.WAITING_PAYMENT && isMember && effectiveBalance <= 5000 && (
+                    {effectiveStatus === TableStatus.WAITING_PAYMENT && isMember && effectiveBalance <= 5000 && (
                         <div className="bg-rose-500/20 text-rose-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 text-[8px] sm:text-[10px] font-bold border border-rose-500/20">
                             <XCircle className="w-2.5 h-2.5" />
                             SALDO HABIS
@@ -695,7 +713,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
 
             {/* ─── Body ─── */}
             <div className="px-4 py-3 flex-1 flex flex-col gap-2.5">
-                {table.status === TableStatus.AVAILABLE ? (
+                {effectiveStatus === TableStatus.AVAILABLE ? (
                     /* ──── Available State: Clean billiard icon ──── */
                     <div className="flex-1 flex flex-col items-center justify-center py-6">
                         {/* SVG Billiard Table Top-View Icon */}
@@ -776,7 +794,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                     }`}>
                                     <Timer className="w-3 h-3" /> Durasi
                                 </p>
-                                <p className={`text-lg font-extrabold tabular-nums tracking-tight leading-none ${table.status === TableStatus.WARNING ? 'text-amber-400' :
+                                <p className={`text-lg font-extrabold tabular-nums tracking-tight leading-none ${effectiveStatus === TableStatus.WARNING ? 'text-amber-400' :
                                     isDark ? 'text-white' : 'text-slate-800'
                                     }`}>
                                     {timeLeft}
@@ -856,7 +874,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                 ACTION BAR — Proportional, consistent buttons
             ═══════════════════════════════════════════════════════ */}
             <div className={`p-3 pt-0 mt-auto ${isDark ? '' : ''}`}>
-                {table.status === TableStatus.AVAILABLE ? (
+                {effectiveStatus === TableStatus.AVAILABLE ? (
                     /* ── Available: Single full-width start button ── */
                     hasPermission('BILLIARD_START') && (
                         <button
@@ -877,7 +895,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                             MULAI
                         </button>
                     )
-                ) : table.status === TableStatus.WAITING_PAYMENT ? (
+                ) : effectiveStatus === TableStatus.WAITING_PAYMENT ? (
                     /* ── Billing: Payment actions ── */
                     <div className="space-y-1.5">
                         {selectedItemIds.length > 0 ? (
@@ -958,7 +976,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                         ) : (
                             <button
                                 onClick={() => onExtend(table.id)}
-                                className={`w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${table.status === TableStatus.WARNING
+                                className={`w-full py-2.5 rounded-xl font-bold text-xs sm:text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${effectiveStatus === TableStatus.WARNING
                                     ? 'bg-amber-500 hover:bg-amber-600 text-white animate-pulse'
                                     : isDark
                                         ? 'bg-white/[0.08] hover:bg-white/[0.12] text-white/80 border border-white/[0.08]'

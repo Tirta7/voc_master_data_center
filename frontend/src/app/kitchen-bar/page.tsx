@@ -172,11 +172,17 @@ export default function KitchenBarUnifiedPage() {
             setOrders((prev) => prev.map(o => {
                 if ((o.items || []).some((i: any) => i.id === data.id)) {
                     const updatedItems = (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: data.status } : i);
+                    
+                    const allDone = updatedItems.every((i: any) => ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || ''));
+                    if (allDone) {
+                        return null;
+                    }
+
                     const hasCooking = updatedItems.some((i: any) => i.status === 'PROCESSING' || i.status === 'CANCEL_REQUESTED' || i.status === 'CANCEL_REJECTED');
                     return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
                 }
                 return o;
-            }));
+            }).filter(Boolean) as any[]);
         };
 
         const onItemCancelled = (data: any) => {
@@ -466,9 +472,12 @@ export default function KitchenBarUnifiedPage() {
                     }
                 };
                 utterance.onerror = (e) => {
-                    console.error("TTS Error:", e);
-                    if (loop && isVocalAlertActiveRef.current) {
-                        ttsTimeoutRef.current = setTimeout(speak, 6000);
+                    // Do not log or restart loop if it was intentionally interrupted/cancelled
+                    if (e.error !== 'interrupted' && e.error !== 'canceled') {
+                        console.error("TTS Error:", e);
+                        if (loop && isVocalAlertActiveRef.current) {
+                            ttsTimeoutRef.current = setTimeout(speak, 6000);
+                        }
                     }
                 };
 
@@ -596,20 +605,20 @@ export default function KitchenBarUnifiedPage() {
                             i.id === item.id ? { ...i, status: nextStatus } : i
                         );
 
-                        // Check if ALL items in this order are now DONE
-                        const allDone = newItems.every((i: any) => i.status === 'DONE');
+                        // Check if ALL items in this order are now DONE or CANCELLED
+                        const allDone = newItems.every((i: any) => ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || ''));
                         const currentStatus = allDone ? 'READY' : o.status;
 
-                        // If it became READY, backend will broadcast via MQTT
-                        if (allDone && o.status !== 'READY') {
-                            // status update handled by backend broadcast
+                        // Jika semua sudah selesai, hilangkan kartu langsung (optimistic UI)
+                        if (allDone) {
+                            return null;
                         }
 
                         return { ...o, items: newItems, status: currentStatus };
                     }
                     return o;
                 });
-                return newOrders;
+                return newOrders.filter(Boolean) as any[];
             });
         } catch (error) {
             console.error('Failed to update item status:', error);
@@ -798,7 +807,7 @@ export default function KitchenBarUnifiedPage() {
 
             {/* CANCELLATION REQUEST MODAL (DANGER) */}
             {cancellationAlert && (
-                <div className="fixed inset-0 z-[210] bg-red-950/90 backdrop-blur-2xl flex items-center justify-center p-4 overscroll-contain">
+                <div className="fixed inset-0 z-[210] bg-red-950/90  flex items-center justify-center p-4 overscroll-contain">
                     <div className="bg-slate-900 border-2 md:border-4 border-red-500 rounded-3xl md:rounded-[3rem] p-6 md:p-10 max-w-2xl w-full text-center shadow-[0_0_60px_rgba(239,68,68,0.4)] relative overflow-hidden animate-bounce-slow">
                         {/* Red Pulse Overlay */}
                         <div className="absolute inset-0 bg-red-600/10 md:bg-red-600/20 animate-pulse"></div>
@@ -873,7 +882,7 @@ export default function KitchenBarUnifiedPage() {
 
             {/* NEW ORDER MODAL */}
             {newOrderAlert && (
-                <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
+                <div className="fixed inset-0 z-[200] bg-slate-950/90  flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
                     <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
                         {/* Pulse Effect */}
                         <div className="absolute inset-0 bg-blue-600/10 animate-pulse"></div>
@@ -934,7 +943,7 @@ export default function KitchenBarUnifiedPage() {
             )}
 
             {/* Header */}
-            <header className="sticky top-0 h-16 md:h-20 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
+            <header className="sticky top-0 h-16 md:h-20 bg-slate-900/80  border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
                 <div className="flex items-center gap-2 md:gap-6">
                     <button
                         onClick={() => setIsSummaryOpen(!isSummaryOpen)}
@@ -1007,7 +1016,7 @@ export default function KitchenBarUnifiedPage() {
             {/* Content Area */}
             <div className="flex-1 overflow-hidden relative flex flex-row bg-[#020617]">
                 {/* AGGREGATION SIDEBAR - fixed always, like BDS */}
-                <aside className={`absolute z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-950/95 md:bg-slate-900/60 backdrop-blur-3xl md:backdrop-blur-2xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100 shadow-[20px_0_50px_-10px_rgba(0,0,0,0.5)]' : '-translate-x-full opacity-0 pointer-events-none'}`}>
+                <aside className={`absolute z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-950/95 md:bg-slate-900/60  md: border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100 shadow-[20px_0_50px_-10px_rgba(0,0,0,0.5)]' : '-translate-x-full opacity-0 pointer-events-none'}`}>
                     {/* Header Summary - BDS style */}
                     <div className="p-6 md:p-8 border-b border-white/5 bg-white/[0.02]">
                         <div className="flex justify-between items-center mb-6">
@@ -1142,7 +1151,7 @@ export default function KitchenBarUnifiedPage() {
                                         order.status === 'READY' ? 'bg-emerald-950/30 border-emerald-500/50' :
                                             order.status === 'COOKING' ? 'bg-amber-950/30 border-amber-500/50' :
                                                 'bg-slate-900/40 border-white/10 hover:border-blue-500/40'
-                                        } backdrop-blur-xl`}
+                                        } `}
                                 >
                                     <div className="p-4 md:p-6 flex flex-col h-full">
                                         {/* Card Header Compact */}
@@ -1378,7 +1387,7 @@ export default function KitchenBarUnifiedPage() {
                 className={`fixed inset-y-0 right-0 w-full md:w-[600px] lg:w-[700px] bg-slate-900 shadow-[0_0_100px_rgba(0,0,0,0.8)] z-[200] transform transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] border-l border-white/5 ${showHistory ? 'translate-x-0' : 'translate-x-full'
                     }`}
             >
-                <div className="h-full flex flex-col bg-slate-900/95 backdrop-blur-3xl">
+                <div className="h-full flex flex-col bg-slate-900/95 ">
                     <div className="p-8 border-b border-white/5 flex flex-col gap-6 bg-white/[0.02]">
                         <div className="flex justify-between items-center">
                             <h2 className="text-4xl font-black text-white flex items-center gap-4 tracking-tighter">
@@ -1476,7 +1485,8 @@ export default function KitchenBarUnifiedPage() {
                                         </div>
 
                                         <div className="space-y-2 flex-1 border-t border-white/5 pt-4 mt-2">
-                                            {(order.items || []).filter((item: any) => item.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, i: number) => (
+                                            <div className="text-[10px] text-red-500 overflow-hidden text-ellipsis whitespace-nowrap">{JSON.stringify(order.items || 'NO ITEMS')}</div>
+                                            {(order.items || []).filter((item: any) => selectedStation === 'ALL' ? true : item.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, i: number) => (
                                                 <div key={i} className="flex justify-between items-start text-xs">
                                                     <span className="text-slate-400 font-bold leading-snug">{item.name}</span>
                                                     <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{Number(item.quantity) || 1}</span>

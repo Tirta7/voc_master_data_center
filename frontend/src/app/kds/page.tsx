@@ -791,7 +791,7 @@ export default function KDSPage() {
 
             {/* CANCELLATION REQUEST MODAL (DANGER) */}
             {cancellationAlert && (
-                <div className="fixed inset-0 z-[210] bg-red-950/90 backdrop-blur-2xl flex items-center justify-center p-4 overscroll-contain">
+                <div className="fixed inset-0 z-[210] bg-red-950/90  flex items-center justify-center p-4 overscroll-contain">
                     <div className="bg-slate-900 border-2 md:border-4 border-red-500 rounded-3xl md:rounded-[3rem] p-6 md:p-10 max-w-2xl w-full text-center shadow-[0_0_60px_rgba(239,68,68,0.4)] relative overflow-hidden animate-bounce-slow">
                         {/* Red Pulse Overlay */}
                         <div className="absolute inset-0 bg-red-600/10 md:bg-red-600/20 animate-pulse"></div>
@@ -866,7 +866,7 @@ export default function KDSPage() {
 
             {/* NEW ORDER MODAL */}
             {newOrderAlert && (
-                <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
+                <div className="fixed inset-0 z-[200] bg-slate-950/90  flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
                     <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
                         {/* Pulse Effect */}
                         <div className="absolute inset-0 bg-blue-600/10 animate-pulse"></div>
@@ -927,7 +927,7 @@ export default function KDSPage() {
             )}
 
             {/* Header */}
-            <header className="sticky top-0 h-16 md:h-20 bg-slate-900/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
+            <header className="sticky top-0 h-16 md:h-20 bg-slate-900/80  border-b border-white/5 px-4 md:px-8 flex justify-between items-center shadow-2xl z-[160] transition-all duration-300">
                 <div className="flex items-center gap-2 md:gap-6">
                     <button
                         onClick={() => setIsSummaryOpen(!isSummaryOpen)}
@@ -1018,7 +1018,7 @@ export default function KDSPage() {
             {/* Content Area */}
             <div className="flex-1 overflow-hidden relative flex flex-row bg-[#020617]">
                 {/* AGGREGATION SIDEBAR - fixed always, like BDS */}
-                <aside className={`absolute z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-950/95 md:bg-slate-900/60 backdrop-blur-3xl md:backdrop-blur-2xl border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100 shadow-[20px_0_50px_-10px_rgba(0,0,0,0.5)]' : '-translate-x-full opacity-0 pointer-events-none'}`}>
+                <aside className={`absolute z-[150] inset-y-0 left-0 w-72 md:w-80 bg-slate-950/95 md:bg-slate-900/60  md: border-r border-white/5 flex flex-col shrink-0 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isSummaryOpen ? 'translate-x-0 opacity-100 shadow-[20px_0_50px_-10px_rgba(0,0,0,0.5)]' : '-translate-x-full opacity-0 pointer-events-none'}`}>
                     {/* Header Summary - BDS style */}
                     <div className="p-6 md:p-8 border-b border-white/5 bg-white/[0.02]">
                         <div className="flex justify-between items-center mb-6">
@@ -1152,7 +1152,7 @@ export default function KDSPage() {
                                         order.status === 'READY' ? 'bg-emerald-950/40 border-emerald-500/50' :
                                             order.status === 'COOKING' ? 'bg-amber-950/40 border-amber-500/50' :
                                                 'bg-slate-900/40 border-white/5 hover:border-blue-500/40'
-                                        } backdrop-blur-xl`}
+                                        } `}
                                 >
                                     <div className="p-6 md:p-8 flex flex-col h-full">
                                         {/* Card Header */}
@@ -1360,7 +1360,7 @@ export default function KDSPage() {
                 className={`fixed inset-y-0 right-0 w-full md:w-[600px] lg:w-[700px] bg-slate-900 shadow-[0_0_100px_rgba(0,0,0,0.8)] z-[200] transform transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] border-l border-white/5 ${showHistory ? 'translate-x-0' : 'translate-x-full'
                     }`}
             >
-                <div className="h-full flex flex-col bg-slate-900/95 backdrop-blur-3xl">
+                <div className="h-full flex flex-col bg-slate-900/95 ">
                     <div className="p-8 border-b border-white/5 flex flex-col gap-6 bg-white/[0.02]">
                         <div className="flex justify-between items-center">
                             <h2 className="text-4xl font-black text-white flex items-center gap-4 tracking-tighter">
