@@ -57,7 +57,7 @@ body {
       "contain: layout style paint" memberitahu browser bahwa TIDAK ADA
       yang di luar elemen ini yang perlu direpaint ulang ketika isi di dalam
       berubah. Ini adalah fix utama untuk tearing. */
-.fixed {
+.fixed.inset-0 {
   contain: layout style paint;
 }
 
