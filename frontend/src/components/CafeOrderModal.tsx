@@ -590,7 +590,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             style={{ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
         >
         <div
-            className="relative w-full h-full md:h-auto md:max-h-[92vh] md:max-w-5xl lg:max-w-6xl md:rounded-2xl overflow-hidden flex flex-col bg-white shadow-2xl"
+            className="relative w-full h-full md:h-auto md:max-h-[92vh] md:max-w-5xl lg:max-w-6xl md:rounded-3xl overflow-hidden flex flex-col bg-white shadow-2xl"
         >
             {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
             {isSubmitting && (
@@ -792,11 +792,11 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                         key={item.id}
                                         disabled={isOutOfStock || isTooExpensive}
                                         onClick={() => addToCart(item)}
-                                        className={`flex flex-col justify-between text-left border p-2.5 rounded-xl transition-all ${isOutOfStock || isTooExpensive
-                                            ? 'bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed'
+                                        className={`flex flex-col justify-between text-left p-3 rounded-2xl transition-all ${isOutOfStock || isTooExpensive
+                                            ? 'bg-slate-100 opacity-50 cursor-not-allowed'
                                             : inCart
-                                                ? 'bg-indigo-50 border-2 border-indigo-500 shadow-sm shadow-indigo-100'
-                                                : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                                                ? 'bg-indigo-50 ring-2 ring-indigo-500 shadow-md shadow-indigo-100'
+                                                : 'bg-white shadow-sm hover:shadow-md'
                                             }`}
                                     >
                                         {/* Header: Category Badge & Stock */}
