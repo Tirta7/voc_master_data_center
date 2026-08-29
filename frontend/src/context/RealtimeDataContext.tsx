@@ -279,7 +279,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const refetchCafe = useCallback(async () => {
         try {
             const res = await axios.get(`/cafe-table`);
-            setCafeTables(sortByName(res.data));
+            const tablesWithType = res.data.map((t: any) => ({ ...t, type: 'cafe' }));
+            setCafeTables(sortByName(tablesWithType));
         } catch (err) {
             console.error('[RealtimeData] cafe fetch failed:', err);
         } finally {

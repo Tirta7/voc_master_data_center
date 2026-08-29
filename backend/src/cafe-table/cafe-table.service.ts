@@ -108,7 +108,7 @@ export class CafeTableService {
       const grandTotal = activeTransaction
         ? Number(activeTransaction.grandTotal || 0)
         : 0;
-      return { ...t, activeTransaction, grandTotal };
+      return { ...t, type: 'cafe', activeTransaction, grandTotal };
     });
   }
 
