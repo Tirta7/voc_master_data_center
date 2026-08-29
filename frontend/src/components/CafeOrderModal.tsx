@@ -334,10 +334,9 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             const dbCategories = catRes.data.filter((c: any) => c.isActive && c.type !== 'INGREDIENT');
 
             const dynamicCategories = [
-                { id: 'ALL', label: 'Semua Menu', icon: getCategoryIcon('ALL') },
-                { id: 'BUNDLING', label: 'Paket Bundling', icon: getCategoryIcon('BUNDLING') },
                 ...dbCategories.map((c: any) => ({
                     id: c.id,
+                    name: c.name,
                     label: c.name,
                     icon: getCategoryIcon(c.name)
                 }))
@@ -711,6 +710,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
                     {[{ id: 'ALL', name: 'Semua Menu' }, { id: 'BUNDLING', name: 'Paket Bundling' }, ...categories].map((cat: any) => {
                         const isActive = activeCategory === cat.id;
+                        const displayName = cat.name || cat.label || '';
                         return (
                             <button
                                 key={cat.id}
@@ -721,8 +721,8 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
                                 }`}
                             >
-                                {cat.id === 'ALL' ? <Sparkles className="w-3 h-3" /> : cat.id === 'BUNDLING' ? <Tag className="w-3 h-3" /> : getCategoryIcon(cat.name)}
-                                {cat.name}
+                                {cat.id === 'ALL' ? <Sparkles className="w-3 h-3" /> : cat.id === 'BUNDLING' ? <Tag className="w-3 h-3" /> : getCategoryIcon(displayName)}
+                                {displayName}
                             </button>
                         );
                     })}
