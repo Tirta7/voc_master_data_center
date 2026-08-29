@@ -591,7 +591,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         >
         <div
             className="relative w-full h-full md:h-auto md:max-h-[92vh] md:max-w-5xl lg:max-w-6xl md:rounded-2xl overflow-hidden flex flex-col bg-white shadow-2xl"
-            style={{ contain: 'strict' }}
         >
             {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
             {isSubmitting && (
