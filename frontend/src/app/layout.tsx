@@ -81,11 +81,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="max-w-full overflow-x-hidden">
+    <html lang="en">
       <head>
         <meta name="theme-color" content="#0F172A" />
       </head>
-      <body className={`${plusJakartaSans.variable} font-sans antialiased max-w-full overflow-x-hidden`}>
+      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
         <LanguageProvider>
           <AuthProvider>
             <SidebarProvider>

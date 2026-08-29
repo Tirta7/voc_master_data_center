@@ -1,7 +1,6 @@
 'use client';
 
 import Sidebar from './Sidebar';
-import GlobalSidebarToggle from './GlobalSidebarToggle';
 import ShiftSetupOverlay from './ShiftSetupOverlay';
 import ShiftOvertimeNotifier from './ShiftOvertimeNotifier';
 import RedeemNotificationOverlay from './RedeemNotificationOverlay';
@@ -164,7 +163,6 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                                 <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse print:hidden" />
                             )}
                             {user && !hideSidebar && <Sidebar />}
-                            {user && !hideSidebar && <GlobalSidebarToggle />}
                             {user && !hideSidebar && <ShiftSetupOverlay />}
                             {user && !hideSidebar && <ShiftOvertimeNotifier />}
                             {user && <RedeemNotificationOverlay />}
