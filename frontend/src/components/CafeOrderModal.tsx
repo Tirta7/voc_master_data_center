@@ -710,7 +710,11 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
             {/* ── CATEGORY TABS ─────────────────────────────────────────── */}
             <div className="shrink-0 bg-white border-b border-slate-200 px-3 py-2">
-                <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                <div
+                    className="flex gap-1.5 overflow-x-auto no-scrollbar"
+                    style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                    onTouchMove={(e) => e.stopPropagation()}
+                >
                     {[{ id: 'ALL', name: 'Semua Menu' }, { id: 'BUNDLING', name: 'Paket Bundling' }, ...categories].map((cat: any) => {
                         const isActive = activeCategory === cat.id;
                         const displayName = cat.name || cat.label || '';
