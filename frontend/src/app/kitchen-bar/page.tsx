@@ -802,7 +802,7 @@ export default function KitchenBarUnifiedPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative overflow-hidden selection:bg-blue-500/30">
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative selection:bg-blue-500/30">
 
 
             {/* CANCELLATION REQUEST MODAL (DANGER) */}
@@ -1038,7 +1038,11 @@ export default function KitchenBarUnifiedPage() {
                     </div>
 
                     {/* Summary List */}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 no-scrollbar pb-32">
+                    <div
+                        className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 no-scrollbar pb-32"
+                        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                        onTouchMove={(e) => e.stopPropagation()}
+                    >
                         {aggregatedItems.map((item: any, i: number) => {
                             const anyPending = hasAnyPending(item.name);
                             const isProcessing = item.processingCount > 0;
@@ -1134,7 +1138,11 @@ export default function KitchenBarUnifiedPage() {
                 </aside>
 
                 {/* Main Grid */}
-                <div className={`h-full flex-1 p-2 sm:p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${isSummaryOpen ? 'sm:pl-[288px] md:pl-[340px]' : ''} ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}>
+                <div
+                    className={`h-full flex-1 p-2 sm:p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${isSummaryOpen ? 'sm:pl-[288px] md:pl-[340px]' : ''} ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}
+                    style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                    onTouchMove={(e) => e.stopPropagation()}
+                >
                     {/* Added items-start to prevent cards from stretching vertically in the grid row */}
                     <div 
                         className="grid gap-3 sm:gap-4 md:gap-6 pb-40 max-w-[1600px] mx-auto items-start"
