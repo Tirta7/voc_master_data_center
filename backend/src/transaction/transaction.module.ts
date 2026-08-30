@@ -1,7 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TransactionService } from './transaction.service';
-import { TransactionController } from './transaction.controller';
+import { TransactionController, TransactionPublicController } from './transaction.controller';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionPayment } from './entities/transaction-payment.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
@@ -42,7 +42,7 @@ import { VoucherModule } from '../voucher/voucher.module';
     forwardRef(() => VoucherModule),
   ],
 
-  controllers: [TransactionController],
+  controllers: [TransactionController, TransactionPublicController],
   providers: [TransactionService, InvoiceService],
   exports: [TransactionService, InvoiceService],
 })

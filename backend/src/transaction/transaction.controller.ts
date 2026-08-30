@@ -247,6 +247,12 @@ export class TransactionController {
     return this.transactionService.removeVoucher(id);
   }
 
+}
+
+@Controller('public-transactions')
+export class TransactionPublicController {
+  constructor(private readonly transactionService: TransactionService) {}
+
   @Post(':id/rating')
   async submitRating(
     @Param('id', ParseIntPipe) id: number,
