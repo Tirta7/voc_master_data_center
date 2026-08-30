@@ -655,7 +655,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             )}
 
             {/* ── iOS HEADER ────────────────────────────────────────────── */}
-            <div className="shrink-0 bg-white px-4 pt-4 pb-3 flex items-center justify-between border-b border-black/[0.06]">
+            <div className="shrink-0 bg-white px-4 pt-[max(env(safe-area-inset-top),16px)] md:pt-4 pb-3 flex items-center justify-between border-b border-black/[0.06]">
                 {/* Left: close */}
                 <button
                     onClick={onClose}
@@ -686,7 +686,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
             {/* Member balance chips */}
             {isMemberSession && (
-                <div className="shrink-0 bg-white px-4 pb-2.5 flex gap-2 overflow-x-auto no-scrollbar"
+                <div className="shrink-0 bg-white px-4 pb-2.5 flex gap-2 overflow-x-auto no-scrollbar w-full max-w-full"
                     style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
                     onTouchMove={(e) => e.stopPropagation()}>
                     {[
@@ -703,9 +703,9 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             )}
 
             {/* ── CATEGORY PILLS — iOS style ─────────────────────────── */}
-            <div className="shrink-0 bg-white px-4 py-2.5">
+            <div className="shrink-0 bg-white px-4 py-2.5 w-full max-w-full overflow-hidden">
                 <div
-                    className="flex gap-2 overflow-x-auto no-scrollbar"
+                    className="flex gap-2 overflow-x-auto no-scrollbar w-full max-w-full"
                     style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
                     onTouchMove={(e) => e.stopPropagation()}
                 >
@@ -962,7 +962,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             {/* ── MOBILE CART DRAWER ────────────────────────────────────── */}
             {isCartOpen && (
                 <div className="md:hidden absolute inset-0 z-[120] flex flex-col" style={{ background: '#F2F2F7' }}>
-                    <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-black/[0.06]">
+                    <div className="bg-white px-4 pt-[max(env(safe-area-inset-top),12px)] pb-3 flex items-center justify-between border-b border-black/[0.06]">
                         <button
                             onClick={() => setIsCartOpen(false)}
                             className="w-9 h-9 bg-black/[0.06] rounded-full flex items-center justify-center"

@@ -272,6 +272,22 @@ export default function Sidebar() {
                 />
             )}
 
+            {/* Floating Mobile Menu Button (Only when closed) */}
+            {!isOpen && (
+                <button
+                    onClick={() => setIsOpen(true)}
+                    className="fixed left-0 top-1/2 -translate-y-1/2 z-[90] lg:hidden w-6 py-4 bg-[#0B0A1C] text-indigo-400 border-y border-r border-indigo-500/20 rounded-r-xl flex flex-col items-center justify-center active:scale-95 transition-all print:hidden"
+                >
+                    <span 
+                        className="text-[7px] font-black tracking-widest uppercase opacity-80"
+                        style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+                    >
+                        MENU
+                    </span>
+                    <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-[1.5px] h-4 bg-indigo-500/40 rounded-full" />
+                </button>
+            )}
+
             {/* Sidebar Container */}
             <aside
                 className={`fixed inset-y-0 left-0 bg-[#0B0A1C] text-indigo-100 flex flex-col z-[100] shadow-[4px_0_24px_rgba(0,0,0,0.2)] print:hidden transition-all duration-300 ease-in-out
