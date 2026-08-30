@@ -2476,7 +2476,10 @@ function SmartDisplayContent() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            await axios.post(`/public-transactions/${tx?.id}/rating`, {
+                                            const targetTxId = txIdRef.current || paymentState?.transactionId || tx?.id;
+                                            if (!targetTxId) throw new Error("No transaction ID found");
+                                            
+                                            await axios.post(`/public-transactions/${targetTxId}/rating`, {
                                                 waiterRating: waiterRating || 5, 
                                                 kasirRating: kasirRating || 5,
                                                 ratingMessage: '' // No text area in simple mode
