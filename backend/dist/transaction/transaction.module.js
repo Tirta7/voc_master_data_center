@@ -60,7 +60,8 @@ TransactionModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_vouchermodule.VoucherModule)
         ],
         controllers: [
-            _transactioncontroller.TransactionController
+            _transactioncontroller.TransactionController,
+            _transactioncontroller.TransactionPublicController
         ],
         providers: [
             _transactionservice.TransactionService,

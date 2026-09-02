@@ -679,25 +679,8 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     </div>
                 )}
                 {(() => {
-                    let pkgDisc = 0;
-                    if (tx.billiardPackage) {
-                        const billiardOnly = currentBilliardPortion;
-                        if (tx.billiardPackage.discountPercentage && Number(tx.billiardPackage.discountPercentage) > 0) {
-                            pkgDisc = (billiardOnly * Number(tx.billiardPackage.discountPercentage)) / 100;
-                        } else if (tx.billiardPackage.discountNominal && Number(tx.billiardPackage.discountNominal) > 0) {
-                            pkgDisc = Number(tx.billiardPackage.discountNominal);
-                        }
-                    }
-                    
+                    const pkgDisc = 0; // Discount is now baked into billiardTotal per-slot
                     const elements = [];
-                    if (pkgDisc > 0) {
-                        elements.push(
-                            <div key="pkg-disc" className="flex justify-between text-slate-800 font-bold">
-                                <span>DISC PAKET (PROMO)</span>
-                                <span>-Rp{fmt(pkgDisc)}</span>
-                            </div>
-                        );
-                    }
 
                     const remainingDisc = totalDiscount - Number(tx.voucherDiscountAmount || 0) - pkgDisc;
                     if (remainingDisc > 0) {

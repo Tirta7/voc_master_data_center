@@ -541,6 +541,7 @@ let TransactionService = class TransactionService {
         } else if (voucherDiscount > 0 || totalPromoDiscount > 0) {
             const subtotal = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
             const tierDisc = Number(remaining.tierDiscountAmount) || 0;
+            // Package Discount is already baked into billiardTotal directly inside calculateTimeBasedPrice / calculateCurrentPackagePrice
             // Total dynamic discount
             const totalDisc = tierDisc + totalPromoDiscount + voucherDiscount;
             const discountedSubtotal = Math.max(0, subtotal - totalDisc);
@@ -686,6 +687,10 @@ let TransactionService = class TransactionService {
                 }
                 if (isMatch) {
                     activePrice = Number(slot.price);
+                    const discPct = Number(slot.discountPercentage || 0);
+                    const discNom = Number(slot.discountNominal || 0);
+                    if (discPct > 0) activePrice -= activePrice * discPct / 100;
+                    else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
                     matchedAny = true;
                     break;
                 }
@@ -693,7 +698,16 @@ let TransactionService = class TransactionService {
             // Fallback: If no match and activePrice is 0, use first slot price or a default
             if (!matchedAny && activePrice === 0) {
                 activePrice = Number(pkg.timeSlots[0].price);
+                const discPct = Number(pkg.timeSlots[0].discountPercentage || 0);
+                const discNom = Number(pkg.timeSlots[0].discountNominal || 0);
+                if (discPct > 0) activePrice -= activePrice * discPct / 100;
+                else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
             }
+        } else {
+            const discPct = Number(pkg.discountPercentage || 0);
+            const discNom = Number(pkg.discountNominal || 0);
+            if (discPct > 0) activePrice -= activePrice * discPct / 100;
+            else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
         }
         // Absolute fallback to prevent Rp 0 if needed, but per user request we follow settings
         if (activePrice === 0) {
@@ -741,7 +755,9 @@ let TransactionService = class TransactionService {
                 ...slot,
                 startMin: sH * 60 + sM,
                 endMin: eH * 60 + eM,
-                price: Number(slot.price)
+                price: Number(slot.price),
+                discountPercentage: Number(slot.discountPercentage || 0),
+                discountNominal: Number(slot.discountNominal || 0)
             };
         }).filter(Boolean);
         const actualDurationSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
@@ -783,7 +799,11 @@ let TransactionService = class TransactionService {
                 if (matchedSlot) break;
             }
             const slotName = matchedSlot ? `${matchedSlot.start}-${matchedSlot.end}` : 'Default Rate';
-            const slotRate = matchedSlot ? matchedSlot.price : Number(pkg.minutePrice || 0) * 60 || 50000;
+            let slotRate = matchedSlot ? matchedSlot.price : Number(pkg.minutePrice || 0) * 60 || 50000;
+            const discPct = matchedSlot ? matchedSlot.discountPercentage : Number(pkg.discountPercentage || 0);
+            const discNom = matchedSlot ? matchedSlot.discountNominal : Number(pkg.discountNominal || 0);
+            if (discPct > 0) slotRate = slotRate * (1 - discPct / 100);
+            else if (discNom > 0) slotRate = Math.max(0, slotRate - discNom);
             const segmentKey = `${slotName}_${dateVal}`; // Group by slot AND date for clarity in multi-day sessions
             if (!currentSegment || lastSegmentKey !== segmentKey) {
                 // Finalize previous segment

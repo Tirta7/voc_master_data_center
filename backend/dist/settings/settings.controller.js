@@ -70,13 +70,18 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let SettingsController = class SettingsController {
-    async getSettings() {
+    async getSettings(res) {
+        // ⚡ Cache settings di browser & Cloudflare selama 30 detik
+        // stale-while-revalidate: boleh sajikan data lama sambil fetch baru di background
+        res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
         return this.settingsService.getSettings();
     }
     async updateSettings(data, req) {
         return this.settingsService.updateSettings(data, req.user.username);
     }
-    getPing() {
+    getPing(res) {
+        // ⚡ Ping endpoint tidak perlu di-cache, tapi beri header no-cache yang eksplisit
+        res.setHeader('Cache-Control', 'no-store');
         return {
             ok: true,
             ts: Date.now()
@@ -140,8 +145,13 @@ let SettingsController = class SettingsController {
 };
 _ts_decorate([
     (0, _common.Get)(),
+    _ts_param(0, (0, _common.Res)({
+        passthrough: true
+    })),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        typeof Response === "undefined" ? Object : Response
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], SettingsController.prototype, "getSettings", null);
 _ts_decorate([
@@ -158,8 +168,13 @@ _ts_decorate([
 ], SettingsController.prototype, "updateSettings", null);
 _ts_decorate([
     (0, _common.Get)('ping'),
+    _ts_param(0, (0, _common.Res)({
+        passthrough: true
+    })),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        typeof Response === "undefined" ? Object : Response
+    ]),
     _ts_metadata("design:returntype", void 0)
 ], SettingsController.prototype, "getPing", null);
 _ts_decorate([

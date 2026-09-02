@@ -87,7 +87,10 @@ let BilliardController = class BilliardController {
             online: true
         });
     }
-    async getAllTables() {
+    async getAllTables(res) {
+        // ⚡ Table list: jangan di-cache lama karena status meja berubah real-time
+        // Tapi 2 detik cukup untuk menghindari burst request dari banyak client
+        res.setHeader('Cache-Control', 'public, max-age=2, stale-while-revalidate=5');
         return this.billiardService.getAllTables();
     }
     async getSuggestedId() {
@@ -99,7 +102,9 @@ let BilliardController = class BilliardController {
     async getTable(id) {
         return this.billiardService.getTableById(id);
     }
-    async getPackages() {
+    async getPackages(res) {
+        // ⚡ Packages: cache 60 detik (jarang berubah), stale-while-revalidate 120 detik
+        res.setHeader('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
         return this.billiardService.getPackages();
     }
     async createPackage(data) {
@@ -287,8 +292,13 @@ _ts_decorate([
 ], BilliardController.prototype, "handleTableStatus", null);
 _ts_decorate([
     (0, _common.Get)('tables'),
+    _ts_param(0, (0, _common.Res)({
+        passthrough: true
+    })),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        typeof Response === "undefined" ? Object : Response
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "getAllTables", null);
 _ts_decorate([
@@ -309,8 +319,13 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Get)('packages'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Res)({
+        passthrough: true
+    })),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        typeof Response === "undefined" ? Object : Response
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "getPackages", null);
 _ts_decorate([

@@ -29,17 +29,13 @@ export default function BilliardPricingPage() {
         tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
         durationMinutes: number;
         price: number;
-        discountPercentage: number;
-        discountNominal: number;
-        timeSlots?: { start: string; end: string; price: number; validDays?: string[] }[];
+        timeSlots?: { start: string; end: string; price: number; discountPercentage?: number; discountNominal?: number; validDays?: string[] }[];
     }>({
         name: '',
         type: 'hourly',
         tableCategory: 'REGULAR',
         durationMinutes: 120,
         price: 0,
-        discountPercentage: 0,
-        discountNominal: 0,
         timeSlots: [],
     });
 
@@ -145,15 +141,13 @@ export default function BilliardPricingPage() {
     const resetForm = () => {
         setEditingPackageId(null);
         setLastSavedPackage(null);
-        setValidDays([]); // ✅ Reset hari berlaku
+        setValidDays([]);
         setFormData({
             name: '',
             type: formData.type,
             tableCategory: 'REGULAR',
             durationMinutes: 120,
             price: 0,
-            discountPercentage: 0,
-            discountNominal: 0,
             timeSlots: []
         });
     };
@@ -162,19 +156,29 @@ export default function BilliardPricingPage() {
         setEditingPackageId(pkg.id);
         const categoryObj = categories.find(c => c.id === pkg.categoryId);
         const catName = categoryObj ? categoryObj.name : (pkg.tableCategory || 'REGULAR');
+        // Migrasi backward-compatible: jika paket lama punya diskon di level paket,
+        // salin ke slot pertama agar tidak hilang
+        let timeSlots = pkg.timeSlots || [];
+        if (timeSlots.length > 0 && (pkg.discountPercentage > 0 || pkg.discountNominal > 0)) {
+            const alreadyHasSlotDiscount = timeSlots.some((s: any) => s.discountPercentage > 0 || s.discountNominal > 0);
+            if (!alreadyHasSlotDiscount) {
+                timeSlots = timeSlots.map((s: any) => ({
+                    ...s,
+                    discountPercentage: Number(pkg.discountPercentage || 0),
+                    discountNominal: Number(pkg.discountNominal || 0),
+                }));
+            }
+        }
         const mappedData = {
             name: pkg.name,
             type: pkg.type === 'PLAYTIME' ? 'hourly' : (pkg.type === 'DURATION' ? 'fixed' : (pkg.type === 'hourly' ? 'hourly' : 'fixed')),
             tableCategory: catName,
             durationMinutes: pkg.durationMinutes || 120,
             price: Number(pkg.price),
-            discountPercentage: pkg.discountPercentage ? Number(pkg.discountPercentage) : 0,
-            discountNominal: pkg.discountNominal ? Number(pkg.discountNominal) : 0,
-            timeSlots: pkg.timeSlots || []
+            timeSlots,
         };
         setFormData(mappedData);
         setLastSavedPackage(mappedData);
-        // ✅ NEW: Load validDays saat edit
         setValidDays(Array.isArray(pkg.validDays) && pkg.validDays.length > 0 ? pkg.validDays : []);
     };
 
@@ -192,7 +196,7 @@ export default function BilliardPricingPage() {
 
     const addTimeSlot = () => {
         const slots = formData.timeSlots || [];
-        setFormData({ ...formData, timeSlots: [...slots, { start: '00:00', end: '00:00', price: 0 }] });
+        setFormData({ ...formData, timeSlots: [...slots, { start: '00:00', end: '00:00', price: 0, discountPercentage: 0, discountNominal: 0 }] });
     };
 
     const removeTimeSlot = (index: number) => {
@@ -657,35 +661,12 @@ export default function BilliardPricingPage() {
                                     </div>
                                 </div>
 
-                                {/* DISCOUNT SECTION */}
-                                <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-4">
-                                    <div className="flex items-center gap-2">
-                                        <Tag className="w-4 h-4 text-emerald-500" />
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Diskon Paket (Opening / Promo)</label>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <InputField
-                                            label="Diskon Persentase (%)"
-                                            type="number"
-                                            value={formData.discountPercentage}
-                                            savedValue={lastSavedPackage?.discountPercentage}
-                                            isEditing={!!editingPackageId}
-                                            onChange={(val) => setFormData({ ...formData, discountPercentage: val })}
-                                            placeholder="Contoh: 20"
-                                            className="w-full pl-3 pr-2 py-2 bg-white rounded-xl font-black text-xs outline-none border border-slate-200 focus:border-emerald-400"
-                                        />
-                                        <InputField
-                                            label="Diskon Nominal (Rp)"
-                                            type="number"
-                                            value={formData.discountNominal}
-                                            savedValue={lastSavedPackage?.discountNominal}
-                                            isEditing={!!editingPackageId}
-                                            onChange={(val) => setFormData({ ...formData, discountNominal: val })}
-                                            placeholder="Contoh: 10000"
-                                            className="w-full pl-3 pr-2 py-2 bg-white rounded-xl font-black text-xs outline-none border border-slate-200 focus:border-emerald-400"
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 italic">* Isi salah satu atau keduanya (0 jika tidak ada diskon).</p>
+                                {/* DISCOUNT INFO — sekarang per slot */}
+                                <div className="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100/50 flex items-start gap-2">
+                                    <Tag className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                                    <p className="text-[10px] text-emerald-700 font-semibold leading-relaxed">
+                                        Diskon promo kini diatur <span className="font-black">per Varian Harga</span> di bawah. Setiap slot bisa punya diskon berbeda sesuai jam berlakunya.
+                                    </p>
                                 </div>
 
                                 {/* 2. DYNAMIC CONTENT AREA */}
@@ -700,100 +681,105 @@ export default function BilliardPricingPage() {
                                             </div>
 
                                             <div className="space-y-3">
-                                                {(formData.timeSlots || []).map((slot: { start: string; end: string; price: number; validDays?: string[] }, idx) => (
-                                                    <div key={idx} className="bg-white/70  p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-indigo-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
-                                                        <div className="absolute top-0 left-0 w-0.5 h-full bg-indigo-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                                                {(formData.timeSlots || []).map((slot: { start: string; end: string; price: number; discountPercentage?: number; discountNominal?: number; validDays?: string[] }, idx) => {
+                                                    const slotDiscPct = Number(slot.discountPercentage || 0);
+                                                                                {(formData.timeSlots || []).map((slot, idx) => {
+                                                    const slotDiscPct = Number((slot as any).discountPercentage || 0);
+                                                    const slotDiscNom = Number((slot as any).discountNominal || 0);
+                                                    const discountedPrice = slotDiscPct > 0
+                                                        ? Math.round(Number(slot.price) * (1 - slotDiscPct / 100))
+                                                        : slotDiscNom > 0 ? Math.max(0, Number(slot.price) - slotDiscNom) : 0;
+                                                    const hasSlotDiscount = slotDiscPct > 0 || slotDiscNom > 0;
+                                                    return (
+                                                    <div key={idx} className="bg-white/70 p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-amber-100/5 transition-all group relative animate-in slide-in-from-right-4 duration-300 overflow-hidden">
+                                                        <div className="absolute top-0 left-0 w-0.5 h-full bg-amber-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                                         <div className="flex flex-col gap-2">
                                                             <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                                {/* Time Range Group */}
                                                                 <div className="flex-1 space-y-0.5">
                                                                     <div className="flex items-center gap-1 ml-1">
-                                                                        <Timer className="w-2 h-2 text-indigo-500/50" />
-                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Happy Hour</span>
+                                                                        <Timer className="w-2 h-2 text-amber-500/50" />
+                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
                                                                     </div>
-                                                                    <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-indigo-200 focus-within:bg-white transition-all">
+                                                                    <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-amber-200 focus-within:bg-white transition-all">
                                                                         <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => updateTimeSlot(idx, 'start', e.target.value)} />
-                                                                        <div className="px-1 text-slate-200">
-                                                                            <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
-                                                                        </div>
+                                                                        <div className="px-1 text-slate-200"><div className="w-2 h-[1px] bg-slate-200 rounded-full"></div></div>
                                                                         <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => updateTimeSlot(idx, 'end', e.target.value)} />
                                                                     </div>
                                                                 </div>
-
-                                                                {/* Price Input Group */}
                                                                 <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
                                                                     <div className="flex items-center gap-1 ml-1">
-                                                                        <DollarSign className="w-2 h-2 text-indigo-500/50" />
-                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Harga Paket</span>
+                                                                        <DollarSign className="w-2 h-2 text-amber-500/50" />
+                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Harga Varian</span>
                                                                     </div>
-                                                                    <InputField
-                                                                        label=""
-                                                                        type="number"
-                                                                        className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-indigo-300 transition-all text-indigo-600 shadow-inner"
-                                                                        value={slot.price}
-                                                                        savedValue={lastSavedPackage?.timeSlots?.[idx]?.price}
-                                                                        isEditing={!!editingPackageId}
-                                                                        onChange={(val) => updateTimeSlot(idx, 'price', val)}
-                                                                    />
+                                                                    <InputField label="" type="number"
+                                                                        className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-amber-300 transition-all text-amber-600 shadow-inner"
+                                                                        value={slot.price} savedValue={lastSavedPackage?.timeSlots?.[idx]?.price} isEditing={!!editingPackageId}
+                                                                        onChange={(val) => updateTimeSlot(idx, 'price', val)} />
                                                                 </div>
-
-                                                                {/* Actions */}
                                                                 <div className="flex items-center justify-end lg:pt-3">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => removeTimeSlot(idx)}
-                                                                        className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                                    >
+                                                                    <button type="button" onClick={() => removeTimeSlot(idx)}
+                                                                        className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del">
                                                                         <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
                                                                     </button>
                                                                 </div>
                                                             </div>
+                                                            <div className="border-t border-slate-100/50 pt-2 mt-1">
+                                                                <div className="flex items-center gap-1 ml-1 mb-1.5">
+                                                                    <Tag className="w-2 h-2 text-emerald-500/60" />
+                                                                    <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Diskon Slot</span>
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <div className="flex-1 space-y-0.5">
+                                                                        <span className="text-[7px] font-bold text-slate-400 ml-1">% Diskon</span>
+                                                                        <input type="number" min="0" max="100"
+                                                                            className="w-full px-2 py-1.5 bg-emerald-50/50 hover:bg-emerald-50 focus:bg-white rounded-lg font-black text-xs outline-none border border-emerald-100/50 focus:border-emerald-300 transition-all text-emerald-700"
+                                                                            value={(slot as any).discountPercentage || 0}
+                                                                            onChange={(e) => updateTimeSlot(idx, 'discountPercentage', Number(e.target.value))} />
+                                                                    </div>
+                                                                    <div className="flex items-center pt-4 text-slate-300 text-[8px] font-bold">ATAU</div>
+                                                                    <div className="flex-1 space-y-0.5">
+                                                                        <span className="text-[7px] font-bold text-slate-400 ml-1">Rp Diskon</span>
+                                                                        <input type="number" min="0"
+                                                                            className="w-full px-2 py-1.5 bg-emerald-50/50 hover:bg-emerald-50 focus:bg-white rounded-lg font-black text-xs outline-none border border-emerald-100/50 focus:border-emerald-300 transition-all text-emerald-700"
+                                                                            value={slot.discountNominal || 0}
+                                                                            onChange={(e) => updateTimeSlot(idx, 'discountNominal', Number(e.target.value))} />
+                                                                    </div>
+                                                                </div>
+                                                                {hasSlotDiscount && (
+                                                                    <div className="mt-1 ml-1 text-[8px] font-bold text-emerald-600">
+                                                                        ✓ Harga setelah diskon: <span className="text-emerald-700">Rp {discountedPrice.toLocaleString('id-ID')}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
 
                                                             {/* Slot Valid Days Group */}
-                                                            <div className="border-t border-slate-100/50 pt-2 pb-0.5 mt-1">
+                                                            <div className="border-t border-slate-100/50 pt-2 pb-0.5">
                                                                 <div className="flex items-center gap-1 ml-1 mb-1.5">
                                                                     <CalendarDays className="w-2 h-2 text-indigo-500/50" />
                                                                     <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Hari Berlaku Slot</span>
                                                                 </div>
                                                                 <div className="flex flex-wrap gap-1">
                                                                     {DAYS_OPTIONS.map((day) => {
-                                                                        const validDays = slot.validDays || [];
-                                                                        const isSelected = validDays.includes(day.value);
+                                                                        const vd = slot.validDays || [];
+                                                                        const isSelected = vd.includes(day.value);
                                                                         const isWeekend = day.value === 'SAT' || day.value === 'SUN';
                                                                         return (
-                                                                            <button
-                                                                                key={day.value}
-                                                                                type="button"
-                                                                                title={day.full}
-                                                                                onClick={() => {
-                                                                                    let newDays = [...validDays];
-                                                                                    if (isSelected) newDays = newDays.filter(d => d !== day.value);
-                                                                                    else newDays.push(day.value);
-                                                                                    updateTimeSlot(idx, 'validDays', newDays);
-                                                                                }}
-                                                                                className={`w-7 h-7 text-[8px] font-black rounded-lg border transition-all active:scale-90 ${
-                                                                                    isSelected
-                                                                                        ? isWeekend
-                                                                                            ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200'
-                                                                                            : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200'
-                                                                                        : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-violet-300 hover:text-violet-500'
-                                                                                }`}
-                                                                            >
+                                                                            <button key={day.value} type="button" title={day.full}
+                                                                                onClick={() => { let nd = [...vd]; if (isSelected) nd = nd.filter(d => d !== day.value); else nd.push(day.value); updateTimeSlot(idx, 'validDays', nd); }}
+                                                                                className={`w-7 h-7 text-[8px] font-black rounded-lg border transition-all active:scale-90 ${isSelected ? isWeekend ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200' : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-violet-300 hover:text-violet-500'}`}>
                                                                                 {day.label}
                                                                             </button>
                                                                         );
                                                                     })}
                                                                 </div>
                                                                 <div className="text-[8px] text-slate-400 mt-1.5 ml-1 font-medium">
-                                                                    {(!slot.validDays || slot.validDays.length === 0)
-                                                                        ? <span className="text-emerald-500">Berlaku setiap hari</span>
-                                                                        : <span className="text-indigo-500">Aktif: {(slot.validDays || []).map((v: string) => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}</span>
-                                                                    }
+                                                                    {(!slot.validDays || slot.validDays.length === 0) ? <span className="text-emerald-500">Berlaku setiap hari</span> : <span className="text-indigo-500">Aktif: {(slot.validDays || []).map((v: string) => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}</span>}
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 {(!formData.timeSlots || formData.timeSlots.length === 0) && (
                                                     <div className="py-12 flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-100 rounded-[2.5rem]">
                                                         <Clock className="w-8 h-8 mb-2 opacity-20" />

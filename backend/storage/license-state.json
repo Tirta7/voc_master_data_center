@@ -1,9 +1,9 @@
 {
   "status": "ACTIVE",
   "expiredAt": "2027-12-23T17:00:00.000Z",
-  "daysLeft": 481,
+  "daysLeft": 477,
   "graceDaysLeft": 0,
   "licenseKey": "LIC-REM-B39H-GF4S",
   "machineId": "VOC-2177-C6EC-13BF",
-  "lastChecked": "2026-08-29T23:20:31.962Z"
+  "lastChecked": "2026-09-02T19:34:33.857Z"
 }

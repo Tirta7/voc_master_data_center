@@ -29,15 +29,26 @@ async function bootstrap() {
             policy: "cross-origin"
         }
     })); // Security headers
-    // Gzip responses, but IGNORE Server-Sent Events (SSE) to prevent buffering
+    // ⚡ OPTIMASI KOMPRESI: Level 6 = sweet spot kecepatan vs ukuran
+    // Threshold 512 bytes = jangan kompresi payload kecil (overhead tidak worth it)
     app.use((0, _compression.default)({
+        level: 6,
+        threshold: 512,
         filter: (req, res)=>{
+            // JANGAN kompresi SSE/Event streams (mencegah buffering)
             if (req.headers['accept'] === 'text/event-stream') {
                 return false;
             }
             return _compression.default.filter(req, res);
         }
     }));
+    // ⚡ OPTIMASI HEADER: Keep-Alive agar koneksi TCP tidak selalu dibuat baru
+    // Ini sangat penting untuk Cloudflare Tunnel agar koneksi di-reuse
+    app.use((req, res, next)=>{
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('Keep-Alive', 'timeout=60, max=1000');
+        next();
+    });
     // --- Socket.IO Adapter (Redis-backed for scalability) ---
     const redisIoAdapter = new _redisioadapter.RedisIoAdapter(app);
     await redisIoAdapter.connectToRedis();
@@ -49,6 +60,9 @@ async function bootstrap() {
     });
     app.useStaticAssets((0, _path.join)(__dirname, '..', 'public'));
     const server = await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
+    // ⚡ OPTIMASI TCP: Aktifkan keep-alive di level TCP untuk Node.js HTTP server
+    server.keepAliveTimeout = 65000; // Lebih dari Cloudflare Tunnel (60s)
+    server.headersTimeout = 70000; // Harus lebih besar dari keepAliveTimeout
     // Disable default 120s Node.js timeout for long-lived connections like SSE
     server.setTimeout(0);
     // --- Graceful Shutdown ---

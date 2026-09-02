@@ -164,11 +164,18 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         }
     };
 
-    const getCurrentPrice = (pkg: any) => {
+    const getActiveSlotInfo = (pkg: any) => {
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
+        const currentDayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
+        
+        let targetSlot = null;
+
         if (pkg.timeSlots && pkg.timeSlots.length > 0) {
             for (const slot of pkg.timeSlots) {
+                if (Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+                    if (!slot.validDays.includes(currentDayCode)) continue;
+                }
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const startVal = sH * 60 + sM;
@@ -179,11 +186,19 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                 } else {
                     if (timeVal >= startVal && timeVal < endVal) isMatch = true;
                 }
-                if (isMatch) return Number(slot.price);
+                if (isMatch) {
+                    targetSlot = slot;
+                    break;
+                }
             }
-            return Number(pkg.timeSlots[0].price);
+            if (!targetSlot) targetSlot = pkg.timeSlots[0];
         }
-        return Number(pkg.price);
+
+        const price = targetSlot ? Number(targetSlot.price) : Number(pkg.price);
+        const discountPercentage = targetSlot ? Number(targetSlot.discountPercentage || 0) : Number(pkg.discountPercentage || 0);
+        const discountNominal = targetSlot ? Number(targetSlot.discountNominal || 0) : Number(pkg.discountNominal || 0);
+
+        return { price, discountPercentage, discountNominal };
     };
 
     const isPlaytime = activeTab === 'playtime';
@@ -193,10 +208,21 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         let baseAmount = 0;
         if (activeTab === 'playtime') {
             const pkg = packages.find(p => p.id === selectedPackageId);
-            baseAmount = pkg ? getCurrentPrice(pkg) : currentCustomRate;
+            if (pkg) {
+                const info = getActiveSlotInfo(pkg);
+                baseAmount = info.price;
+                if (info.discountPercentage > 0) baseAmount -= (baseAmount * info.discountPercentage / 100);
+            } else {
+                baseAmount = currentCustomRate;
+            }
         } else if (activeTab === 'duration') {
             const pkg = packages.find(p => p.id === selectedPackageId);
-            if (pkg) baseAmount = getCurrentPrice(pkg);
+            if (pkg) {
+                const info = getActiveSlotInfo(pkg);
+                baseAmount = info.price;
+                if (info.discountPercentage > 0) baseAmount -= (baseAmount * info.discountPercentage / 100);
+                else if (info.discountNominal > 0) baseAmount = Math.max(0, baseAmount - info.discountNominal);
+            }
             else if (isCustomDurationMode) baseAmount = (customDuration / 60) * currentCustomRate;
         } else if (activeTab === 'promo') {
             const promo = promos.find(p => p.id === selectedPromoId);
@@ -254,7 +280,12 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         // If Open Table (Playtime) -> Require at least 1 hour of balance as safety buffer
         if (activeTab === 'playtime') {
             const pkg = packages.find(p => p.id === selectedPackageId);
-            const hourlyRate = pkg ? getCurrentPrice(pkg) : currentCustomRate;
+            let hourlyRate = currentCustomRate;
+            if (pkg) {
+                const info = getActiveSlotInfo(pkg);
+                hourlyRate = info.price;
+                if (info.discountPercentage > 0) hourlyRate -= (hourlyRate * info.discountPercentage / 100);
+            }
             const minBalanceRequired = hourlyRate; // 1 hour at current rate
             return bal >= minBalanceRequired;
         }
@@ -977,21 +1008,22 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                     filteredPackages.map((pkg) => {
                                         const selected = selectedPackageId === pkg.id;
                                         
-                                        const originalPrice = getCurrentPrice(pkg);
+                                        const info = getActiveSlotInfo(pkg);
+                                        const originalPrice = info.price;
                                         let finalPrice = originalPrice;
                                         let hasDiscount = false;
                                         let discountBadge = '';
                                         
-                                        if (pkg.discountPercentage && Number(pkg.discountPercentage) > 0) {
-                                            finalPrice = originalPrice - (originalPrice * Number(pkg.discountPercentage) / 100);
+                                        if (info.discountPercentage > 0) {
+                                            finalPrice = originalPrice - (originalPrice * info.discountPercentage / 100);
                                             hasDiscount = true;
-                                            discountBadge = `${pkg.discountPercentage}% OFF`;
-                                        } else if (pkg.discountNominal && Number(pkg.discountNominal) > 0) {
+                                            discountBadge = `${info.discountPercentage}% OFF`;
+                                        } else if (info.discountNominal > 0) {
                                             if (!isPlaytime) {
-                                                finalPrice = Math.max(0, originalPrice - Number(pkg.discountNominal));
+                                                finalPrice = Math.max(0, originalPrice - info.discountNominal);
                                             }
                                             hasDiscount = true;
-                                            discountBadge = `-Rp ${Number(pkg.discountNominal).toLocaleString()}`;
+                                            discountBadge = `-Rp ${info.discountNominal.toLocaleString()}`;
                                         }
 
                                         return (
@@ -1029,7 +1061,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                 {isPlaytime ? (
                                                     <div>
                                                         <p className="text-sm font-bold text-indigo-600">
-                                                            {hasDiscount && (pkg.discountPercentage > 0) && (
+                                                            {hasDiscount && (info.discountPercentage > 0) && (
                                                                 <span className="text-[10px] line-through text-slate-400 mr-1">Rp {originalPrice.toLocaleString()}</span>
                                                             )}
                                                             Rp {finalPrice.toLocaleString()}

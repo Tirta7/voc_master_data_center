@@ -2,10 +2,18 @@
 Object.defineProperty(exports, "__esModule", {
     value: true
 });
-Object.defineProperty(exports, "TransactionController", {
-    enumerable: true,
-    get: function() {
+function _export(target, all) {
+    for(var name in all)Object.defineProperty(target, name, {
+        enumerable: true,
+        get: Object.getOwnPropertyDescriptor(all, name).get
+    });
+}
+_export(exports, {
+    get TransactionController () {
         return TransactionController;
+    },
+    get TransactionPublicController () {
+        return TransactionPublicController;
     }
 });
 const _common = require("@nestjs/common");
@@ -128,9 +136,6 @@ let TransactionController = class TransactionController {
     }
     async removeVoucher(id) {
         return this.transactionService.removeVoucher(id);
-    }
-    async submitRating(id, data) {
-        return this.transactionService.submitRating(id, data.waiterRating, data.kasirRating, data.ratingMessage);
     }
     constructor(transactionService, invoiceService, hardwareService){
         this.transactionService = transactionService;
@@ -310,17 +315,6 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], TransactionController.prototype, "removeVoucher", null);
-_ts_decorate([
-    (0, _common.Post)(':id/rating'),
-    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
-    _ts_param(1, (0, _common.Body)()),
-    _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", [
-        Number,
-        Object
-    ]),
-    _ts_metadata("design:returntype", Promise)
-], TransactionController.prototype, "submitRating", null);
 TransactionController = _ts_decorate([
     (0, _common.Controller)('transactions'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
@@ -331,5 +325,31 @@ TransactionController = _ts_decorate([
         typeof _hardwareservice.HardwareService === "undefined" ? Object : _hardwareservice.HardwareService
     ])
 ], TransactionController);
+let TransactionPublicController = class TransactionPublicController {
+    async submitRating(id, data) {
+        return this.transactionService.submitRating(id, data.waiterRating, data.kasirRating, data.ratingMessage);
+    }
+    constructor(transactionService){
+        this.transactionService = transactionService;
+    }
+};
+_ts_decorate([
+    (0, _common.Post)(':id/rating'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], TransactionPublicController.prototype, "submitRating", null);
+TransactionPublicController = _ts_decorate([
+    (0, _common.Controller)('public-transactions'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _transactionservice.TransactionService === "undefined" ? Object : _transactionservice.TransactionService
+    ])
+], TransactionPublicController);
 
 //# sourceMappingURL=transaction.controller.js.map

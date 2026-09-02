@@ -94,6 +94,24 @@ _ts_decorate([
 ], BilliardPackage.prototype, "minutePrice", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 5,
+        scale: 2,
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], BilliardPackage.prototype, "discountPercentage", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], BilliardPackage.prototype, "discountNominal", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'json',
         nullable: true
     }),
