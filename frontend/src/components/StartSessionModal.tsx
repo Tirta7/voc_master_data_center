@@ -1017,7 +1017,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                         if (info.discountPercentage > 0) {
                                             finalPrice = originalPrice - (originalPrice * info.discountPercentage / 100);
                                             hasDiscount = true;
-                                            discountBadge = `${info.discountPercentage}% OFF`;
+                                            discountBadge = `${Number(info.discountPercentage)}% OFF`;
                                         } else if (info.discountNominal > 0) {
                                             if (!isPlaytime) {
                                                 finalPrice = Math.max(0, originalPrice - info.discountNominal);
