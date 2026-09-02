@@ -1072,9 +1072,9 @@ export class TransactionService {
 
       // Fallback: If no match and activePrice is 0, use first slot price or a default
       if (!matchedAny && activePrice === 0) {
-        activePrice = Number(pkg.timeSlots[0].price);
-        const discPct = Number(pkg.timeSlots[0].discountPercentage || 0);
-        const discNom = Number(pkg.timeSlots[0].discountNominal || 0);
+        activePrice = Number(pkg.timeSlots[0]?.price || 0);
+        const discPct = Number(pkg.timeSlots[0]?.discountPercentage || 0);
+        const discNom = Number(pkg.timeSlots[0]?.discountNominal || 0);
         if (discPct > 0) activePrice -= (activePrice * discPct / 100);
         else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
       }
@@ -1114,7 +1114,13 @@ export class TransactionService {
     if (!pkg.timeSlots || pkg.timeSlots.length === 0) {
       const actualSecs = Math.floor((end.getTime() - start.getTime()) / 1000);
       const billedSecs = Math.max(3600, actualSecs);
-      const ratePerHour = Number(pkg.minutePrice || 0) * 60;
+      let ratePerHour = Number(pkg.minutePrice || 0) * 60;
+      
+      const discPct = Number(pkg.discountPercentage || 0);
+      const discNom = Number(pkg.discountNominal || 0);
+      if (discPct > 0) ratePerHour = ratePerHour * (1 - discPct / 100);
+      else if (discNom > 0) ratePerHour = Math.max(0, ratePerHour - discNom);
+
       const price = (ratePerHour / 3600) * billedSecs;
 
       total = Math.round(price);
