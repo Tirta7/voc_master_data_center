@@ -1,22 +1,14 @@
 export const getApiUrl = () => {
     if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-
-        // Jika diakses via HTTPS (Cloudflare), arahkan ke subdomain api
-        if (protocol === 'https:') {
-            if (hostname !== 'admin.vocbilliard.online' && hostname.endsWith('.vocbilliard.online')) {
-                const branchName = hostname.split('.')[0];
-                return `https://api-${branchName}.vocbilliard.online`;
-            }
-            const baseDomain = hostname.replace(/^admin\./, '');
-            return `https://api.${baseDomain}`;
-        }
-
-        // Jika diakses via localhost/IP lokal (HTTP), tetap gunakan port 4000
-        return `http://${hostname}:4000`;
+        // ⚡ SOLUSI SATU DOMAIN:
+        // Saat berjalan di browser (client-side), gunakan path relatif /api-proxy
+        // Next.js server akan proxy request ini ke backend:4000 secara internal
+        // → Tidak perlu subdomain api-xxx, cukup satu domain saja!
+        // Berlaku untuk: localhost, IP lokal, maupun domain HTTPS publik
+        return '/api-proxy';
     }
-    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
+    // Server-side (SSR): gunakan URL internal Docker langsung
+    return (process.env.NEXT_INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
 };
 
 export const API_URL = getApiUrl();

@@ -68,9 +68,14 @@ const nextConfig = {
     },
 
     async rewrites() {
-        // Gunakan URL internal backend di Docker
+        // Gunakan URL internal backend di Docker (server-to-server, tidak keluar ke internet)
         const backendUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
         return [
+            // ⚡ PROXY UTAMA: Semua request API dari browser diteruskan ke backend
+            // Browser panggil /api-proxy/xxx → Next.js server teruskan ke backend:4000/xxx
+            // Ini memungkinkan satu domain saja tanpa perlu subdomain api-xxx
+            { source: '/api-proxy/:path*', destination: `${backendUrl}/:path*` },
+            // Static assets dari backend
             { source: '/uploads/:path*', destination: `${backendUrl}/uploads/:path*` },
             { source: '/logos/:path*', destination: `${backendUrl}/logos/:path*` },
             { source: '/promos/:path*', destination: `${backendUrl}/promos/:path*` },
