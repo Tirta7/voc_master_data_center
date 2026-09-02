@@ -681,7 +681,7 @@ export default function CafeDashboardPage() {
                     {filteredTables.map((t: any) => (
                         hasPermission('CAFE_CARD_VIEW') ? (
                             <CafeTableCard
-                                key={`${t.id}-${t.activeTransaction?.id || 'empty'}`}
+                                key={t.id}
                                 table={t}
                                 onStart={handleStart}
                                 onCheckout={handleCheckout}

@@ -662,7 +662,7 @@ export default function Dashboard() {
               {filteredTables.map((table) => (
                 hasPermission('BILLIARD_CARD_VIEW') ? (
                   <TableCard
-                    key={`${table.id}-${table.activeTransaction?.id || 'empty'}`}
+                    key={table.id}
                     table={{ ...table, isLightOn: table.isLightOn ?? false }}
                     onToggleLight={handleToggleLight}
                     onStartSession={openStartModal}
