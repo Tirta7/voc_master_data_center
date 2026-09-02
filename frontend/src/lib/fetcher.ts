@@ -1,21 +1,42 @@
 import axios from 'axios';
+import { getApiUrl } from '@/utils/urlUtils';
 
 // ⚡ Connection Pool: gunakan satu axios instance dengan keep-alive
 // Ini mencegah pembuatan koneksi TCP baru setiap request (sangat hemat via Cloudflare Tunnel)
 const http = typeof window === 'undefined' ? require('http') : null;
 const https = typeof window === 'undefined' ? require('https') : null;
 
+// ⚡ baseURL sengaja dikosongkan — URL penuh ditentukan di interceptor bawah
+// sehingga bisa mendeteksi hostname browser saat request terjadi (client-side)
+// maupun menggunakan NEXT_PUBLIC_API_URL saat SSR (server-side)
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
   timeout: 15000,
   headers: {
-    'Accept-Encoding': 'gzip, deflate, br', // Pastikan kompresi selalu diminta
+    'Accept-Encoding': 'gzip, deflate, br',
   },
   // Server-side: gunakan persistent connection pool
   ...(http && https ? {
     httpAgent: new http.Agent({ keepAlive: true, maxSockets: 20 }),
     httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 20 }),
   } : {}),
+});
+
+// ⚡ Dynamic baseURL injector: tentukan URL backend saat request terjadi
+// - Client-side: getApiUrl() mendeteksi hostname browser → pakai domain yg sesuai
+// - Server-side (SSR): fallback ke NEXT_PUBLIC_API_URL atau NEXT_INTERNAL_API_URL
+apiClient.interceptors.request.use((config) => {
+  if (!config.baseURL) {
+    if (typeof window !== 'undefined') {
+      // Browser: gunakan getApiUrl() agar otomatis sesuai domain yg dibuka
+      config.baseURL = getApiUrl();
+    } else {
+      // Server-side (SSR/API route): gunakan internal Docker URL
+      config.baseURL = process.env.NEXT_INTERNAL_API_URL
+        || process.env.NEXT_PUBLIC_API_URL
+        || 'http://localhost:4000';
+    }
+  }
+  return config;
 });
 
 // ⚡ Token injector: tambah JWT ke semua request otomatis
