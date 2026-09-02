@@ -13,6 +13,7 @@ import {
   Query,
   UploadedFile,
   UseInterceptors,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
@@ -22,6 +23,7 @@ import { BilliardGateway } from '../socket/billiard.gateway';
 import { Table, TableStatus } from './entities/table.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
+import type { Response } from 'express';
 
 @Controller('billiard')
 export class BilliardController {
@@ -80,7 +82,10 @@ export class BilliardController {
   }
 
   @Get('tables')
-  async getAllTables() {
+  async getAllTables(@Res({ passthrough: true }) res: Response) {
+    // ⚡ Table list: jangan di-cache lama karena status meja berubah real-time
+    // Tapi 2 detik cukup untuk menghindari burst request dari banyak client
+    res.setHeader('Cache-Control', 'public, max-age=2, stale-while-revalidate=5');
     return this.billiardService.getAllTables();
   }
 
@@ -97,7 +102,9 @@ export class BilliardController {
 
   @Get('packages')
   @UseGuards(AuthGuard('jwt'))
-  async getPackages() {
+  async getPackages(@Res({ passthrough: true }) res: Response) {
+    // ⚡ Packages: cache 60 detik (jarang berubah), stale-while-revalidate 120 detik
+    res.setHeader('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
     return this.billiardService.getPackages();
   }
 

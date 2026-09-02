@@ -678,12 +678,39 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         <span>-Rp{fmt(Number(tx.voucherDiscountAmount))}</span>
                     </div>
                 )}
-                {totalDiscount - Number(tx.voucherDiscountAmount || 0) > 0 && (
-                    <div className="flex justify-between text-slate-800 font-bold">
-                        <span>DISC {useBirthdayDiscount ? 'BIRTHDAY' : (tx.member?.tier?.name || 'MEMBER').toUpperCase()}</span>
-                        <span>-Rp{fmt(totalDiscount - Number(tx.voucherDiscountAmount || 0))}</span>
-                    </div>
-                )}
+                {(() => {
+                    let pkgDisc = 0;
+                    if (tx.billiardPackage) {
+                        const billiardOnly = currentBilliardPortion;
+                        if (tx.billiardPackage.discountPercentage && Number(tx.billiardPackage.discountPercentage) > 0) {
+                            pkgDisc = (billiardOnly * Number(tx.billiardPackage.discountPercentage)) / 100;
+                        } else if (tx.billiardPackage.discountNominal && Number(tx.billiardPackage.discountNominal) > 0) {
+                            pkgDisc = Number(tx.billiardPackage.discountNominal);
+                        }
+                    }
+                    
+                    const elements = [];
+                    if (pkgDisc > 0) {
+                        elements.push(
+                            <div key="pkg-disc" className="flex justify-between text-slate-800 font-bold">
+                                <span>DISC PAKET (PROMO)</span>
+                                <span>-Rp{fmt(pkgDisc)}</span>
+                            </div>
+                        );
+                    }
+
+                    const remainingDisc = totalDiscount - Number(tx.voucherDiscountAmount || 0) - pkgDisc;
+                    if (remainingDisc > 0) {
+                        elements.push(
+                            <div key="member-disc" className="flex justify-between text-slate-800 font-bold">
+                                <span>DISC {tx.member ? (useBirthdayDiscount ? 'BIRTHDAY' : (tx.member?.tier?.name || 'MEMBER').toUpperCase()) : 'PROMO'}</span>
+                                <span>-Rp{fmt(remainingDisc)}</span>
+                            </div>
+                        );
+                    }
+                    
+                    return elements;
+                })()}
                 {scAmount > 0 && (
                     <div className="flex justify-between">
                         <span>SERVICE CHARGE ({Number(settings.serviceChargePercentage || 0)}%)</span>

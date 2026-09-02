@@ -29,6 +29,8 @@ export default function BilliardPricingPage() {
         tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
         durationMinutes: number;
         price: number;
+        discountPercentage: number;
+        discountNominal: number;
         timeSlots?: { start: string; end: string; price: number; validDays?: string[] }[];
     }>({
         name: '',
@@ -36,6 +38,8 @@ export default function BilliardPricingPage() {
         tableCategory: 'REGULAR',
         durationMinutes: 120,
         price: 0,
+        discountPercentage: 0,
+        discountNominal: 0,
         timeSlots: [],
     });
 
@@ -148,6 +152,8 @@ export default function BilliardPricingPage() {
             tableCategory: 'REGULAR',
             durationMinutes: 120,
             price: 0,
+            discountPercentage: 0,
+            discountNominal: 0,
             timeSlots: []
         });
     };
@@ -162,6 +168,8 @@ export default function BilliardPricingPage() {
             tableCategory: catName,
             durationMinutes: pkg.durationMinutes || 120,
             price: Number(pkg.price),
+            discountPercentage: pkg.discountPercentage ? Number(pkg.discountPercentage) : 0,
+            discountNominal: pkg.discountNominal ? Number(pkg.discountNominal) : 0,
             timeSlots: pkg.timeSlots || []
         };
         setFormData(mappedData);
@@ -647,6 +655,37 @@ export default function BilliardPricingPage() {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* DISCOUNT SECTION */}
+                                <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Tag className="w-4 h-4 text-emerald-500" />
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Diskon Paket (Opening / Promo)</label>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputField
+                                            label="Diskon Persentase (%)"
+                                            type="number"
+                                            value={formData.discountPercentage}
+                                            savedValue={lastSavedPackage?.discountPercentage}
+                                            isEditing={!!editingPackageId}
+                                            onChange={(val) => setFormData({ ...formData, discountPercentage: val })}
+                                            placeholder="Contoh: 20"
+                                            className="w-full pl-3 pr-2 py-2 bg-white rounded-xl font-black text-xs outline-none border border-slate-200 focus:border-emerald-400"
+                                        />
+                                        <InputField
+                                            label="Diskon Nominal (Rp)"
+                                            type="number"
+                                            value={formData.discountNominal}
+                                            savedValue={lastSavedPackage?.discountNominal}
+                                            isEditing={!!editingPackageId}
+                                            onChange={(val) => setFormData({ ...formData, discountNominal: val })}
+                                            placeholder="Contoh: 10000"
+                                            className="w-full pl-3 pr-2 py-2 bg-white rounded-xl font-black text-xs outline-none border border-slate-200 focus:border-emerald-400"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 italic">* Isi salah satu atau keduanya (0 jika tidak ada diskon).</p>
                                 </div>
 
                                 {/* 2. DYNAMIC CONTENT AREA */}

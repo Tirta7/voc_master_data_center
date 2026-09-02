@@ -831,8 +831,20 @@ export class TransactionService {
         (Number(remaining.cafeTotal) || 0);
       const tierDisc = Number(remaining.tierDiscountAmount) || 0;
       
+      // Calculate Package Discount (if any)
+      let packageDiscount = 0;
+      if (transaction.billiardPackage) {
+        const pkg = transaction.billiardPackage;
+        const billiardOnly = Number(remaining.billiardTotal) || 0;
+        if (pkg.discountPercentage && Number(pkg.discountPercentage) > 0) {
+          packageDiscount = (billiardOnly * Number(pkg.discountPercentage)) / 100;
+        } else if (pkg.discountNominal && Number(pkg.discountNominal) > 0) {
+          packageDiscount = Number(pkg.discountNominal);
+        }
+      }
+
       // Total dynamic discount
-      const totalDisc = tierDisc + totalPromoDiscount + voucherDiscount;
+      const totalDisc = tierDisc + totalPromoDiscount + voucherDiscount + packageDiscount;
       
       const discountedSubtotal = Math.max(
         0,

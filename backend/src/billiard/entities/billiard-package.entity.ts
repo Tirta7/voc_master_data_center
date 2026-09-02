@@ -44,6 +44,12 @@ export class BilliardPackage {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   minutePrice: number;
 
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  discountPercentage: number | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  discountNominal: number | null;
+
   @Column({ type: 'json', nullable: true })
   timeSlots: { start: string; end: string; price: number; validDays?: string[] }[];
 

@@ -3,17 +3,70 @@ const nextConfig = {
     eslint: {
         ignoreDuringBuilds: true,
     },
-    // Optimasi Memory Build
+    // ⚡ Build optimization
     experimental: {
-        cpus: 2
+        cpus: 2,
+        // Optimalkan ukuran bundle
+        optimizePackageImports: ['lucide-react'],
     },
     typescript: {
         ignoreBuildErrors: true,
     },
     productionBrowserSourceMaps: false,
+
+    // ⚡ OPTIMASI KOMPRESI: Next.js internal compression
+    compress: true,
+
     // ─── Required for Docker deployment ───────────────────────
-    // Menghasilkan server.js standalone tanpa perlu node_modules penuh
     output: 'standalone',
+
+    // ⚡ OPTIMASI HTTP HEADERS: Aggressive caching untuk assets statis
+    // Ini yang paling berdampak untuk mempercepat loading via Cloudflare Tunnel
+    async headers() {
+        return [
+            {
+                // ✅ JS, CSS, fonts yang di-hash Next.js → bisa di-cache permanen
+                // File ini selalu berganti nama jika konten berubah (content-addressed)
+                source: '/_next/static/:path*',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=31536000, immutable', // 1 tahun
+                    },
+                    {
+                        key: 'Vary',
+                        value: 'Accept-Encoding',
+                    },
+                ],
+            },
+            {
+                // ✅ Assets di folder /public (gambar, logo, ikon, dll)
+                source: '/uploads/:path*',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'public, max-age=86400, stale-while-revalidate=3600', // 1 hari
+                    },
+                ],
+            },
+            {
+                // ✅ Semua route HTML: gunakan stale-while-revalidate
+                // Browser bisa sajikan halaman lama sambil fetch versi baru di background
+                source: '/:path*',
+                headers: [
+                    {
+                        key: 'X-DNS-Prefetch-Control',
+                        value: 'on',
+                    },
+                    {
+                        key: 'X-Content-Type-Options',
+                        value: 'nosniff',
+                    },
+                ],
+            },
+        ];
+    },
+
     async rewrites() {
         // Gunakan URL internal backend di Docker
         const backendUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
@@ -28,3 +81,4 @@ const nextConfig = {
 };
 
 export default nextConfig;
+

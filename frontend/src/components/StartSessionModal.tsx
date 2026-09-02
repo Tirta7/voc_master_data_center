@@ -976,6 +976,24 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                 ) : (
                                     filteredPackages.map((pkg) => {
                                         const selected = selectedPackageId === pkg.id;
+                                        
+                                        const originalPrice = getCurrentPrice(pkg);
+                                        let finalPrice = originalPrice;
+                                        let hasDiscount = false;
+                                        let discountBadge = '';
+                                        
+                                        if (pkg.discountPercentage && Number(pkg.discountPercentage) > 0) {
+                                            finalPrice = originalPrice - (originalPrice * Number(pkg.discountPercentage) / 100);
+                                            hasDiscount = true;
+                                            discountBadge = `${pkg.discountPercentage}% OFF`;
+                                        } else if (pkg.discountNominal && Number(pkg.discountNominal) > 0) {
+                                            if (!isPlaytime) {
+                                                finalPrice = Math.max(0, originalPrice - Number(pkg.discountNominal));
+                                            }
+                                            hasDiscount = true;
+                                            discountBadge = `-Rp ${Number(pkg.discountNominal).toLocaleString()}`;
+                                        }
+
                                         return (
                                             <button
                                                 key={pkg.id}
@@ -991,11 +1009,19 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                     <div className={`p-1.5 rounded-lg ${isPlaytime ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'}`}>
                                                         {isPlaytime ? <Clock className="w-3.5 h-3.5" /> : <Timer className="w-3.5 h-3.5" />}
                                                     </div>
-                                                    {selected && (
-                                                        <div className={`p-0.5 rounded-full ${isPlaytime ? 'bg-indigo-600' : 'bg-amber-500'} text-white`}>
-                                                            <Check className="w-3 h-3" />
-                                                        </div>
-                                                    )}
+                                                    
+                                                    <div className="flex items-center gap-2">
+                                                        {hasDiscount && (
+                                                            <span className="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-widest shadow-sm">
+                                                                {discountBadge}
+                                                            </span>
+                                                        )}
+                                                        {selected && (
+                                                            <div className={`p-0.5 rounded-full ${isPlaytime ? 'bg-indigo-600' : 'bg-amber-500'} text-white`}>
+                                                                <Check className="w-3 h-3" />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 <h4 className="font-black text-sm text-slate-800 mb-0.5 leading-tight">{pkg.name}</h4>
@@ -1003,7 +1029,10 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                 {isPlaytime ? (
                                                     <div>
                                                         <p className="text-sm font-bold text-indigo-600">
-                                                            Rp {getCurrentPrice(pkg).toLocaleString()}
+                                                            {hasDiscount && (pkg.discountPercentage > 0) && (
+                                                                <span className="text-[10px] line-through text-slate-400 mr-1">Rp {originalPrice.toLocaleString()}</span>
+                                                            )}
+                                                            Rp {finalPrice.toLocaleString()}
                                                             <span className="text-[10px] text-indigo-400 font-medium"> / Jam</span>
                                                         </p>
                                                         {pkg.timeSlots && pkg.timeSlots.length > 0 && (
@@ -1022,7 +1051,12 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                             <span className="text-xs font-bold text-amber-600">{pkg.durationMinutes} Menit</span>
                                                             <span className="text-[10px] text-slate-400 font-medium">Fixed</span>
                                                         </div>
-                                                        <p className="text-base font-black text-slate-800 mt-0.5">Rp {getCurrentPrice(pkg).toLocaleString()}</p>
+                                                        <p className="text-base font-black text-slate-800 mt-0.5">
+                                                            {hasDiscount && (
+                                                                <span className="text-[10px] line-through text-slate-400 mr-1.5">Rp {originalPrice.toLocaleString()}</span>
+                                                            )}
+                                                            Rp {finalPrice.toLocaleString()}
+                                                        </p>
                                                         {pkg.timeSlots && pkg.timeSlots.length > 0 && (
                                                             <div className="mt-1.5 pt-1.5 border-t border-amber-100/50 space-y-0.5">
                                                                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">

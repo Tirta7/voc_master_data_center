@@ -6,6 +6,7 @@ import {
   Request,
   UseGuards,
   Query,
+  Res,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import * as os from 'os';
@@ -13,6 +14,7 @@ import * as si from 'systeminformation';
 import { SettingsService } from './settings.service';
 import { Setting } from './entities/setting.entity';
 import { QrisUtil } from '../license/qris.util';
+import type { Response } from 'express';
 
 
 @Controller('settings')
@@ -20,7 +22,10 @@ export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get()
-  async getSettings(): Promise<Setting> {
+  async getSettings(@Res({ passthrough: true }) res: Response): Promise<Setting> {
+    // ⚡ Cache settings di browser & Cloudflare selama 30 detik
+    // stale-while-revalidate: boleh sajikan data lama sambil fetch baru di background
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
     return this.settingsService.getSettings();
   }
 
@@ -34,9 +39,12 @@ export class SettingsController {
   }
 
   @Get('ping')
-  getPing() {
+  getPing(@Res({ passthrough: true }) res: Response) {
+    // ⚡ Ping endpoint tidak perlu di-cache, tapi beri header no-cache yang eksplisit
+    res.setHeader('Cache-Control', 'no-store');
     return { ok: true, ts: Date.now() };
   }
+
 
   @Get('qris/dynamic')
   async getDynamicQris(@Query('amount') amount: string) {
