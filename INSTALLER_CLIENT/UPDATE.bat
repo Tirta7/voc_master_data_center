@@ -126,7 +126,7 @@ if errorlevel 1 (
 :: ──────────────────────────────────────────────────────────────
 echo.
 echo  [5/5] Restart layanan dengan versi baru...
-docker compose -f "%INSTALL_DIR%docker-compose.yml" --env-file "%INSTALL_DIR%.env" up -d --no-pull
+docker compose -f "%INSTALL_DIR%docker-compose.yml" --env-file "%INSTALL_DIR%.env" up -d
 if errorlevel 1 (
     echo  [ERROR] Gagal restart layanan.
     pause & exit /b 1
