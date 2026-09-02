@@ -683,8 +683,6 @@ export default function BilliardPricingPage() {
                                             <div className="space-y-3">
                                                 {(formData.timeSlots || []).map((slot: { start: string; end: string; price: number; discountPercentage?: number; discountNominal?: number; validDays?: string[] }, idx) => {
                                                     const slotDiscPct = Number(slot.discountPercentage || 0);
-                                                                                {(formData.timeSlots || []).map((slot, idx) => {
-                                                    const slotDiscPct = Number((slot as any).discountPercentage || 0);
                                                     const slotDiscNom = Number((slot as any).discountNominal || 0);
                                                     const discountedPrice = slotDiscPct > 0
                                                         ? Math.round(Number(slot.price) * (1 - slotDiscPct / 100))
@@ -811,7 +809,14 @@ export default function BilliardPricingPage() {
                                                 </div>
 
                                                 <div className="space-y-3">
-                                                    {(formData.timeSlots || []).map((slot, idx) => (
+                                                    {(formData.timeSlots || []).map((slot, idx) => {
+                                                        const slotDiscPct = Number((slot as any).discountPercentage || 0);
+                                                        const slotDiscNom = Number((slot as any).discountNominal || 0);
+                                                        const discountedPrice = slotDiscPct > 0
+                                                            ? Math.round(Number((slot as any).price) * (1 - slotDiscPct / 100))
+                                                            : slotDiscNom > 0 ? Math.max(0, Number((slot as any).price) - slotDiscNom) : 0;
+                                                        const hasSlotDiscount = slotDiscPct > 0 || slotDiscNom > 0;
+                                                        return (
                                                         <div key={idx} className="bg-white/70  p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-amber-100/5 transition-all group relative animate-in slide-in-from-right-4 duration-300 overflow-hidden">
                                                             <div className="absolute top-0 left-0 w-0.5 h-full bg-amber-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                                             <div className="flex flex-col gap-2">
@@ -860,6 +865,36 @@ export default function BilliardPricingPage() {
                                                                     </div>
                                                                 </div>
 
+                                                                {/* Discount Input Group */}
+                                                                <div className="border-t border-slate-100/50 pt-2 mt-1">
+                                                                    <div className="flex items-center gap-1 ml-1 mb-1.5">
+                                                                        <Tag className="w-2 h-2 text-emerald-500/60" />
+                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Diskon Slot</span>
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        <div className="flex-1 space-y-0.5">
+                                                                            <span className="text-[7px] font-bold text-slate-400 ml-1">% Diskon</span>
+                                                                            <input type="number" min="0" max="100"
+                                                                                className="w-full px-2 py-1.5 bg-emerald-50/50 hover:bg-emerald-50 focus:bg-white rounded-lg font-black text-xs outline-none border border-emerald-100/50 focus:border-emerald-300 transition-all text-emerald-700"
+                                                                                value={(slot as any).discountPercentage || 0}
+                                                                                onChange={(e) => updateTimeSlot(idx, 'discountPercentage', Number(e.target.value))} />
+                                                                        </div>
+                                                                        <div className="flex items-center pt-4 text-slate-300 text-[8px] font-bold">ATAU</div>
+                                                                        <div className="flex-1 space-y-0.5">
+                                                                            <span className="text-[7px] font-bold text-slate-400 ml-1">Rp Diskon</span>
+                                                                            <input type="number" min="0"
+                                                                                className="w-full px-2 py-1.5 bg-emerald-50/50 hover:bg-emerald-50 focus:bg-white rounded-lg font-black text-xs outline-none border border-emerald-100/50 focus:border-emerald-300 transition-all text-emerald-700"
+                                                                                value={(slot as any).discountNominal || 0}
+                                                                                onChange={(e) => updateTimeSlot(idx, 'discountNominal', Number(e.target.value))} />
+                                                                        </div>
+                                                                    </div>
+                                                                    {hasSlotDiscount && (
+                                                                        <div className="mt-1 ml-1 text-[8px] font-bold text-emerald-600">
+                                                                            ✓ Harga setelah diskon: <span className="text-emerald-700">Rp {discountedPrice.toLocaleString('id-ID')}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
                                                                 {/* Slot Valid Days Group */}
                                                                 <div className="border-t border-slate-100/50 pt-2 pb-0.5 mt-1">
                                                                     <div className="flex items-center gap-1 ml-1 mb-1.5">
@@ -904,7 +939,8 @@ export default function BilliardPricingPage() {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    ))}
+                                                    );
+                                                })}
                                                 </div>
                                             </div>
                                         </div>
