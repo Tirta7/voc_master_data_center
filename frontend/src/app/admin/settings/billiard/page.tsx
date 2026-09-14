@@ -382,140 +382,243 @@ export default function BilliardPricingPage() {
 
                                     return (
                                         <div className="space-y-6">
+                                            {/* Header baris: judul meja + status aktif */}
                                             <div className="flex items-center gap-3 border-b border-slate-100 pb-5">
-                                                <div className={`w-2 h-2 rounded-full ${dotColor} animate-pulse`}></div>
+                                                <div className={`w-2.5 h-2.5 rounded-full ${dotColor} animate-pulse`}></div>
                                                 <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{title}</h3>
                                                 {isAnySlotActive(config) ? (
-                                                    <div className="ml-auto bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-sm">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                                                        AKTIF: Rp {getActiveRate(config).toLocaleString()}
+                                                    <div className="ml-auto bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-2 shadow-sm">
+                                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"></div>
+                                                        AKTIF SEKARANG · Rp {getActiveRate(config).toLocaleString()}
                                                     </div>
                                                 ) : (
-                                                    <div className="ml-auto bg-rose-50 border border-rose-100 text-rose-600 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5">
+                                                    <div className="ml-auto bg-rose-50 border border-rose-200 text-rose-600 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-2">
                                                         <AlertCircle className="w-3.5 h-3.5" />
-                                                        SLOT TIDAK DITEMUKAN
+                                                        TIDAK ADA SLOT AKTIF
                                                     </div>
                                                 )}
                                             </div>
 
-                                            {/* Base Price */}
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-2 ml-1">
-                                                    <DollarSign className={`w-3.5 h-3.5 text-${theme}-500`} />
-                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tarif Dasar Per Jam</span>
+                                            {/* Tarif Dasar Per Jam */}
+                                            <div className={`bg-gradient-to-br from-${theme}-50 to-white border border-${theme}-100 rounded-2xl p-5`}>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <div className={`w-7 h-7 bg-${theme}-100 rounded-xl flex items-center justify-center`}>
+                                                        <DollarSign className={`w-3.5 h-3.5 text-${theme}-600`} />
+                                                    </div>
+                                                    <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Tarif Dasar Per Jam</span>
+                                                    <span className="ml-auto text-[10px] text-slate-400 font-semibold">Berlaku jika tidak ada slot aktif</span>
                                                 </div>
-                                                <InputField
-                                                    label=""
-                                                    type="number"
-                                                    className={`w-full max-w-xs pl-7 pr-4 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl font-black text-sm outline-none border border-slate-200 focus:border-${theme}-400 transition-all`}
-                                                    value={config?.basePrice || 0}
-                                                    isEditing={true}
-                                                    onChange={(val) => setConfig({ ...(config || {timeSlots:[]}), basePrice: Number(val) || 0 })}
-                                                />
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`text-sm font-black text-${theme}-600`}>Rp</span>
+                                                    <InputField
+                                                        label=""
+                                                        type="number"
+                                                        className={`flex-1 max-w-xs px-4 py-3 bg-white rounded-xl font-black text-slate-800 text-lg outline-none border-2 border-${theme}-100 focus:border-${theme}-400 transition-all shadow-sm`}
+                                                        value={config?.basePrice || 0}
+                                                        isEditing={true}
+                                                        onChange={(val) => setConfig({ ...(config || {timeSlots:[]}), basePrice: Number(val) || 0 })}
+                                                    />
+                                                    <span className="text-sm text-slate-400 font-semibold">/ jam</span>
+                                                </div>
                                             </div>
 
-                                            {/* Time Slots */}
-                                            <div className="pt-4 border-t border-slate-100">
-                                                <div className="flex justify-between items-center px-1 mb-4">
+                                            {/* Slot Waktu Khusus */}
+                                            <div className="pt-2">
+                                                <div className="flex items-center justify-between mb-5">
                                                     <div className="flex items-center gap-2">
-                                                        <Clock className={`w-4 h-4 text-${theme}-600`} />
-                                                        <label className="block text-[11px] font-black text-slate-700 uppercase tracking-widest">Slot Waktu Khusus</label>
+                                                        <div className={`w-7 h-7 bg-${theme}-100 rounded-xl flex items-center justify-center`}>
+                                                            <Clock className={`w-3.5 h-3.5 text-${theme}-600`} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-xs font-black text-slate-700 uppercase tracking-widest">Slot Waktu Khusus</div>
+                                                            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">{(config?.timeSlots||[]).length} slot dikonfigurasi</div>
+                                                        </div>
                                                     </div>
                                                     <button
                                                         onClick={() => {
                                                             const current = config || { basePrice: 0, timeSlots: [] };
-                                                            setConfig({ ...current, timeSlots: [...(current.timeSlots||[]), { start: '00:00', end: '00:00', price: current.basePrice || 0, validDays: [] }] });
+                                                            setConfig({ ...current, timeSlots: [...(current.timeSlots||[]), { start: '08:00', end: '17:00', price: current.basePrice || 0, validDays: [] }] });
                                                         }}
-                                                        className={`px-4 py-2 bg-${theme}-50 text-${theme}-700 hover:bg-${theme}-600 hover:text-white border border-${theme}-100 rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all active:scale-95`}
+                                                        className={`flex items-center gap-2 px-5 py-2.5 bg-${theme}-600 hover:bg-${theme}-700 text-white rounded-xl text-[11px] font-black transition-all active:scale-95 shadow-lg shadow-${theme}-200`}
                                                     >
-                                                        <Plus className="w-3 h-3" /> TAMBAH SLOT
+                                                        <Plus className="w-3.5 h-3.5" /> Tambah Slot
                                                     </button>
                                                 </div>
 
+                                                {/* Empty State */}
                                                 {(config?.timeSlots || []).length === 0 && (
-                                                    <div className="text-center py-6 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                                                        Belum ada slot waktu khusus diatur.
+                                                    <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                                                        <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                                            <Clock className="w-7 h-7 text-slate-300" />
+                                                        </div>
+                                                        <p className="text-slate-400 font-bold text-sm">Belum ada slot waktu khusus</p>
+                                                        <p className="text-slate-300 text-xs mt-1">Klik "Tambah Slot" untuk menambahkan tarif berdasarkan jam</p>
                                                     </div>
                                                 )}
 
-                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                                    {(config?.timeSlots || []).map((slot: any, idx: number) => (
-                                                        <div key={idx} className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 flex flex-col xl:flex-row gap-3 items-center group">
-                                                            <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 focus-within:border-indigo-400 flex-1 w-full xl:w-auto">
-                                                                <input type="time" className="bg-transparent rounded-md p-1 font-black text-xs outline-none text-center text-slate-700 w-full" value={slot.start} onChange={(e) => {
-                                                                    const newSlots = [...config.timeSlots];
-                                                                    newSlots[idx].start = e.target.value;
-                                                                    setConfig({ ...config, timeSlots: newSlots });
-                                                                }} />
-                                                                <span className="text-slate-300 font-bold px-1">-</span>
-                                                                <input type="time" className="bg-transparent rounded-md p-1 font-black text-xs outline-none text-center text-slate-700 w-full" value={slot.end} onChange={(e) => {
-                                                                    const newSlots = [...config.timeSlots];
-                                                                    newSlots[idx].end = e.target.value;
-                                                                    setConfig({ ...config, timeSlots: newSlots });
-                                                                }} />
-                                                            </div>
-                                                            <div className="flex gap-2 items-center w-full xl:w-auto">
-                                                                <InputField
-                                                                    label="" type="number"
-                                                                    className="w-full xl:w-28 pl-7 pr-2 py-2 bg-white rounded-xl font-black text-xs outline-none border border-slate-200 focus:border-indigo-400"
-                                                                    value={slot.price}
-                                                                    isEditing={true}
-                                                                    onChange={(val) => {
-                                                                        const newSlots = [...config.timeSlots];
-                                                                        newSlots[idx].price = val;
-                                                                        setConfig({ ...config, timeSlots: newSlots });
-                                                                    }}
-                                                                />
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newSlots = config.timeSlots.filter((_: any, i: number) => i !== idx);
-                                                                        setConfig({ ...config, timeSlots: newSlots });
-                                                                    }}
-                                                                    className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all h-full flex items-center justify-center"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
-                                                            {/* ✅ Valid Days Selection */}
-                                                            <div className="w-full pt-2 border-t border-slate-100 flex flex-wrap gap-1">
-                                                                {DAYS_OPTIONS.map((day) => {
-                                                                    const slotValidDays = slot.validDays || [];
-                                                                    const isSelected = slotValidDays.includes(day.value);
-                                                                    const isWeekend = day.value === 'SAT' || day.value === 'SUN';
-                                                                    return (
-                                                                        <button
-                                                                            key={day.value}
-                                                                            type="button"
-                                                                            title={day.full}
-                                                                            onClick={() => {
-                                                                                const newSlots = [...config.timeSlots];
-                                                                                let currentDays = newSlots[idx].validDays || [];
-                                                                                if (isSelected) {
-                                                                                    currentDays = currentDays.filter((d: string) => d !== day.value);
-                                                                                } else {
-                                                                                    currentDays = [...currentDays, day.value];
-                                                                                }
-                                                                                newSlots[idx].validDays = currentDays.length > 0 ? currentDays : null;
-                                                                                setConfig({ ...config, timeSlots: newSlots });
-                                                                            }}
-                                                                            className={`w-7 h-7 text-[8px] font-black rounded-lg border transition-all active:scale-90 ${
-                                                                                isSelected
-                                                                                    ? isWeekend
-                                                                                        ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200'
-                                                                                        : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200'
-                                                                                    : 'bg-white border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-500'
-                                                                            }`}
-                                                                        >
-                                                                            {day.label}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                                <div className="ml-auto text-[8px] font-bold text-slate-400 self-center">
-                                                                    {(!slot.validDays || slot.validDays.length === 0) ? 'Setiap Hari' : 'Hari Pilihan'}
+                                                {/* Slot Cards */}
+                                                <div className="space-y-4">
+                                                    {(config?.timeSlots || []).map((slot: any, idx: number) => {
+                                                        const isActive = isSlotActive(slot.start, slot.end);
+                                                        const hasNoDays = !slot.validDays || slot.validDays.length === 0;
+                                                        return (
+                                                            <div key={idx} className={`relative rounded-3xl border-2 overflow-hidden transition-all ${
+                                                                isActive
+                                                                    ? 'border-emerald-300 shadow-lg shadow-emerald-100 bg-gradient-to-br from-emerald-50 to-white'
+                                                                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                                                            }`}>
+                                                                {/* Slot Number Badge + Active Tag */}
+                                                                <div className={`px-5 py-3 flex items-center justify-between border-b ${isActive ? 'border-emerald-100 bg-emerald-50/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                                                                    <div className="flex items-center gap-2.5">
+                                                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${isActive ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                                                            {idx + 1}
+                                                                        </div>
+                                                                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Slot {idx + 1}</span>
+                                                                        {isActive && (
+                                                                            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500 text-white rounded-lg text-[9px] font-black">
+                                                                                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                                                                                AKTIF SEKARANG
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="text-[10px] text-slate-400 font-semibold">
+                                                                            {hasNoDays ? '· Setiap Hari' : `· ${(slot.validDays||[]).length} hari dipilih`}
+                                                                        </span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const newSlots = config.timeSlots.filter((_: any, i: number) => i !== idx);
+                                                                            setConfig({ ...config, timeSlots: newSlots });
+                                                                        }}
+                                                                        className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all"
+                                                                        title="Hapus slot ini"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+
+                                                                <div className="p-5 space-y-4">
+                                                                    {/* Waktu & Harga Row */}
+                                                                    <div className="flex flex-wrap items-center gap-3">
+                                                                        {/* Time Range */}
+                                                                        <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+                                                                            <div className="flex-1">
+                                                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mulai</div>
+                                                                                <input
+                                                                                    type="time"
+                                                                                    className={`w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-2xl font-black text-base text-slate-800 outline-none border-2 border-slate-200 focus:border-${theme}-400 transition-all text-center`}
+                                                                                    value={slot.start}
+                                                                                    onChange={(e) => {
+                                                                                        const newSlots = [...config.timeSlots];
+                                                                                        newSlots[idx].start = e.target.value;
+                                                                                        setConfig({ ...config, timeSlots: newSlots });
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                            <div className="mt-5">
+                                                                                <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
+                                                                                    <span className="text-slate-400 font-black text-sm">→</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex-1">
+                                                                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Selesai</div>
+                                                                                <input
+                                                                                    type="time"
+                                                                                    className={`w-full px-4 py-3 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-2xl font-black text-base text-slate-800 outline-none border-2 border-slate-200 focus:border-${theme}-400 transition-all text-center`}
+                                                                                    value={slot.end}
+                                                                                    onChange={(e) => {
+                                                                                        const newSlots = [...config.timeSlots];
+                                                                                        newSlots[idx].end = e.target.value;
+                                                                                        setConfig({ ...config, timeSlots: newSlots });
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Price */}
+                                                                        <div className="flex-1 min-w-[160px]">
+                                                                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Tarif / Jam</div>
+                                                                            <div className="relative">
+                                                                                <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-${theme}-500`}>Rp</span>
+                                                                                <InputField
+                                                                                    label="" type="number"
+                                                                                    className={`w-full pl-10 pr-4 py-3 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-2xl font-black text-base text-slate-800 outline-none border-2 border-slate-200 focus:border-${theme}-400 transition-all`}
+                                                                                    value={slot.price}
+                                                                                    isEditing={true}
+                                                                                    onChange={(val) => {
+                                                                                        const newSlots = [...config.timeSlots];
+                                                                                        newSlots[idx].price = val;
+                                                                                        setConfig({ ...config, timeSlots: newSlots });
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Hari Berlaku */}
+                                                                    <div className={`pt-4 border-t ${isActive ? 'border-emerald-100' : 'border-slate-100'}`}>
+                                                                        <div className="flex items-center justify-between mb-3">
+                                                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                                                                <Calendar className="w-3 h-3" />
+                                                                                Hari Berlaku
+                                                                            </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const newSlots = [...config.timeSlots];
+                                                                                    const allSelected = DAYS_OPTIONS.every(d => (newSlots[idx].validDays||[]).includes(d.value));
+                                                                                    newSlots[idx].validDays = allSelected ? null : DAYS_OPTIONS.map(d => d.value);
+                                                                                    setConfig({ ...config, timeSlots: newSlots });
+                                                                                }}
+                                                                                className="text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-colors underline underline-offset-2"
+                                                                            >
+                                                                                {DAYS_OPTIONS.every(d => (slot.validDays||[]).includes(d.value)) ? 'Hapus Semua' : 'Pilih Semua'}
+                                                                            </button>
+                                                                        </div>
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            {DAYS_OPTIONS.map((day) => {
+                                                                                const slotValidDays = slot.validDays || [];
+                                                                                const isSelected = slotValidDays.includes(day.value);
+                                                                                const isWeekend = day.value === 'SAT' || day.value === 'SUN';
+                                                                                return (
+                                                                                    <button
+                                                                                        key={day.value}
+                                                                                        type="button"
+                                                                                        title={day.full}
+                                                                                        onClick={() => {
+                                                                                            const newSlots = [...config.timeSlots];
+                                                                                            let currentDays = newSlots[idx].validDays || [];
+                                                                                            if (isSelected) {
+                                                                                                currentDays = currentDays.filter((d: string) => d !== day.value);
+                                                                                            } else {
+                                                                                                currentDays = [...currentDays, day.value];
+                                                                                            }
+                                                                                            newSlots[idx].validDays = currentDays.length > 0 ? currentDays : null;
+                                                                                            setConfig({ ...config, timeSlots: newSlots });
+                                                                                        }}
+                                                                                        className={`px-3 py-1.5 text-[11px] font-black rounded-xl border-2 transition-all active:scale-95 ${
+                                                                                            isSelected
+                                                                                                ? isWeekend
+                                                                                                    ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-100'
+                                                                                                    : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-100'
+                                                                                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-500 hover:bg-violet-50'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {day.full}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                        {hasNoDays && (
+                                                                            <p className="mt-2 text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                                                                                <CalendarDays className="w-3 h-3" />
+                                                                                Tidak ada hari dipilih = berlaku setiap hari
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         </div>
