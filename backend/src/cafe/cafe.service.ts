@@ -1339,6 +1339,7 @@ export class CafeService {
     status: OrderItemStatus,
     userId?: number,
     userName?: string,
+    userRole?: string,   // role dari JWT (e.g. 'KITCHEN', 'BARTENDER', 'ADMIN')
   ): Promise<OrderItem | undefined> {
     const lockKey = `item_update_${id}`;
     const acquired = await this.redisService.acquireLock(lockKey, 3000);
@@ -1409,8 +1410,34 @@ export class CafeService {
           if (status === OrderItemStatus.DONE) {
             if (userId) item.completedByUserId = userId;
             item.completedAt = new Date();
-            await manager.save(OrderItem, item);
+
             const station = item.station || this.getStation(item.menuItem);
+
+            // ── Verifikasi Kepemilikan Komisi (Production Commission) ────────────
+            // commissionUserId hanya di-assign jika role user SESUAI dengan station item.
+            // Ini mencegah komisi salah akun ketika menggunakan Kitchen & Bar (Unified).
+            //
+            // Mapping:
+            //   KITCHEN   → berhak komisi item di station KDS
+            //   BARTENDER → berhak komisi item di station BDS
+            //   ADMIN/SUPERADMIN/OWNER → berhak komisi semua station
+            //
+            // Jika item.commissionUserId sudah diset sebelumnya (misal oleh waiter saat order)
+            // maka TIDAK di-overwrite — komisi sales tetap milik yang input order.
+            if (userId && !item.commissionUserId) {
+              if (this.canEarnProductionCommission(userRole, station)) {
+                item.commissionUserId = userId;
+                this.logger.log(
+                  `[Commission] Item ${id} (${station}) → commissionUserId=${userId} (role: ${userRole})`,
+                );
+              } else {
+                this.logger.debug(
+                  `[Commission] Item ${id} (${station}) → role ${userRole} tidak eligible, komisi tidak di-assign.`,
+                );
+              }
+            }
+
+            await manager.save(OrderItem, item);
             await this.updateDailySummary(
               station,
               item.menuItem?.name || 'Unknown',
@@ -1489,6 +1516,41 @@ export class CafeService {
     summary.itemsJson = JSON.stringify(items);
 
     await this.dailySummaryRepository.save(summary);
+  }
+
+  /**
+   * Menentukan apakah user dengan role tertentu berhak mendapat komisi produksi
+   * dari item di station tertentu.
+   *
+   * Aturan kepemilikan:
+   *   KITCHEN   → berhak atas item station KDS (dapur)
+   *   BARTENDER → berhak atas item station BDS (bar)
+   *   ADMIN / SUPERADMIN / OWNER → berhak atas semua station
+   *
+   * Dipakai saat klik "Selesai" di KDS / Kitchen & Bar (Unified).
+   * Jika role tidak cocok dengan station → commissionUserId tidak di-assign
+   * sehingga komisi tidak salah akun.
+   */
+  private canEarnProductionCommission(
+    userRole: string | undefined,
+    station: string | undefined,
+  ): boolean {
+    if (!userRole || !station) return false;
+
+    const role = userRole.toUpperCase().trim();
+    const st = station.toUpperCase().trim();
+
+    // Kitchen staff → hanya berhak komisi untuk item dapur (KDS)
+    if (role === 'KITCHEN' && st === 'KDS') return true;
+
+    // Bartender staff → hanya berhak komisi untuk item bar (BDS)
+    if (role === 'BARTENDER' && st === 'BDS') return true;
+
+    // Admin / Owner / Super admin → berhak semua station
+    if (['ADMIN', 'SUPERADMIN', 'OWNER'].includes(role)) return true;
+
+    // Role lain (WAITER, KASIR, TESTING, dll) → tidak berhak komisi produksi
+    return false;
   }
 
   async getDailyStationSummary(station: string) {

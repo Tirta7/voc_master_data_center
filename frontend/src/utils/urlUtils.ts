@@ -14,6 +14,25 @@ export const getApiUrl = () => {
 export const API_URL = getApiUrl();
 
 /**
+ * URL khusus untuk Socket.IO (WebSocket).
+ * Socket.IO TIDAK BISA lewat Next.js rewrites karena rewrites hanya proxy HTTP,
+ * bukan WebSocket upgrade. Socket.IO harus konek langsung ke backend.
+ */
+export const getSocketUrl = (): string => {
+    // 1. Gunakan env var khusus jika ada (misal: untuk produksi/Docker)
+    if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL.trim();
+    // 2. Gunakan NEXT_PUBLIC_API_URL jika ada (URL publik backend)
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.trim();
+    // 3. Fallback: bangun URL dari hostname browser + port backend 4000
+    if (typeof window !== 'undefined') {
+        return `${window.location.protocol}//${window.location.hostname}:4000`;
+    }
+    return 'http://localhost:4000';
+};
+
+export const SOCKET_URL = typeof window !== 'undefined' ? getSocketUrl() : 'http://localhost:4000';
+
+/**
  * Paths served as static files by the NestJS backend (via useStaticAssets).
  * These need to be prefixed with the backend base URL.
  */

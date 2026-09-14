@@ -117,6 +117,7 @@ export class CafeController {
       status,
       req.user.id,
       req.user.username,
+      req.user.role,   // ← Pass role untuk verifikasi kepemilikan komisi
     );
   }
 
