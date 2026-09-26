@@ -1209,21 +1209,11 @@ export class BilliardService implements OnModuleInit {
 
   // --- Package Management ---
   async getPackages(): Promise<BilliardPackage[]> {
-    const now = Date.now();
-    if (this.packagesCache && this.packagesCache.expiry > now) {
-      return this.packagesCache.data;
-    }
-
+    // ⚡ Always fetch from DB — no in-memory cache to prevent stale data after CRUD
     const packages = await this.packageRepository.find({
       where: { isActive: true },
       order: { createdAt: 'DESC' },
     });
-
-    this.packagesCache = {
-      data: packages,
-      expiry: now + 10000, // 10 seconds cache
-    };
-
     return packages;
   }
 
@@ -1232,7 +1222,7 @@ export class BilliardService implements OnModuleInit {
   ): Promise<BilliardPackage> {
     const pkg = this.packageRepository.create(data);
     const saved = await this.packageRepository.save(pkg);
-    this.packagesCache = null; // Clear cache for immediate update
+    this.packagesCache = null;
     return saved;
   }
 
@@ -1245,7 +1235,7 @@ export class BilliardService implements OnModuleInit {
 
     Object.assign(pkg, data);
     const updated = await this.packageRepository.save(pkg);
-    this.packagesCache = null; // Clear cache for immediate update
+    this.packagesCache = null;
     return updated;
   }
 
@@ -1253,8 +1243,10 @@ export class BilliardService implements OnModuleInit {
     const pkg = await this.packageRepository.findOne({ where: { id } });
     if (!pkg) throw new NotFoundException('Package not found');
 
-    await this.packageRepository.delete(id);
-    this.packagesCache = null; // Clear cache for immediate update
+    // Soft-delete: set isActive=false agar referensi historis di transaksi tidak rusak
+    pkg.isActive = false;
+    await this.packageRepository.save(pkg);
+    this.packagesCache = null;
   }
 
   /**

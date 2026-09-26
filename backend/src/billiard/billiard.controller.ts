@@ -102,9 +102,8 @@ export class BilliardController {
 
   @Get('packages')
   @UseGuards(AuthGuard('jwt'))
-  async getPackages(@Res({ passthrough: true }) res: Response) {
-    // ⚡ Packages: cache 60 detik (jarang berubah), stale-while-revalidate 120 detik
-    res.setHeader('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+  async getPackages() {
+    // ⚡ No HTTP cache — packages must always return fresh data after CRUD operations
     return this.billiardService.getPackages();
   }
 

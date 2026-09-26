@@ -97,7 +97,8 @@ export default function BilliardPricingPage() {
 
     const fetchPackages = async () => {
         try {
-            const res = await axios.get(`/billiard/packages`);
+            // Cache-buster: tambahkan timestamp agar browser tidak pakai response lama
+            const res = await axios.get(`/billiard/packages?_t=${Date.now()}`);
             setPackages(res.data);
         } catch (err) {
             console.error('Fetch packages failed:', err);
@@ -116,25 +117,32 @@ export default function BilliardPricingPage() {
         e.preventDefault();
         try {
             const selectedCategory = categories.find(c => c.name === formData.tableCategory);
+            // Konversi type: frontend pakai 'hourly'/'fixed', backend enum: 'hourly'/'fixed'/'DURATION'/'PLAYTIME'
+            const typeToSend = formData.type; // sudah dalam format yang benar
             const dataToSubmit = {
                 ...formData,
+                type: typeToSend,
                 categoryId: selectedCategory ? selectedCategory.id : null,
                 // ✅ NEW: kirim validDays — array kosong = berlaku setiap hari
                 validDays: validDays.length > 0 ? validDays : null,
             };
 
             if (editingPackageId) {
-                await axios.patch(`/billiard/packages/${editingPackageId}`, dataToSubmit);
+                const res = await axios.patch(`/billiard/packages/${editingPackageId}`, dataToSubmit);
+                // Optimistic update: langsung update state lokal tanpa tunggu refetch
+                setPackages(prev => prev.map(p => p.id === editingPackageId ? { ...p, ...res.data } : p));
                 alert('Paket berhasil diperbarui!');
             } else {
                 await axios.post(`/billiard/packages`, dataToSubmit);
                 alert('Paket berhasil ditambahkan!');
             }
-            fetchPackages();
+            // Refetch untuk sinkronisasi data terbaru dari server
+            await fetchPackages();
             resetForm();
-        } catch (err) {
-            console.error(err);
-            alert('Gagal menyimpan paket.');
+        } catch (err: any) {
+            console.error('Save package error:', err);
+            const msg = err?.response?.data?.message || err?.message || 'Gagal menyimpan paket.';
+            alert(`Gagal menyimpan paket: ${msg}`);
         }
     };
 
@@ -186,11 +194,17 @@ export default function BilliardPricingPage() {
         if (!confirm('Yakin ingin menghapus paket ini?')) return;
         try {
             await axios.delete(`/billiard/packages/${id}`);
-            fetchPackages();
+            // Optimistic update: langsung hapus dari state lokal
+            setPackages(prev => prev.filter(p => p.id !== id));
+            // Jika sedang edit paket yang dihapus, reset form
+            if (editingPackageId === id) resetForm();
             alert('Paket berhasil dihapus!');
-        } catch (err) {
+            // Refetch untuk konfirmasi dari server
+            await fetchPackages();
+        } catch (err: any) {
             console.error('Delete failed:', err);
-            alert('Gagal menghapus paket.');
+            const msg = err?.response?.data?.message || err?.message || 'Gagal menghapus paket.';
+            alert(`Gagal menghapus paket: ${msg}`);
         }
     };
 

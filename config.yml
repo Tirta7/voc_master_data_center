@@ -4,12 +4,31 @@ credentials-file: C:\Users\tirta\.cloudflared\9af9600e-6753-4dd1-a078-1f4f163b38
 ingress:
   - hostname: enkatextile.co.id
     service: http://127.0.0.1:8080
+
   - hostname: enkatextile.vocbilliard.online
     service: http://127.0.0.1:8080
+
   - hostname: admin.vocbilliard.online
     service: http://127.0.0.1:3000
+    originRequest:
+      noTLSVerify: true
+
+  # ⚡ API + Socket.IO Backend — WebSocket HARUS diaktifkan di sini
   - hostname: api.vocbilliard.online
     service: http://127.0.0.1:4000
+    originRequest:
+      noTLSVerify: true
+      # Cloudflare Tunnel otomatis support WebSocket upgrade
+      # Pastikan tidak ada timeout singkat yang memutus koneksi WS
+      connectTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveTimeout: 90s
+      keepAliveConnections: 100
+
+  # MQTT WebSocket
   - hostname: mqtt.vocbilliard.online
     service: http://127.0.0.1:8083
+    originRequest:
+      noTLSVerify: true
+
   - service: http_status:404
