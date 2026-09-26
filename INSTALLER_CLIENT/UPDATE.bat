@@ -109,15 +109,38 @@ for %%I in (%DOCKERHUB_IMAGES%) do (
 :: ──────────────────────────────────────────────────────────────
 echo.
 echo  [4/5] Mengunduh update VOC dari GitHub Registry...
-docker pull ghcr.io/!GITHUB_USERNAME!/voc-backend:latest
-if errorlevel 1 (
-    echo  [ERROR] Gagal download voc-backend.
+
+set PULL_BACKEND_OK=0
+for /L %%r in (1,1,3) do (
+    if !PULL_BACKEND_OK!==0 (
+        docker pull ghcr.io/!GITHUB_USERNAME!/voc-backend:latest
+        if not errorlevel 1 (
+            set PULL_BACKEND_OK=1
+        ) else (
+            echo  [!] Percobaan %%r gagal mendownload voc-backend, mencoba lagi dalam 5 detik...
+            timeout /t 5 /nobreak >nul
+        )
+    )
+)
+if !PULL_BACKEND_OK!==0 (
+    echo  [ERROR] Gagal download voc-backend setelah 3 percobaan.
     pause & exit /b 1
 )
 
-docker pull ghcr.io/!GITHUB_USERNAME!/voc-frontend:latest
-if errorlevel 1 (
-    echo  [ERROR] Gagal download voc-frontend.
+set PULL_FRONTEND_OK=0
+for /L %%r in (1,1,3) do (
+    if !PULL_FRONTEND_OK!==0 (
+        docker pull ghcr.io/!GITHUB_USERNAME!/voc-frontend:latest
+        if not errorlevel 1 (
+            set PULL_FRONTEND_OK=1
+        ) else (
+            echo  [!] Percobaan %%r gagal mendownload voc-frontend, mencoba lagi dalam 5 detik...
+            timeout /t 5 /nobreak >nul
+        )
+    )
+)
+if !PULL_FRONTEND_OK!==0 (
+    echo  [ERROR] Gagal download voc-frontend setelah 3 percobaan.
     pause & exit /b 1
 )
 
