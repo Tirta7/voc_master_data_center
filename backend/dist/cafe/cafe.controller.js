@@ -71,7 +71,7 @@ let CafeController = class CafeController {
         };
     }
     async updateOrderItemStatus(id, status, req) {
-        return this.cafeService.updateOrderItemStatus(id, status, req.user.id, req.user.username);
+        return this.cafeService.updateOrderItemStatus(id, status, req.user.id, req.user.username, req.user.role);
     }
     async getOrderHistory() {
         return this.cafeService.getCompletedOrders();

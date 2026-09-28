@@ -1452,6 +1452,8 @@ let TransactionService = class TransactionService {
         const reconstructedPaymentDetails = (foundTx?.payments || []).map((p)=>({
                 method: p.paymentMethod,
                 amount: Number(p.totalPaid),
+                tenderedAmount: Number(p.tenderedAmount || p.totalPaid),
+                changeAmount: Number(p.changeAmount || 0),
                 payer: p.payerName || 'Unknown',
                 timestamp: p.createdAt || new Date(),
                 paymentId: p.id

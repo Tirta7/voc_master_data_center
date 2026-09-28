@@ -515,13 +515,22 @@ let CafeService = class CafeService {
             if (cached) return cached;
         }
         // ─────────────────────────────────────────────────────────────
-        // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
-        // Use Redis for a robust distributed lock
-        const mutexKey = `order_${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
-        const lockAcquired = await this.redisService.acquireLock(mutexKey, 3000); // 3 seconds lock
+        // --- MUTEX GUARD: Cegah double-order dari user yang sama ---
+        // Kunci per-user+table agar satu user tidak bisa double-submit
+        const mutexKey = `order_${userId}_${tableId || 'walkin'}`;
+        const lockAcquired = await this.redisService.acquireLock(mutexKey, 5000);
         if (!lockAcquired) {
             this.logger.warn(`Order is already being processed (Redis Lock): ${mutexKey}, skipping redundant request.`);
             return;
+        }
+        // --- PER-ITEM LOCK: Cegah 2 waiter berbeda order item stok rendah bersamaan ---
+        // Kunci setiap item ID selama 5 detik untuk serialisasi concurrent order
+        const itemLockKeys = menuItems.filter((i)=>i.id).map((i)=>`stock_item_${i.id}`);
+        const itemLocksAcquired = [];
+        for (const itemKey of itemLockKeys){
+            const acquired = await this.redisService.acquireLock(itemKey, 5000);
+            if (acquired) itemLocksAcquired.push(itemKey);
+        // Jika tidak acquired, lanjutkan saja — pre-validation + atomic SQL yang akan guard
         }
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
@@ -790,6 +799,23 @@ let CafeService = class CafeService {
                     m.id,
                     m
                 ]));
+            // ── PRE-VALIDATION STOK (Race-Condition Guard) ─────────────────────────
+            // Validasi stok SEBELUM mulai deduct, untuk semua STORE item dalam order ini.
+            // Ini mencegah overselling ketika 20+ waiter order item yang sama bersamaan.
+            // Karena deductStock atomic sudah pakai WHERE qty >= X, error akan muncul saat
+            // deduct, tapi validasi awal ini memberi pesan error yang lebih ramah ke waiter.
+            for (const orderItem of itemsToProcess){
+                if (orderItem.isBundleHeader) continue;
+                const menuItem = menuItemMap.get(orderItem.id);
+                if (!menuItem) continue;
+                const isStore = menuItem.category?.name?.toUpperCase() === 'STORE';
+                if (isStore && menuItem.stockQuantity !== null && menuItem.stockQuantity !== undefined) {
+                    if (Number(menuItem.stockQuantity) < orderItem.quantity) {
+                        throw new _common.BadRequestException(`Stok "${menuItem.name}" tidak cukup. Sisa: ${Number(menuItem.stockQuantity)} pcs, dipesan: ${orderItem.quantity} pcs. Silakan refresh menu.`);
+                    }
+                }
+            }
+            // ────────────────────────────────────────────────────────────────────────
             const addedItemsSummary = [];
             for (const orderItem of itemsToProcess){
                 const menuItem = menuItemMap.get(orderItem.id);
@@ -929,6 +955,10 @@ let CafeService = class CafeService {
         } finally{
             await queryRunner.release();
             await this.redisService.releaseLock(mutexKey);
+            // Release semua per-item locks
+            for (const itemKey of itemLocksAcquired){
+                await this.redisService.releaseLock(itemKey);
+            }
         }
     }
     /**
@@ -1126,7 +1156,7 @@ let CafeService = class CafeService {
         }, {});
         return Object.values(grouped);
     }
-    async updateOrderItemStatus(id, status, userId, userName) {
+    async updateOrderItemStatus(id, status, userId, userName, userRole) {
         const lockKey = `item_update_${id}`;
         const acquired = await this.redisService.acquireLock(lockKey, 3000);
         if (!acquired) {
@@ -1172,8 +1202,27 @@ let CafeService = class CafeService {
                 if (status === _orderitementity.OrderItemStatus.DONE) {
                     if (userId) item.completedByUserId = userId;
                     item.completedAt = new Date();
-                    await manager.save(_orderitementity.OrderItem, item);
                     const station = item.station || this.getStation(item.menuItem);
+                    // ── Verifikasi Kepemilikan Komisi (Production Commission) ────────────
+                    // commissionUserId hanya di-assign jika role user SESUAI dengan station item.
+                    // Ini mencegah komisi salah akun ketika menggunakan Kitchen & Bar (Unified).
+                    //
+                    // Mapping:
+                    //   KITCHEN   → berhak komisi item di station KDS
+                    //   BARTENDER → berhak komisi item di station BDS
+                    //   ADMIN/SUPERADMIN/OWNER → berhak komisi semua station
+                    //
+                    // Jika item.commissionUserId sudah diset sebelumnya (misal oleh waiter saat order)
+                    // maka TIDAK di-overwrite — komisi sales tetap milik yang input order.
+                    if (userId && !item.commissionUserId) {
+                        if (this.canEarnProductionCommission(userRole, station)) {
+                            item.commissionUserId = userId;
+                            this.logger.log(`[Commission] Item ${id} (${station}) → commissionUserId=${userId} (role: ${userRole})`);
+                        } else {
+                            this.logger.debug(`[Commission] Item ${id} (${station}) → role ${userRole} tidak eligible, komisi tidak di-assign.`);
+                        }
+                    }
+                    await manager.save(_orderitementity.OrderItem, item);
                     await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
                 }
                 return saved;
@@ -1233,6 +1282,35 @@ let CafeService = class CafeService {
         summary.totalItems = Number(summary.totalItems || 0) + qty;
         summary.itemsJson = JSON.stringify(items);
         await this.dailySummaryRepository.save(summary);
+    }
+    /**
+   * Menentukan apakah user dengan role tertentu berhak mendapat komisi produksi
+   * dari item di station tertentu.
+   *
+   * Aturan kepemilikan:
+   *   KITCHEN   → berhak atas item station KDS (dapur)
+   *   BARTENDER → berhak atas item station BDS (bar)
+   *   ADMIN / SUPERADMIN / OWNER → berhak atas semua station
+   *
+   * Dipakai saat klik "Selesai" di KDS / Kitchen & Bar (Unified).
+   * Jika role tidak cocok dengan station → commissionUserId tidak di-assign
+   * sehingga komisi tidak salah akun.
+   */ canEarnProductionCommission(userRole, station) {
+        if (!userRole || !station) return false;
+        const role = userRole.toUpperCase().trim();
+        const st = station.toUpperCase().trim();
+        // Kitchen staff → hanya berhak komisi untuk item dapur (KDS)
+        if (role === 'KITCHEN' && st === 'KDS') return true;
+        // Bartender staff → hanya berhak komisi untuk item bar (BDS)
+        if (role === 'BARTENDER' && st === 'BDS') return true;
+        // Admin / Owner / Super admin → berhak semua station
+        if ([
+            'ADMIN',
+            'SUPERADMIN',
+            'OWNER'
+        ].includes(role)) return true;
+        // Role lain (WAITER, KASIR, TESTING, dll) → tidak berhak komisi produksi
+        return false;
     }
     async getDailyStationSummary(station) {
         const today = new Date().toISOString().split('T')[0];

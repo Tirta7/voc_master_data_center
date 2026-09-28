@@ -1815,8 +1815,28 @@ let ShiftService = class ShiftService {
                 paymentDetails: resolvedPaymentDetails
             };
         });
-        const totalDayTenderedCash = shiftSummaries.reduce((acc, s)=>acc + (s.totalTenderedCash || 0), 0);
-        const totalDayChangeMoney = shiftSummaries.reduce((acc, s)=>acc + (s.totalChangeMoney || 0), 0);
+        // ── FIX: Hitung langsung dari transaksi agar tidak ter-filter oleh isWaiter ──
+        // shiftSummaries.totalChangeMoney = 0 untuk shift dengan role WAITER/PELAYAN,
+        // sehingga totalDayChangeMoney dari reduce = 0 meski ada kembalian Cash nyata.
+        let totalDayTenderedCash = 0;
+        let totalDayChangeMoney = 0;
+        transactions.forEach((tx)=>{
+            if (tx.payments && tx.payments.length > 0) {
+                tx.payments.forEach((p)=>{
+                    if ((p.paymentMethod || '').toUpperCase() === 'CASH') {
+                        totalDayTenderedCash += Number(p.tenderedAmount || p.totalPaid || 0);
+                        totalDayChangeMoney += Number(p.changeAmount || 0);
+                    }
+                });
+            } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                tx.paymentDetails.forEach((p)=>{
+                    if ((p.method || '').toUpperCase() === 'CASH') {
+                        totalDayTenderedCash += Number(p.tenderedAmount || p.amount || 0);
+                        totalDayChangeMoney += Number(p.changeAmount || 0);
+                    }
+                });
+            }
+        });
         const finalReport = {
             businessDay,
             summary: {

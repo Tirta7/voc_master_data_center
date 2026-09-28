@@ -898,17 +898,30 @@ export class InventoryService {
       });
 
       if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
-        console.log(
-          `Deducting direct stock for STORE item "${menuItem.name}" (Qty: ${orderQuantity})`,
-        );
-        menuItem.stockQuantity = Number(
-          (Number(menuItem.stockQuantity) - orderQuantity).toFixed(3),
-        );
-        await menuRepo.save(menuItem);
+        // ── ATOMIC DEDUCTION (Race-Condition Safe) ──────────────────────────────
+        // Gunakan SQL UPDATE langsung agar tidak ada Read→Calculate→Write gap.
+        // WHERE stockQuantity >= orderQuantity memastikan stok tidak bisa negatif
+        // meski ada 20+ waiter order bersamaan.
+        const updateResult = await (manager || this.dataSource.manager)
+          .createQueryBuilder()
+          .update('menu_items')
+          .set({ stockQuantity: () => `"stockQuantity" - ${orderQuantity}` })
+          .where('id = :id AND "stockQuantity" >= :qty', { id: menuItemId, qty: orderQuantity })
+          .execute();
+
+        if (updateResult.affected === 0) {
+          // Stok tidak cukup — ambil nilai aktual untuk pesan error yang informatif
+          const current = await menuRepo.findOne({ where: { id: menuItemId }, select: ['stockQuantity', 'name'] });
+          const currentStock = Number(current?.stockQuantity ?? 0);
+          throw new Error(
+            `Stok "${menuItem.name}" tidak cukup. Tersedia: ${currentStock} pcs, diminta: ${orderQuantity} pcs.`,
+          );
+        }
 
         this.broadcastAvailability();
         return;
       }
+
 
       // 2. Handle Recursive Recipe Deduction
       // (Recipes already loaded above)
@@ -943,10 +956,10 @@ export class InventoryService {
         }
       }
     } catch (error) {
-      console.error(
-        `Failed to deduct stock for MenuItem ${menuItemId}:`,
-        error,
-      );
+      // ⚠️ Re-throw agar error "stok tidak cukup" sampai ke waiter.
+      // Sebelumnya silent catch menyebabkan stok bisa negatif tanpa notifikasi.
+      console.error(`[InventoryService] deductStock failed for MenuItem ${menuItemId}: ${error.message}`);
+      throw error;
     }
   }
 
@@ -1116,10 +1129,13 @@ export class InventoryService {
       });
 
       if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
-        menuItem.stockQuantity = Number(
-          (Number(menuItem.stockQuantity) + orderQuantity).toFixed(3),
-        );
-        await menuRepo.save(menuItem);
+        // ── ATOMIC RETURN (Race-Condition Safe) ─────────────────────────────
+        await (manager || this.dataSource.manager)
+          .createQueryBuilder()
+          .update('menu_items')
+          .set({ stockQuantity: () => `"stockQuantity" + ${orderQuantity}` })
+          .where('id = :id', { id: menuItemId })
+          .execute();
         this.broadcastAvailability();
         return;
       }
@@ -1157,10 +1173,9 @@ export class InventoryService {
         }
       }
     } catch (error) {
-      console.error(
-        `Failed to return stock for MenuItem ${menuItemId}:`,
-        error,
-      );
+      // ⚠️ Re-throw agar caller (cancel/void) tahu jika return stock gagal
+      console.error(`[InventoryService] returnStock failed for MenuItem ${menuItemId}: ${error.message}`);
+      throw error;
     }
   }
 

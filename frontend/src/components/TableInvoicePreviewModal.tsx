@@ -139,9 +139,9 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4 table-preview-portal">
             <style jsx global>{`
                 @media print {
-                    /* Header & Footer removal */
+                    /* Margin kertas agar ada ruang di kiri-kanan dan atas-bawah */
                     @page { 
-                        margin: 0; 
+                        margin: 10mm auto; 
                         size: 80mm auto;
                     }
                     
@@ -155,24 +155,39 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
                         display: none !important;
                     }
 
+                    /* Portal full-width dengan flex center agar receipt di tengah halaman */
+                    .table-preview-portal {
+                        position: static !important;
+                        display: flex !important;
+                        justify-content: center !important;
+                        width: 100% !important;
+                        height: auto !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        inset: unset !important;
+                    }
+
                     /* Ensure background is white and clean */
-                    body { 
+                    html, body { 
                         background: white !important; 
                         margin: 0 !important; 
                         padding: 0 !important;
                         -webkit-print-color-adjust: exact;
-                        display: block !important; /* Ensure it's not flex which might center vertically */
+                        print-color-adjust: exact;
                     }
 
-                    /* Force top alignment for the print container */
+                    /* Print container: static, width mengikuti portal */
                     .print-visible-modal-container {
                         display: block !important;
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
+                        position: static !important;
                         width: 100% !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                    }
+
+                    /* receipt-container di tengah */
+                    .receipt-container {
+                        margin: 0 auto !important;
                     }
 
                     /* Hide specific elements that shouldn't print */
@@ -180,6 +195,7 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
                         display: none !important; 
                     }
                 }
+
             `}</style>
 
             <div className="absolute inset-0 bg-slate-900/60  transition-opacity no-print-modal" onClick={onClose}></div>

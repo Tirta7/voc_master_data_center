@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 import LayoutContent from "@/components/LayoutContent";
 import { SidebarProvider } from "@/components/SidebarContext";
@@ -13,6 +13,12 @@ import { AppUpdater } from "@/components/AppUpdater";
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-plus-jakarta-sans",
+});
+
+const robotoMono = Roboto_Mono({
+  subsets: ["latin"],
+  variable: "--font-roboto-mono",
+  weight: ["400", "500", "700"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -85,7 +91,7 @@ export default function RootLayout({
       <head>
         <meta name="theme-color" content="#0F172A" />
       </head>
-      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
+      <body className={`${plusJakartaSans.variable} ${robotoMono.variable} font-sans antialiased`}>
         <LanguageProvider>
           <AuthProvider>
             <SidebarProvider>

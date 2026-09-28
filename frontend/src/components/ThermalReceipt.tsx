@@ -268,7 +268,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         <div className="receipt-container mx-auto">
             <style jsx>{`
                 .receipt-container {
-                    font-family: 'Consolas', 'Lucida Console', 'Monaco', 'Courier New', monospace;
+                    font-family: 'Courier New', 'Courier', 'Liberation Mono', monospace;
                     width: ${containerWidth};
                     max-width: 100%;
                     background: white;
@@ -276,7 +276,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     line-height: 1.1;
                     color: black;
                     box-sizing: border-box;
-                    margin: 0 !important;
+                    margin: 0 auto !important;
                     font-weight: 700;
                     font-size: ${fontSizeBase};
                     letter-spacing: -0.3px;
@@ -301,7 +301,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
                 @media print {
                     @page {
-                        margin: 0;
+                        margin: 10mm auto;
                         size: ${pWidth}mm auto;
                     }
                     *, *::before, *::after {
@@ -310,14 +310,17 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         color-adjust: exact !important;
                     }
                     html, body {
-                        margin: 0 !important;
+                        margin: 0 auto !important;
                         padding: 0 !important;
                         height: auto !important;
+                        display: flex !important;
+                        justify-content: center !important;
                     }
                     .receipt-container {
                         width: ${containerWidth};
-                        padding: 5mm 2mm 1mm 0mm !important;
-                        margin: 0 !important;
+                        max-width: ${containerWidth};
+                        padding: 5mm 2mm 5mm 2mm !important;
+                        margin: 0 auto !important;
                         border: none !important;
                         /* Thermal printer = continuous roll paper, NO page breaks */
                         page-break-inside: avoid !important;

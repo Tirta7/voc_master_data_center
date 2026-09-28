@@ -1575,9 +1575,41 @@ export class UserService {
             await queryRunner.manager.save(Role, role);
           }
 
-          let user = await queryRunner.manager.findOne(User, { where: { username } });
+          // Load user beserta payrollConfig agar tidak salah deteksi null
+          let user = await queryRunner.manager.findOne(User, {
+            where: { username },
+            relations: ['payrollConfig'],
+          });
+
+          // Normalisasi field unique: string kosong → null
+          const cleanRfid = rfid || null;
+          const cleanEmail = email || null;
+
+          // Validasi RFID: tidak boleh milik user LAIN
+          if (cleanRfid) {
+            const rfidOwner = await queryRunner.manager.findOne(User, { where: { rfid: cleanRfid } });
+            if (rfidOwner && rfidOwner.username !== username) {
+              throw new Error(
+                `RFID "${cleanRfid}" sudah digunakan oleh karyawan lain (${rfidOwner.username}). Harap perbaiki file Excel.`,
+              );
+            }
+          }
+
+          // Validasi Email: jika konflik dengan user lain, skip (jangan gagalkan seluruh import)
+          let safeEmail = cleanEmail;
+          if (cleanEmail) {
+            const emailOwner = await queryRunner.manager.findOne(User, { where: { email: cleanEmail } });
+            if (emailOwner && emailOwner.username !== username) {
+              // Email milik user lain — skip update email agar tidak conflict
+              safeEmail = user?.email ?? null; // pertahankan email lama
+              this.logger.warn(
+                `[importFromExcel] Email "${cleanEmail}" sudah digunakan oleh (${emailOwner.username}), email untuk "${username}" tidak diubah.`,
+              );
+            }
+          }
+
           if (!user) {
-            // New employee — set password from Excel or default to username
+            // Karyawan baru — set password dari Excel atau default = username
             const passwordToHash = rawPassword || username;
             const hashedPassword = await bcrypt.hash(passwordToHash, 10);
             user = queryRunner.manager.create(User, {
@@ -1585,9 +1617,9 @@ export class UserService {
               name,
               password: hashedPassword,
               pin: pin || null,
-              rfid: rfid || null,
+              rfid: cleanRfid,
               phone: phone || null,
-              email: email || null,
+              email: safeEmail,
               jobTitle: jobTitle || null,
               baseShift: baseShift || 'SHIFT 1',
               gender: gender || null,
@@ -1599,15 +1631,15 @@ export class UserService {
               isVerified: true,
             });
           } else {
-            // Update existing
+            // Update karyawan yang sudah ada
             if (rawPassword) {
               user.password = await bcrypt.hash(rawPassword, 10);
             }
             if (name) user.name = name;
             if (pin) user.pin = pin;
-            if (rfid) user.rfid = rfid;
+            user.rfid = cleanRfid; // null = hapus rfid lama jika dikosongkan di Excel
             if (phone) user.phone = phone;
-            if (email) user.email = email;
+            if (safeEmail !== undefined) user.email = safeEmail; // skip jika konflik
             if (jobTitle) user.jobTitle = jobTitle;
             if (baseShift) user.baseShift = baseShift;
             if (gender) user.gender = gender;
@@ -1617,20 +1649,30 @@ export class UserService {
             user.role = role;
           }
 
+          // Upsert payrollConfig: gunakan yang sudah ada jika ada, buat baru jika belum
           if (!user.payrollConfig) {
-             const pc = queryRunner.manager.create(PayrollConfig, {
-               basicSalary, overtimeRate, commissionService, commissionSalesPercent, penaltyLate, penaltyIdle, idleThreshold
-             });
-             user.payrollConfig = pc;
-          } else {
-             user.payrollConfig.basicSalary = basicSalary;
-             user.payrollConfig.overtimeRate = overtimeRate;
-             user.payrollConfig.commissionService = commissionService;
-             user.payrollConfig.commissionSalesPercent = commissionSalesPercent;
-             user.payrollConfig.penaltyLate = penaltyLate;
-             user.payrollConfig.penaltyIdle = penaltyIdle;
-             user.payrollConfig.idleThreshold = idleThreshold;
+            // Cek langsung ke DB barangkali tidak ter-load
+            const existingPc = user.id
+              ? await queryRunner.manager.findOne(PayrollConfig, { where: { user: { id: user.id } } as any })
+              : null;
+            if (existingPc) {
+              user.payrollConfig = existingPc;
+            } else {
+              const pc = queryRunner.manager.create(PayrollConfig, {
+                basicSalary, overtimeRate, commissionService, commissionSalesPercent, penaltyLate, penaltyIdle, idleThreshold,
+              });
+              user.payrollConfig = pc;
+            }
           }
+
+          // Update nilai payroll
+          user.payrollConfig.basicSalary = basicSalary;
+          user.payrollConfig.overtimeRate = overtimeRate;
+          user.payrollConfig.commissionService = commissionService;
+          user.payrollConfig.commissionSalesPercent = commissionSalesPercent;
+          user.payrollConfig.penaltyLate = penaltyLate;
+          user.payrollConfig.penaltyIdle = penaltyIdle;
+          user.payrollConfig.idleThreshold = idleThreshold;
 
           await queryRunner.manager.save(User, user);
           stats.employees++;

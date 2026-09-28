@@ -902,9 +902,30 @@ let InventoryService = class InventoryService {
                 ]
             });
             if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
-                console.log(`Deducting direct stock for STORE item "${menuItem.name}" (Qty: ${orderQuantity})`);
-                menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) - orderQuantity).toFixed(3));
-                await menuRepo.save(menuItem);
+                // ── ATOMIC DEDUCTION (Race-Condition Safe) ──────────────────────────────
+                // Gunakan SQL UPDATE langsung agar tidak ada Read→Calculate→Write gap.
+                // WHERE stockQuantity >= orderQuantity memastikan stok tidak bisa negatif
+                // meski ada 20+ waiter order bersamaan.
+                const updateResult = await (manager || this.dataSource.manager).createQueryBuilder().update('menu_items').set({
+                    stockQuantity: ()=>`"stockQuantity" - ${orderQuantity}`
+                }).where('id = :id AND "stockQuantity" >= :qty', {
+                    id: menuItemId,
+                    qty: orderQuantity
+                }).execute();
+                if (updateResult.affected === 0) {
+                    // Stok tidak cukup — ambil nilai aktual untuk pesan error yang informatif
+                    const current = await menuRepo.findOne({
+                        where: {
+                            id: menuItemId
+                        },
+                        select: [
+                            'stockQuantity',
+                            'name'
+                        ]
+                    });
+                    const currentStock = Number(current?.stockQuantity ?? 0);
+                    throw new Error(`Stok "${menuItem.name}" tidak cukup. Tersedia: ${currentStock} pcs, diminta: ${orderQuantity} pcs.`);
+                }
                 this.broadcastAvailability();
                 return;
             }
@@ -922,7 +943,10 @@ let InventoryService = class InventoryService {
                 }
             }
         } catch (error) {
-            console.error(`Failed to deduct stock for MenuItem ${menuItemId}:`, error);
+            // ⚠️ Re-throw agar error "stok tidak cukup" sampai ke waiter.
+            // Sebelumnya silent catch menyebabkan stok bisa negatif tanpa notifikasi.
+            console.error(`[InventoryService] deductStock failed for MenuItem ${menuItemId}: ${error.message}`);
+            throw error;
         }
     }
     /**
@@ -1057,8 +1081,12 @@ let InventoryService = class InventoryService {
                 ]
             });
             if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
-                menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) + orderQuantity).toFixed(3));
-                await menuRepo.save(menuItem);
+                // ── ATOMIC RETURN (Race-Condition Safe) ─────────────────────────────
+                await (manager || this.dataSource.manager).createQueryBuilder().update('menu_items').set({
+                    stockQuantity: ()=>`"stockQuantity" + ${orderQuantity}`
+                }).where('id = :id', {
+                    id: menuItemId
+                }).execute();
                 this.broadcastAvailability();
                 return;
             }
@@ -1076,7 +1104,9 @@ let InventoryService = class InventoryService {
                 }
             }
         } catch (error) {
-            console.error(`Failed to return stock for MenuItem ${menuItemId}:`, error);
+            // ⚠️ Re-throw agar caller (cancel/void) tahu jika return stock gagal
+            console.error(`[InventoryService] returnStock failed for MenuItem ${menuItemId}: ${error.message}`);
+            throw error;
         }
     }
     async declareWaste(data) {
@@ -1269,6 +1299,9 @@ let InventoryService = class InventoryService {
                     const stockQuantity = Number(row['Stok Awal']) || 0;
                     const minStockLevel = Number(row['Min Stok'] || row['Level Minimum Stok']) || 0;
                     const department = (row['Departemen'] || 'CASHIER').toString().trim().toUpperCase();
+                    const isMandatoryReporting = (row['Wajib Lapor (Y/N)'] || row['Wajib Lapor'])?.toString().trim().toUpperCase() === 'Y';
+                    const isHighValue = (row['High Value (Y/N)'] || row['High Value'])?.toString().trim().toUpperCase() === 'Y';
+                    const yieldPercentage = Number(row['Yield (%)']) || 100;
                     if (ing) {
                         ing.unit = unit;
                         ing.costPrice = costPrice;
@@ -1277,6 +1310,9 @@ let InventoryService = class InventoryService {
                         ing.department = department;
                         if (category) ing.category = category;
                         if (sku) ing.sku = sku;
+                        ing.isMandatoryReporting = isMandatoryReporting;
+                        ing.isHighValue = isHighValue;
+                        ing.yieldPercentage = yieldPercentage;
                         await queryRunner.manager.save(ing);
                         stats.ingredients++;
                     } else {
@@ -1288,7 +1324,10 @@ let InventoryService = class InventoryService {
                             costPrice,
                             stockQuantity,
                             minStockLevel,
-                            department
+                            department,
+                            isMandatoryReporting,
+                            isHighValue,
+                            yieldPercentage
                         });
                         await queryRunner.manager.save(ing);
                         stats.ingredients++;
@@ -1307,6 +1346,9 @@ let InventoryService = class InventoryService {
                     const price = Number(row['Harga Jual']) || 0;
                     const department = (row['Departemen'] || 'CASHIER').toString().trim().toUpperCase();
                     const recipeText = (row['Resep Baku'] || row['Resep'] || '').toString().trim();
+                    const isMandatoryReporting = (row['Wajib Lapor (Y/N)'] || row['Wajib Lapor'])?.toString().trim().toUpperCase() === 'Y';
+                    const isHighValue = (row['High Value (Y/N)'] || row['High Value'])?.toString().trim().toUpperCase() === 'Y';
+                    const yieldPercentage = Number(row['Yield (%)']) || 100;
                     let categoryId = null;
                     if (categoryName) {
                         const cat = await queryRunner.manager.findOne(_categoryentity.Category, {
@@ -1326,6 +1368,9 @@ let InventoryService = class InventoryService {
                         if (categoryId) menu.categoryId = categoryId;
                         if (sku) menu.sku = sku;
                         menu.department = department;
+                        menu.isMandatoryReporting = isMandatoryReporting;
+                        menu.isHighValue = isHighValue;
+                        menu.yieldPercentage = yieldPercentage;
                         await queryRunner.manager.save(menu);
                         stats.menuItems++;
                     } else {
@@ -1337,7 +1382,10 @@ let InventoryService = class InventoryService {
                             department,
                             taxPercentage: 0,
                             stockQuantity: 0,
-                            minStockLevel: 0
+                            minStockLevel: 0,
+                            isMandatoryReporting,
+                            isHighValue,
+                            yieldPercentage
                         });
                         await queryRunner.manager.save(menu);
                         stats.menuItems++;

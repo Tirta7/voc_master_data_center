@@ -632,15 +632,27 @@ export class CafeService {
       if (cached) return cached;
     }
     // ─────────────────────────────────────────────────────────────
-    // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
-    // Use Redis for a robust distributed lock
-    const mutexKey = `order_${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
-    const lockAcquired = await this.redisService.acquireLock(mutexKey, 3000); // 3 seconds lock
+    // --- MUTEX GUARD: Cegah double-order dari user yang sama ---
+    // Kunci per-user+table agar satu user tidak bisa double-submit
+    const mutexKey = `order_${userId}_${tableId || 'walkin'}`;
+    const lockAcquired = await this.redisService.acquireLock(mutexKey, 5000);
     if (!lockAcquired) {
       this.logger.warn(
         `Order is already being processed (Redis Lock): ${mutexKey}, skipping redundant request.`,
       );
       return;
+    }
+
+    // --- PER-ITEM LOCK: Cegah 2 waiter berbeda order item stok rendah bersamaan ---
+    // Kunci setiap item ID selama 5 detik untuk serialisasi concurrent order
+    const itemLockKeys: string[] = menuItems
+      .filter(i => i.id)
+      .map(i => `stock_item_${i.id}`);
+    const itemLocksAcquired: string[] = [];
+    for (const itemKey of itemLockKeys) {
+      const acquired = await this.redisService.acquireLock(itemKey, 5000);
+      if (acquired) itemLocksAcquired.push(itemKey);
+      // Jika tidak acquired, lanjutkan saja — pre-validation + atomic SQL yang akan guard
     }
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -904,6 +916,26 @@ export class CafeService {
       });
       const menuItemMap = new Map<number, MenuItem>(fetchedMenuItems.map(m => [m.id, m]));
 
+      // ── PRE-VALIDATION STOK (Race-Condition Guard) ─────────────────────────
+      // Validasi stok SEBELUM mulai deduct, untuk semua STORE item dalam order ini.
+      // Ini mencegah overselling ketika 20+ waiter order item yang sama bersamaan.
+      // Karena deductStock atomic sudah pakai WHERE qty >= X, error akan muncul saat
+      // deduct, tapi validasi awal ini memberi pesan error yang lebih ramah ke waiter.
+      for (const orderItem of itemsToProcess) {
+        if (orderItem.isBundleHeader) continue;
+        const menuItem = menuItemMap.get(orderItem.id);
+        if (!menuItem) continue;
+        const isStore = menuItem.category?.name?.toUpperCase() === 'STORE';
+        if (isStore && menuItem.stockQuantity !== null && menuItem.stockQuantity !== undefined) {
+          if (Number(menuItem.stockQuantity) < orderItem.quantity) {
+            throw new BadRequestException(
+              `Stok "${menuItem.name}" tidak cukup. Sisa: ${Number(menuItem.stockQuantity)} pcs, dipesan: ${orderItem.quantity} pcs. Silakan refresh menu.`,
+            );
+          }
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       const addedItemsSummary: string[] = [];
       for (const orderItem of itemsToProcess) {
         const menuItem = menuItemMap.get(orderItem.id);
@@ -921,6 +953,7 @@ export class CafeService {
             queryRunner.manager,
           );
         }
+
 
         const station = orderItem.isBundleHeader ? 'NONE' : this.getStation(menuItem);
         const isDirectSale = station === 'NONE';
@@ -1090,6 +1123,10 @@ export class CafeService {
     } finally {
       await queryRunner.release();
       await this.redisService.releaseLock(mutexKey);
+      // Release semua per-item locks
+      for (const itemKey of itemLocksAcquired) {
+        await this.redisService.releaseLock(itemKey);
+      }
     }
   }
 

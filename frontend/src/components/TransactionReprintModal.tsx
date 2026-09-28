@@ -106,9 +106,9 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4 reprint-modal-portal">
             <style jsx global>{`
                 @media print {
-                    /* === @page: sama persis dengan ThermalReceipt.tsx === */
+                    /* === @page: Beri margin atas/bawah agar ada ruang di kertas A4 === */
                     @page { 
-                        margin: 0; 
+                        margin: 10mm auto; 
                         size: 80mm auto;
                     }
                     
@@ -120,12 +120,12 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
                         display: none !important;
                     }
 
-                    /* Ubah portal dari fixed (viewport lebar) ke static (document flow 80mm)
-                       agar mengikuti body 80mm, bukan lebar monitor */
+                    /* Portal menjadi full-width + flex center agar receipt di tengah halaman */
                     .reprint-modal-portal {
                         position: static !important;
-                        display: block !important;
-                        width: 80mm !important;
+                        display: flex !important;
+                        justify-content: center !important;
+                        width: 100% !important;
                         height: auto !important;
                         padding: 0 !important;
                         margin: 0 !important;
@@ -145,10 +145,11 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
                         background: white !important; 
                     }
 
-                    /* === .receipt-container: sama persis dengan ThermalReceipt.tsx === */
+                    /* === .receipt-container: di tengah dengan margin auto === */
                     .receipt-container {
                         width: 76mm !important;
-                        padding: 5mm 2mm 1mm 2mm !important;
+                        max-width: 76mm !important;
+                        padding: 5mm 2mm 5mm 2mm !important;
                         margin: 0 auto !important;
                         border: none !important;
                         /* Thermal printer = continuous roll, TIDAK BOLEH ada page break */
@@ -262,7 +263,7 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
                             </button>
                         </div>
                     ) : (
-                        <div className="bg-white shadow-2xl rounded-sm p-4 w-[85mm] transform origin-top">
+                        <div className="bg-white shadow-2xl rounded-sm p-4 w-[85mm] mx-auto self-center transform origin-top">
                             {/* The actual thermal receipt layout */}
                             <ThermalReceipt tx={data} settings={settings} isReprint={true} />
                         </div>
