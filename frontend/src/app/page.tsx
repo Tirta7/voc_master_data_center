@@ -291,7 +291,7 @@ export default function Dashboard() {
         type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id, idempotencyKey,
         voucherCode: voucherCode || undefined,
       });
-      refetchBilliard(); // Refetch from context after action
+      // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
     } catch (error: any) {
       console.error('Failed to start session:', error);
       setIsModalOpen(true); // Re-open on fail to allow retry
@@ -310,7 +310,7 @@ export default function Dashboard() {
       });
       await showAlert('Berhasil', 'Meja berhasil dipindahkan!', { variant: 'success' });
       setIsMoveModalOpen(false);
-      refetchBilliard();
+      // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
     } catch (error) {
       console.error('Move failed:', error);
       showAlert('Gagal', 'Gagal memindahkan meja.', { variant: 'error' });
@@ -332,7 +332,7 @@ export default function Dashboard() {
       } catch (error) {
         console.error('Stop failed:', error);
         showAlert('Gagal', 'Gagal menyudahi sesi.', { variant: 'error' });
-        refetchBilliard();
+        // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
       } finally {
         setIsSubmitting(false);
       }
@@ -354,7 +354,7 @@ export default function Dashboard() {
       try {
         await axios.post(`/billiard/tables/${id}/reset`, { managerPin });
         showToast('Berhasil', 'Meja berhasil di-reset paksa.', 'success');
-        refetchBilliard();
+        // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
       } catch (error: any) {
         console.error('Force reset failed:', error);
         showAlert('Gagal', error.response?.data?.message || 'Gagal mereset meja.', { variant: 'error' });
@@ -377,7 +377,7 @@ export default function Dashboard() {
         const resp = await axios.post(`/billiard/emergency-stop`, { managerPin });
         if (resp.data.success) {
           showToast('System Halted', resp.data.message, 'warning');
-          setTimeout(refetchBilliard, 1500);
+          // setTimeout(refetchBilliard, 1500); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
         }
       } catch (error: any) {
         console.error('Emergency stop failed:', error);
@@ -405,7 +405,7 @@ export default function Dashboard() {
       showAlert('Berhasil', 'Permintaan pembatalan dikirim ke KDS.', { variant: 'success' });
       setCancellationModalOpen(false);
       setItemToCancel(null);
-      refetchBilliard();
+      // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
     } catch (error: any) {
       console.error('Cancel request failed:', error);
       showAlert('Gagal', error.response?.data?.message || 'Gagal mengirim permintaan pembatalan.', { variant: 'error' });
@@ -710,7 +710,7 @@ export default function Dashboard() {
         tableId={extendTableId}
         tableCategory={extendTableCategory}
         stationType={extendTableStationType}
-        onExtended={() => refetchBilliard()}
+        onExtended={() => {}} // Sudah ditangani realtime
       />
 
       <MoveTableModal
@@ -728,7 +728,7 @@ export default function Dashboard() {
         tableId={orderTableId || 0}
         tableName={tables.find(t => t.id === orderTableId)?.tableName}
         cafeTransactionId={tables.find(t => t.id === orderTableId)?.currentTransactionId}
-        onSuccess={refetchBilliard}
+        onSuccess={() => {}} // Sudah ditangani realtime
       />
 
       <CancellationRequestModal

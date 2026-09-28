@@ -1368,6 +1368,10 @@ export class InventoryService {
           const minStockLevel = Number(row['Min Stok'] || row['Level Minimum Stok']) || 0;
           const department = (row['Departemen'] || 'CASHIER').toString().trim().toUpperCase();
 
+          const isMandatoryReporting = (row['Wajib Lapor (Y/N)'] || row['Wajib Lapor'])?.toString().trim().toUpperCase() === 'Y';
+          const isHighValue = (row['High Value (Y/N)'] || row['High Value'])?.toString().trim().toUpperCase() === 'Y';
+          const yieldPercentage = Number(row['Yield (%)']) || 100;
+
           if (ing) {
             ing.unit = unit;
             ing.costPrice = costPrice;
@@ -1376,6 +1380,9 @@ export class InventoryService {
             ing.department = department;
             if (category) ing.category = category;
             if (sku) ing.sku = sku;
+            ing.isMandatoryReporting = isMandatoryReporting;
+            ing.isHighValue = isHighValue;
+            ing.yieldPercentage = yieldPercentage;
             await queryRunner.manager.save(ing);
             stats.ingredients++;
           } else {
@@ -1387,7 +1394,10 @@ export class InventoryService {
               costPrice, 
               stockQuantity, 
               minStockLevel, 
-              department
+              department,
+              isMandatoryReporting,
+              isHighValue,
+              yieldPercentage
             });
             await queryRunner.manager.save(ing);
             stats.ingredients++;
@@ -1409,6 +1419,10 @@ export class InventoryService {
           const department = (row['Departemen'] || 'CASHIER').toString().trim().toUpperCase();
           const recipeText = (row['Resep Baku'] || row['Resep'] || '').toString().trim();
 
+          const isMandatoryReporting = (row['Wajib Lapor (Y/N)'] || row['Wajib Lapor'])?.toString().trim().toUpperCase() === 'Y';
+          const isHighValue = (row['High Value (Y/N)'] || row['High Value'])?.toString().trim().toUpperCase() === 'Y';
+          const yieldPercentage = Number(row['Yield (%)']) || 100;
+
           let categoryId = null;
           if (categoryName) {
             const cat = await queryRunner.manager.findOne(Category, { where: { name: categoryName } });
@@ -1421,12 +1435,16 @@ export class InventoryService {
             if (categoryId) menu.categoryId = categoryId;
             if (sku) menu.sku = sku;
             menu.department = department;
+            menu.isMandatoryReporting = isMandatoryReporting;
+            menu.isHighValue = isHighValue;
+            menu.yieldPercentage = yieldPercentage;
             await queryRunner.manager.save(menu);
             stats.menuItems++;
           } else {
             menu = queryRunner.manager.create(MenuItem, {
               name, sku, categoryId: categoryId || undefined, price, department,
-              taxPercentage: 0, stockQuantity: 0, minStockLevel: 0
+              taxPercentage: 0, stockQuantity: 0, minStockLevel: 0,
+              isMandatoryReporting, isHighValue, yieldPercentage
             });
             await queryRunner.manager.save(menu);
             stats.menuItems++;

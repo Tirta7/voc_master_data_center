@@ -84,7 +84,7 @@ interface PayrollConfig {
     categoryCommissions: Record<string, number> | null;
     penaltyIdle: number;
     idleThreshold: number;
-    penaltyLateRate: number;
+    penaltyLate: number;
 }
 
 interface User {
@@ -1172,7 +1172,9 @@ export default function EmployeePage() {
             const empHeader = [
                 'Nama Lengkap', 'Username', 'Password', 'Role', 'PIN', 'RFID',
                 'Telepon', 'Email', 'Jabatan', 'Shift', 'Jenis Kelamin',
-                'Alamat', 'Mode Keamanan', 'Tanggal Bergabung'
+                'Alamat', 'Mode Keamanan', 'Tanggal Bergabung',
+                'Gaji Pokok', 'Rate Lembur', 'Komisi Service', 'Persentase Komisi',
+                'Denda Terlambat', 'Denda Idle', 'Batas Idle (Menit)'
             ];
             const empDataRows = employees.map(emp => [
                 emp.name,
@@ -1188,13 +1190,22 @@ export default function EmployeePage() {
                 emp.gender || '',
                 emp.address || '',
                 emp.securityMode || 'HYBRID',
-                emp.joinedAt || ''
+                emp.joinedAt || '',
+                Number(emp.payrollConfig?.basicSalary || 0),
+                Number(emp.payrollConfig?.overtimeRate || 0),
+                Number(emp.payrollConfig?.commissionService || 0),
+                Number(emp.payrollConfig?.commissionSalesPercent || 0),
+                Number(emp.payrollConfig?.penaltyLate || 0),
+                Number(emp.payrollConfig?.penaltyIdle || 0),
+                Number(emp.payrollConfig?.idleThreshold || 5),
             ]);
             const wsEmp = xlsx.utils.aoa_to_sheet([empHeader, ...empDataRows]);
             wsEmp['!cols'] = [
                 { wch: 22 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
                 { wch: 14 }, { wch: 25 }, { wch: 22 }, { wch: 10 }, { wch: 14 },
                 { wch: 30 }, { wch: 16 }, { wch: 18 },
+                { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
+                { wch: 15 }, { wch: 15 }, { wch: 18 },
             ];
             xlsx.utils.book_append_sheet(wb, wsEmp, 'Karyawan');
 

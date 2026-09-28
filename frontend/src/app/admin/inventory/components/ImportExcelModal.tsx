@@ -39,43 +39,43 @@ export function ImportExcelModal({ isOpen, onClose, onSuccess }: ImportExcelModa
 
         // Sheet 2: Bahan
         const ingData = [
-            ['Nama Bahan', 'SKU', 'Kategori', 'Satuan', 'Harga Beli', 'Stok Awal', 'Min Stok', 'Departemen'],
+            ['Nama Bahan', 'SKU', 'Kategori', 'Satuan', 'Harga Beli', 'Stok Awal', 'Min Stok', 'Departemen', 'Wajib Lapor (Y/N)', 'High Value (Y/N)', 'Yield (%)'],
             // --- Minuman & Bar ---
-            ['Kopi Bubuk Robusta', 'IG-BAR-001', 'BAHAN DASAR', 'Gram', 150, 1000, 200, 'BAR'],
-            ['Gula Pasir', 'IG-BAR-002', 'BAHAN DASAR', 'Gram', 20, 5000, 1000, 'BAR'],
-            ['Air Mineral Galon', 'IG-BAR-003', 'BAHAN DASAR', 'Ml', 5, 19000, 5000, 'BAR'],
-            ['Susu Full Cream', 'IG-BAR-004', 'BAHAN DASAR', 'Ml', 25, 2000, 500, 'BAR'],
-            ['Syrup Vanilla', 'IG-BAR-005', 'BAHAN DASAR', 'Ml', 100, 1000, 200, 'BAR'],
+            ['Kopi Bubuk Robusta', 'IG-BAR-001', 'BAHAN DASAR', 'Gram', 150, 1000, 200, 'BAR', 'N', 'N', 100],
+            ['Gula Pasir', 'IG-BAR-002', 'BAHAN DASAR', 'Gram', 20, 5000, 1000, 'BAR', 'N', 'N', 100],
+            ['Air Mineral Galon', 'IG-BAR-003', 'BAHAN DASAR', 'Ml', 5, 19000, 5000, 'BAR', 'N', 'N', 100],
+            ['Susu Full Cream', 'IG-BAR-004', 'BAHAN DASAR', 'Ml', 25, 2000, 500, 'BAR', 'N', 'N', 100],
+            ['Syrup Vanilla', 'IG-BAR-005', 'BAHAN DASAR', 'Ml', 100, 1000, 200, 'BAR', 'N', 'N', 100],
             // --- Makanan & Kitchen ---
-            ['Beras Premium', 'IG-KTC-001', 'BAHAN DASAR', 'Gram', 15, 25000, 5000, 'KITCHEN'],
-            ['Daging Ayam Fillet', 'IG-KTC-002', 'BAHAN DASAR', 'Gram', 45, 5000, 1000, 'KITCHEN'],
-            ['Minyak Goreng', 'IG-KTC-003', 'BAHAN DASAR', 'Ml', 18, 10000, 2000, 'KITCHEN'],
-            ['Telur Ayam', 'IG-KTC-004', 'BAHAN DASAR', 'Pcs', 2500, 150, 30, 'KITCHEN'],
-            ['Garam Dapur', 'IG-KTC-005', 'BUMBU & SAUS', 'Gram', 10, 2000, 500, 'KITCHEN'],
+            ['Beras Premium', 'IG-KTC-001', 'BAHAN DASAR', 'Gram', 15, 25000, 5000, 'KITCHEN', 'N', 'N', 100],
+            ['Daging Ayam Fillet', 'IG-KTC-002', 'BAHAN DASAR', 'Gram', 45, 5000, 1000, 'KITCHEN', 'N', 'N', 100],
+            ['Minyak Goreng', 'IG-KTC-003', 'BAHAN DASAR', 'Ml', 18, 10000, 2000, 'KITCHEN', 'N', 'N', 100],
+            ['Telur Ayam', 'IG-KTC-004', 'BAHAN DASAR', 'Pcs', 2500, 150, 30, 'KITCHEN', 'N', 'N', 100],
+            ['Garam Dapur', 'IG-KTC-005', 'BUMBU & SAUS', 'Gram', 10, 2000, 500, 'KITCHEN', 'N', 'N', 100],
             // --- Retail & Store ---
-            ['Rokok Marlboro Merah', 'IG-RET-001', 'RETAIL STORE', 'Pcs', 35000, 50, 10, 'STORE'],
-            ['Rokok Sampoerna Mild', 'IG-RET-002', 'RETAIL STORE', 'Pcs', 28000, 100, 20, 'STORE'],
-            ['Korek Api Gas', 'IG-RET-003', 'RETAIL STORE', 'Pcs', 2500, 50, 15, 'STORE'],
+            ['Rokok Marlboro Merah', 'IG-RET-001', 'RETAIL STORE', 'Pcs', 35000, 50, 10, 'STORE', 'N', 'N', 100],
+            ['Rokok Sampoerna Mild', 'IG-RET-002', 'RETAIL STORE', 'Pcs', 28000, 100, 20, 'STORE', 'N', 'N', 100],
+            ['Korek Api Gas', 'IG-RET-003', 'RETAIL STORE', 'Pcs', 2500, 50, 15, 'STORE', 'N', 'N', 100],
             // --- Packaging ---
-            ['Gelas Plastik Cup 16oz', 'IG-PKG-001', 'PACKAGING', 'Pcs', 500, 500, 100, 'BAR'],
-            ['Kotak Makan Bento', 'IG-PKG-002', 'PACKAGING', 'Pcs', 1200, 200, 50, 'KITCHEN']
+            ['Gelas Plastik Cup 16oz', 'IG-PKG-001', 'PACKAGING', 'Pcs', 500, 500, 100, 'BAR', 'N', 'N', 100],
+            ['Kotak Makan Bento', 'IG-PKG-002', 'PACKAGING', 'Pcs', 1200, 200, 50, 'KITCHEN', 'N', 'N', 100]
         ];
         const wsIng = xlsx.utils.aoa_to_sheet(ingData);
         xlsx.utils.book_append_sheet(wb, wsIng, 'Bahan Baku');
 
         // Sheet 3: Menu & Resep
         const menuData = [
-            ['Nama Menu', 'SKU', 'Kategori', 'Harga Jual', 'Departemen', 'Resep Baku'],
-            ['Kopi Hitam Panas', 'MN-BAR-001', 'MINUMAN', 15000, 'BAR', 'Kopi Bubuk Robusta: 15, Gula Pasir: 20, Air Mineral Galon: 200, Gelas Plastik Cup 16oz: 1'],
-            ['Es Kopi Susu Vanilla', 'MN-BAR-002', 'MINUMAN', 25000, 'BAR', 'Kopi Bubuk Robusta: 20, Gula Pasir: 15, Air Mineral Galon: 150, Susu Full Cream: 50, Syrup Vanilla: 15, Gelas Plastik Cup 16oz: 1'],
-            ['Nasi Goreng Spesial', 'MN-KTC-001', 'MAKANAN', 35000, 'KITCHEN', 'Beras Premium: 150, Daging Ayam Fillet: 50, Minyak Goreng: 20, Telur Ayam: 1, Garam Dapur: 5'],
-            ['Ayam Goreng Crispy', 'MN-KTC-002', 'MAKANAN', 28000, 'KITCHEN', 'Daging Ayam Fillet: 150, Minyak Goreng: 100, Garam Dapur: 10'],
-            ['Paket Nasi Bento', 'MN-KTC-003', 'MAKANAN', 40000, 'KITCHEN', 'Beras Premium: 150, Daging Ayam Fillet: 100, Minyak Goreng: 50, Garam Dapur: 8, Kotak Makan Bento: 1'],
-            ['Kentang Goreng (Snack)', 'MN-KTC-004', 'SNACK', 20000, 'KITCHEN', 'Minyak Goreng: 50, Garam Dapur: 5'],
-            ['Rokok Marlboro Merah', 'MN-RET-001', 'RETAIL STORE', 40000, 'STORE', 'Rokok Marlboro Merah: 1'],
-            ['Rokok Sampoerna Mild', 'MN-RET-002', 'RETAIL STORE', 32000, 'STORE', 'Rokok Sampoerna Mild: 1'],
-            ['Korek Api Gas', 'MN-RET-003', 'RETAIL STORE', 5000, 'STORE', 'Korek Api Gas: 1'],
-            ['Paket Main 2 Jam + Kopi', 'MN-PKT-001', 'PAKET BILLIARD', 100000, 'STORE', 'Kopi Bubuk Robusta: 15, Gula Pasir: 20, Air Mineral Galon: 200, Gelas Plastik Cup 16oz: 1']
+            ['Nama Menu', 'SKU', 'Kategori', 'Harga Jual', 'Departemen', 'Wajib Lapor (Y/N)', 'High Value (Y/N)', 'Yield (%)', 'Resep Baku'],
+            ['Kopi Hitam Panas', 'MN-BAR-001', 'MINUMAN', 15000, 'BAR', 'N', 'N', 100, 'Kopi Bubuk Robusta: 15, Gula Pasir: 20, Air Mineral Galon: 200, Gelas Plastik Cup 16oz: 1'],
+            ['Es Kopi Susu Vanilla', 'MN-BAR-002', 'MINUMAN', 25000, 'BAR', 'N', 'N', 100, 'Kopi Bubuk Robusta: 20, Gula Pasir: 15, Air Mineral Galon: 150, Susu Full Cream: 50, Syrup Vanilla: 15, Gelas Plastik Cup 16oz: 1'],
+            ['Nasi Goreng Spesial', 'MN-KTC-001', 'MAKANAN', 35000, 'KITCHEN', 'N', 'N', 100, 'Beras Premium: 150, Daging Ayam Fillet: 50, Minyak Goreng: 20, Telur Ayam: 1, Garam Dapur: 5'],
+            ['Ayam Goreng Crispy', 'MN-KTC-002', 'MAKANAN', 28000, 'KITCHEN', 'N', 'N', 100, 'Daging Ayam Fillet: 150, Minyak Goreng: 100, Garam Dapur: 10'],
+            ['Paket Nasi Bento', 'MN-KTC-003', 'MAKANAN', 40000, 'KITCHEN', 'N', 'N', 100, 'Beras Premium: 150, Daging Ayam Fillet: 100, Minyak Goreng: 50, Garam Dapur: 8, Kotak Makan Bento: 1'],
+            ['Kentang Goreng (Snack)', 'MN-KTC-004', 'SNACK', 20000, 'KITCHEN', 'N', 'N', 100, 'Minyak Goreng: 50, Garam Dapur: 5'],
+            ['Rokok Marlboro Merah', 'MN-RET-001', 'RETAIL STORE', 40000, 'STORE', 'N', 'N', 100, 'Rokok Marlboro Merah: 1'],
+            ['Rokok Sampoerna Mild', 'MN-RET-002', 'RETAIL STORE', 32000, 'STORE', 'N', 'N', 100, 'Rokok Sampoerna Mild: 1'],
+            ['Korek Api Gas', 'MN-RET-003', 'RETAIL STORE', 5000, 'STORE', 'N', 'N', 100, 'Korek Api Gas: 1'],
+            ['Paket Main 2 Jam + Kopi', 'MN-PKT-001', 'PAKET BILLIARD', 100000, 'STORE', 'N', 'N', 100, 'Kopi Bubuk Robusta: 15, Gula Pasir: 20, Air Mineral Galon: 200, Gelas Plastik Cup 16oz: 1']
         ];
         const wsMenu = xlsx.utils.aoa_to_sheet(menuData);
         xlsx.utils.book_append_sheet(wb, wsMenu, 'Menu dan Resep');

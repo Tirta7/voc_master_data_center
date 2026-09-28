@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import {
@@ -710,9 +710,10 @@ function InventoryContent() {
 
             // Sheet 2: Bahan Baku
             const ingData = [
-                ['Nama Bahan', 'SKU', 'Kategori', 'Satuan', 'Harga Beli', 'Stok Awal', 'Min Stok', 'Departemen'],
+                ['Nama Bahan', 'SKU', 'Kategori', 'Satuan', 'Harga Beli', 'Stok Awal', 'Min Stok', 'Departemen', 'Wajib Lapor (Y/N)', 'High Value (Y/N)', 'Yield (%)'],
                 ...(ingredients || []).map(i => [
-                    i.name, i.sku, i.category, i.unit, i.costPrice, i.stockQuantity, i.minStockLevel, i.department || 'KITCHEN'
+                    i.name, i.sku, i.category, i.unit, Number(i.costPrice), Number(i.stockQuantity), Number(i.minStockLevel), i.department || 'KITCHEN',
+                    i.isMandatoryReporting ? 'Y' : 'N', i.isHighValue ? 'Y' : 'N', Number(i.yieldPercentage || 100)
                 ])
             ];
             const wsIng = xlsx.utils.aoa_to_sheet(ingData);
@@ -720,7 +721,7 @@ function InventoryContent() {
 
             // Sheet 3: Menu & Resep
             const menuData = [
-                ['Nama Menu', 'SKU', 'Kategori', 'Harga Jual', 'Departemen', 'Resep Baku'],
+                ['Nama Menu', 'SKU', 'Kategori', 'Harga Jual', 'Departemen', 'Wajib Lapor (Y/N)', 'High Value (Y/N)', 'Yield (%)', 'Resep Baku'],
                 ...(menuItems || []).map(m => {
                     const catName = categories?.find(c => c.id === m.categoryId)?.name || '';
                     const recipeStr = (m.recipes || []).map((r: any) => {
@@ -728,7 +729,9 @@ function InventoryContent() {
                         return `${ingName}: ${Number(r.quantity)}`;
                     }).join(', ');
                     return [
-                        m.name, m.sku, catName, m.price, m.department || 'KITCHEN', recipeStr
+                        m.name, m.sku, catName, Number(m.price), m.department || 'KITCHEN',
+                        m.isMandatoryReporting ? 'Y' : 'N', m.isHighValue ? 'Y' : 'N', Number(m.yieldPercentage || 100),
+                        recipeStr
                     ];
                 })
             ];
@@ -2038,12 +2041,10 @@ function InventoryContent() {
                                                                 {/* Item Selection */}
                                                                 <div className="md:col-span-12 lg:col-span-4">
                                                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Pilih Item / Bahan</label>
-                                                                    <div className="relative">
-                                                                        <select
-                                                                            className={`w-full pl-5 pr-10 py-3.5 bg-slate-50 hover:bg-slate-100 rounded-[1rem] border-0 transition-all font-bold text-slate-700 appearance-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 shadow-sm`}
+                                                                    <div className="relative z-[90]">
+                                                                        <SearchableIngredientSelect
                                                                             value={recipe.ingredientId ? `ing-${recipe.ingredientId}` : (recipe.subMenuItemId ? `sub-${recipe.subMenuItemId}` : '')}
-                                                                            onChange={(e) => {
-                                                                                const val = e.target.value;
+                                                                            onChange={(val) => {
                                                                                 const newRecipes = [...recipeIngredients];
                                                                                 if (val.startsWith('ing-')) {
                                                                                     const id = Number(val.replace('ing-', ''));
@@ -2054,16 +2055,10 @@ function InventoryContent() {
                                                                                 }
                                                                                 setRecipeIngredients(newRecipes);
                                                                             }}
-                                                                        >
-                                                                            <option value="">-- Pilih --</option>
-                                                                            <optgroup label="📦 Bahan Baku (Inventory)">
-                                                                                {(ingredients || []).map(i => <option key={i.id} value={`ing-${i.id}`}>{i.name}</option>)}
-                                                                            </optgroup>
-                                                                            <optgroup label="🍳 Intermediate (Sub-Menu)">
-                                                                                {(menuItems || []).filter(m => m.id !== selectedMenu?.id).map(m => <option key={m.id} value={`sub-${m.id}`}>{m.name}</option>)}
-                                                                            </optgroup>
-                                                                        </select>
-                                                                        <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 scale-75 pointer-events-none" />
+                                                                            ingredients={ingredients || []}
+                                                                            menuItems={menuItems || []}
+                                                                            selectedMenuId={selectedMenu?.id}
+                                                                        />
                                                                     </div>
                                                                 </div>
 
@@ -2604,6 +2599,105 @@ function InventoryContent() {
         </div>
     );
 }
+
+const SearchableIngredientSelect = ({ 
+    value, 
+    onChange, 
+    ingredients, 
+    menuItems, 
+    selectedMenuId 
+}: { 
+    value: string; 
+    onChange: (val: string) => void; 
+    ingredients: any[]; 
+    menuItems: any[]; 
+    selectedMenuId?: number; 
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const filteredIngredients = ingredients.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+    const filteredMenuItems = menuItems.filter(m => m.id !== selectedMenuId && m.name.toLowerCase().includes(search.toLowerCase()));
+
+    const selectedIngredient = value.startsWith('ing-') ? ingredients.find(i => i.id === Number(value.replace('ing-', ''))) : null;
+    const selectedSubMenu = value.startsWith('sub-') ? menuItems.find(m => m.id === Number(value.replace('sub-', ''))) : null;
+    const displayValue = selectedIngredient ? selectedIngredient.name : (selectedSubMenu ? selectedSubMenu.name : "-- Pilih --");
+
+    return (
+        <div ref={wrapperRef} className="relative w-full">
+            <div 
+                className={`w-full pl-5 pr-10 py-3.5 bg-slate-50 hover:bg-slate-100 rounded-[1rem] transition-all font-bold text-slate-700 cursor-pointer flex items-center justify-between shadow-sm ${isOpen ? 'ring-2 ring-indigo-500/20 bg-white' : ''}`}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <span className="truncate">{displayValue}</span>
+                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? '-rotate-90' : 'rotate-90'}`} />
+            </div>
+            
+            {isOpen && (
+                <div className="absolute z-[100] top-full mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[300px]">
+                    <div className="p-3 border-b border-slate-50 shrink-0">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                className="w-full pl-9 pr-4 py-2 bg-slate-50 rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                placeholder="Cari bahan baku..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                    <div className="overflow-y-auto p-2">
+                        {filteredIngredients.length > 0 && (
+                            <div className="mb-2">
+                                <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">📦 Bahan Baku (Inventory)</div>
+                                {filteredIngredients.map(i => (
+                                    <div 
+                                        key={`ing-${i.id}`}
+                                        className={`px-3 py-2 text-sm font-bold rounded-xl cursor-pointer transition-colors ${value === `ing-${i.id}` ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                                        onClick={() => { onChange(`ing-${i.id}`); setIsOpen(false); setSearch(""); }}
+                                    >
+                                        {i.name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {filteredMenuItems.length > 0 && (
+                            <div>
+                                <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">🍳 Intermediate (Sub-Menu)</div>
+                                {filteredMenuItems.map(m => (
+                                    <div 
+                                        key={`sub-${m.id}`}
+                                        className={`px-3 py-2 text-sm font-bold rounded-xl cursor-pointer transition-colors ${value === `sub-${m.id}` ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                                        onClick={() => { onChange(`sub-${m.id}`); setIsOpen(false); setSearch(""); }}
+                                    >
+                                        {m.name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {filteredIngredients.length === 0 && filteredMenuItems.length === 0 && (
+                            <div className="p-4 text-center text-xs font-bold text-slate-400">Tidak ada hasil ditemukan</div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default function InventoryPage() {
     return (

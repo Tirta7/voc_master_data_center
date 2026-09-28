@@ -14,17 +14,8 @@ import { io } from 'socket.io-client';
  *    Tanpa ini, browser akan mencoba konek ke domain:4000 yang TIDAK BISA diakses dari internet!
  */
 const getSocketBaseUrl = (): string => {
-    // 1. Env var eksplisit (WAJIB di-set di .env.production untuk online)
-    if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL.trim();
-
-    // 2. Fallback ke API URL jika sudah di-set
-    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.trim();
-
-    // 3. Fallback otomatis: hanya aman untuk localhost / IP lokal
-    //    Jika akses dari domain publik, port 4000 tidak akan bisa diakses!
     if (typeof window !== 'undefined') {
         const { protocol, hostname } = window.location;
-        // Deteksi jika ini akses lokal (localhost / IP private)
         const isLocal =
             hostname === 'localhost' ||
             hostname === '127.0.0.1' ||
@@ -36,15 +27,18 @@ const getSocketBaseUrl = (): string => {
             return `${protocol}//${hostname}:4000`;
         }
 
-        // Akses dari domain publik → backend harusnya di subdomain api.*
-        // Coba tebak otomatis dari hostname (admin.vocbilliard.online → api.vocbilliard.online)
-        const apiHostname = hostname.replace(/^[^.]+\./, 'api.');
-        console.warn(
-            `[Socket] Tidak ada NEXT_PUBLIC_SOCKET_URL. Mencoba otomatis: ${protocol}//${apiHostname}\n` +
-            `Sebaiknya set NEXT_PUBLIC_SOCKET_URL di .env.production!`
-        );
-        return `${protocol}//${apiHostname}`;
+        if (protocol === 'https:') {
+            if (hostname !== 'admin.vocbilliard.online' && hostname.endsWith('.vocbilliard.online')) {
+                const branchName = hostname.split('.')[0];
+                return `https://api-${branchName}.vocbilliard.online`;
+            }
+            const baseDomain = hostname.replace(/^admin\./, '');
+            return `https://api.${baseDomain}`;
+        }
     }
+
+    if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL.trim();
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.trim();
     return 'http://localhost:4000';
 };
 

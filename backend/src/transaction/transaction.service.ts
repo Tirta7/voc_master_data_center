@@ -2022,6 +2022,8 @@ export class TransactionService {
       (p: any) => ({
         method: p.paymentMethod,
         amount: Number(p.totalPaid),
+        tenderedAmount: Number(p.tenderedAmount || p.totalPaid),
+        changeAmount: Number(p.changeAmount || 0),
         payer: p.payerName || 'Unknown',
         timestamp: p.createdAt || new Date(),
         paymentId: p.id,

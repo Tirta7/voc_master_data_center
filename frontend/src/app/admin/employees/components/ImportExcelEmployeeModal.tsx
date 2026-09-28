@@ -73,32 +73,39 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             [
                 'Nama Lengkap', 'Username', 'Password', 'Role', 'PIN', 'RFID',
                 'Telepon', 'Email', 'Jabatan', 'Shift', 'Jenis Kelamin',
-                'Alamat', 'Mode Keamanan', 'Tanggal Bergabung'
+                'Alamat', 'Mode Keamanan', 'Tanggal Bergabung',
+                'Gaji Pokok', 'Rate Lembur', 'Komisi Service', 'Persentase Komisi',
+                'Denda Terlambat', 'Denda Idle', 'Batas Idle (Menit)'
             ],
             [
                 'Budi Santoso', 'budi.santoso', 'budi123', 'KASIR', '1234', '',
                 '08123456789', 'budi@billiard.com', 'Kasir Shift 1', 'SHIFT 1', 'Laki-laki',
-                'Jl. Merdeka No. 1, Jakarta', 'HYBRID', '2024-01-15'
+                'Jl. Merdeka No. 1, Jakarta', 'HYBRID', '2024-01-15',
+                3000000, 15000, 5000, 0, 1000, 5000, 5
             ],
             [
                 'Siti Rahayu', 'siti.rahayu', '', 'WAITER', '5678', 'RFID001',
                 '08987654321', '', 'Pelayan', 'SHIFT 2', 'Perempuan',
-                'Jl. Sudirman No. 5, Jakarta', 'RFID_ONLY', '2024-03-01'
+                'Jl. Sudirman No. 5, Jakarta', 'RFID_ONLY', '2024-03-01',
+                2500000, 10000, 0, 2.5, 1000, 5000, 5
             ],
             [
                 'Ahmad Fauzi', 'ahmad.fauzi', 'manager123', 'MANAGER', '9999', '',
                 '08111222333', 'ahmad@billiard.com', 'Manajer Operasional', 'SHIFT 1', 'Laki-laki',
-                'Jl. Gatot Subroto No. 12', 'HYBRID', '2023-06-10'
+                'Jl. Gatot Subroto No. 12', 'HYBRID', '2023-06-10',
+                5000000, 20000, 0, 0, 1000, 5000, 5
             ],
             [
                 'Dewi Lestari', 'dewi.lestari', '', 'KASIR', '4321', 'RFID002',
                 '08555666777', '', 'Kasir Shift 2', 'SHIFT 2', 'Perempuan',
-                'Jl. Thamrin No. 20, Jakarta', 'HYBRID', '2024-05-20'
+                'Jl. Thamrin No. 20, Jakarta', 'HYBRID', '2024-05-20',
+                3000000, 15000, 5000, 0, 1000, 5000, 5
             ],
             [
                 'Rivan Kurniawan', 'rivan.kurniawan', 'aman123', 'SECURITY', '0000', 'RFID003',
                 '08222333444', '', 'Security', 'SHIFT 3', 'Laki-laki',
-                'Jl. Kebon Jeruk No. 8', 'RFID_ONLY', '2024-07-01'
+                'Jl. Kebon Jeruk No. 8', 'RFID_ONLY', '2024-07-01',
+                2800000, 15000, 0, 0, 1000, 5000, 5
             ],
         ];
         const wsEmp = xlsx.utils.aoa_to_sheet(empData);
@@ -106,6 +113,8 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             { wch: 22 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
             { wch: 14 }, { wch: 25 }, { wch: 22 }, { wch: 10 }, { wch: 14 },
             { wch: 30 }, { wch: 16 }, { wch: 18 },
+            { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 },
+            { wch: 15 }, { wch: 15 }, { wch: 18 },
         ];
         xlsx.utils.book_append_sheet(wb, wsEmp, 'Karyawan');
 
@@ -233,6 +242,13 @@ export function ImportExcelEmployeeModal({ isOpen, onClose, onSuccess }: ImportE
             ['Alamat', 'Alamat lengkap', 'Opsional'],
             ['Mode Keamanan', 'HYBRID / RFID_ONLY / FINGERPRINT_ONLY / DUAL', 'Opsional'],
             ['Tanggal Bergabung', 'Format: YYYY-MM-DD', 'Opsional'],
+            ['Gaji Pokok', 'Angka Gaji Pokok per bulan (Tanpa Rp/Titik)', 'Opsional'],
+            ['Rate Lembur', 'Nilai per jam lembur', 'Opsional'],
+            ['Komisi Service', 'Komisi per layanan', 'Opsional'],
+            ['Persentase Komisi', 'Nilai komisi persen (misal 2.5)', 'Opsional'],
+            ['Denda Terlambat', 'Nominal denda per menit terlambat', 'Opsional'],
+            ['Denda Idle', 'Nominal denda per kejadian idle', 'Opsional'],
+            ['Batas Idle (Menit)', 'Menit sebelum kena denda idle', 'Opsional'],
             [''],
             ['CATATAN PENTING:'],
             ['- Sistem UPSERT: username sudah ada = data diperbarui, belum ada = data baru dibuat.'],

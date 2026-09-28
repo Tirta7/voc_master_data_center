@@ -301,7 +301,7 @@ export default function PlaystationPage() {
     try {
       await axios.patch('/billiard/ps/batch-update-ip', { updates: [{ id: tableId, ipAddress: ip }] });
       showToast('Berhasil', `IP ${ip} disimpan`, 'success');
-      refetchBilliard();
+      // refetchBilliard(); // Dihapus untuk mencegah bentrok data
     } catch {
       showToast('Error', 'Gagal menyimpan IP', 'error');
     }
@@ -319,7 +319,7 @@ export default function PlaystationPage() {
       const res = await axios.patch('/billiard/ps/batch-update-ip', { updates });
       showToast('Tersimpan', `${res.data.updated} IP berhasil diperbarui`, 'success');
       setPendingIps({});
-      refetchBilliard();
+      // refetchBilliard(); // Dihapus untuk mencegah bentrok data
     } catch {
       showToast('Error', 'Gagal menyimpan batch IP', 'error');
     } finally {
@@ -331,7 +331,7 @@ export default function PlaystationPage() {
     setIsSubmitting(true);
     try {
       await axios.post(`/billiard/tables/${id}/stop`, { userId: user?.id });
-      refetchBilliard();
+      // refetchBilliard(); // Dihapus untuk mencegah bentrok data
       showToast('Berhasil', 'Sesi PS dihentikan', 'success');
     } catch { showToast('Error', 'Gagal stop sesi', 'error'); }
     finally { setIsSubmitting(false); }
@@ -667,7 +667,7 @@ export default function PlaystationPage() {
             setIsSubmitting(true);
             try {
               await axios.post(`/billiard/tables/${startModal}/start`, { type, duration, customerName, packageId, userId: user?.id });
-              refetchBilliard();
+              // refetchBilliard(); // Dihapus untuk mencegah bentrok data
               setStartModal(null);
               showToast('Berhasil', 'Sesi PS dimulai', 'success');
             } catch (e: any) { showToast('Error', e.response?.data?.message || 'Gagal mulai sesi', 'error'); }
@@ -684,7 +684,7 @@ export default function PlaystationPage() {
           tableId={extendModal}
           tableCategory={extendTable?.category}
           stationType="PLAYSTATION"
-          onExtended={() => { refetchBilliard(); setExtendModal(null); }}
+          onExtended={() => { setExtendModal(null); }}
         />
       )}
 

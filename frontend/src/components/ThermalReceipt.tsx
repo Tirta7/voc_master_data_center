@@ -735,6 +735,28 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                             {['MEMBER', 'MEMBERSHIP'].includes(method?.toUpperCase()) ? 'SALDO MEMBER (DEBET)' : method?.toUpperCase() || 'TUNAI'}
                         </span>
                     </div>
+                    {(() => {
+                        const paymentDetails = tx.paymentDetails || [];
+                        const totalTendered = paymentDetails.reduce((sum: number, p: any) => sum + Number(p.tenderedAmount || p.amount || 0), 0);
+                        const totalChange = paymentDetails.reduce((sum: number, p: any) => sum + Number(p.changeAmount || 0), 0);
+                        const isCash = method?.toUpperCase() === 'CASH' || method?.toUpperCase() === 'TUNAI';
+                        
+                        if (totalTendered > 0 && (isCash || totalChange > 0)) {
+                            return (
+                                <>
+                                    <div className="flex justify-between items-center text-[10px] text-slate-800">
+                                        <span>UANG BAYAR</span>
+                                        <span className="font-bold">Rp{fmt(totalTendered)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] text-slate-800">
+                                        <span>KEMBALIAN</span>
+                                        <span className="font-bold">Rp{fmt(totalChange)}</span>
+                                    </div>
+                                </>
+                            );
+                        }
+                        return null;
+                    })()}
                 </div>
 
                 {/* History of payments handled by backend sessionTotals if wanted, or transaction records */}

@@ -1555,6 +1555,14 @@ export class UserService {
           const securityMode = (row['Mode Keamanan'] || 'HYBRID').toString().trim().toUpperCase() as any;
           const joinedAt = (row['Tanggal Bergabung'] || '').toString().trim();
 
+          const basicSalary = Number(row['Gaji Pokok']) || 0;
+          const overtimeRate = Number(row['Rate Lembur']) || 0;
+          const commissionService = Number(row['Komisi Service']) || 0;
+          const commissionSalesPercent = Number(row['Persentase Komisi']) || 0;
+          const penaltyLate = Number(row['Denda Terlambat']) || 0;
+          const penaltyIdle = Number(row['Denda Idle']) || 0;
+          const idleThreshold = Number(row['Batas Idle (Menit)']) || 5;
+
           // Resolve role
           let role = await queryRunner.manager.findOne(Role, { where: { name: roleName } });
           if (!role) {
@@ -1607,6 +1615,21 @@ export class UserService {
             if (securityMode) user.securityMode = securityMode;
             if (joinedAt) user.joinedAt = joinedAt;
             user.role = role;
+          }
+
+          if (!user.payrollConfig) {
+             const pc = queryRunner.manager.create(PayrollConfig, {
+               basicSalary, overtimeRate, commissionService, commissionSalesPercent, penaltyLate, penaltyIdle, idleThreshold
+             });
+             user.payrollConfig = pc;
+          } else {
+             user.payrollConfig.basicSalary = basicSalary;
+             user.payrollConfig.overtimeRate = overtimeRate;
+             user.payrollConfig.commissionService = commissionService;
+             user.payrollConfig.commissionSalesPercent = commissionSalesPercent;
+             user.payrollConfig.penaltyLate = penaltyLate;
+             user.payrollConfig.penaltyIdle = penaltyIdle;
+             user.payrollConfig.idleThreshold = idleThreshold;
           }
 
           await queryRunner.manager.save(User, user);

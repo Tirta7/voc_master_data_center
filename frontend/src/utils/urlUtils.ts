@@ -19,14 +19,31 @@ export const API_URL = getApiUrl();
  * bukan WebSocket upgrade. Socket.IO harus konek langsung ke backend.
  */
 export const getSocketUrl = (): string => {
-    // 1. Gunakan env var khusus jika ada (misal: untuk produksi/Docker)
-    if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL.trim();
-    // 2. Gunakan NEXT_PUBLIC_API_URL jika ada (URL publik backend)
-    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.trim();
-    // 3. Fallback: bangun URL dari hostname browser + port backend 4000
     if (typeof window !== 'undefined') {
-        return `${window.location.protocol}//${window.location.hostname}:4000`;
+        const { protocol, hostname } = window.location;
+        const isLocal =
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            /^192\.168\./.test(hostname) ||
+            /^10\./.test(hostname) ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
+
+        if (isLocal) {
+            return `${protocol}//${hostname}:4000`;
+        }
+
+        if (protocol === 'https:') {
+            if (hostname !== 'admin.vocbilliard.online' && hostname.endsWith('.vocbilliard.online')) {
+                const branchName = hostname.split('.')[0];
+                return `https://api-${branchName}.vocbilliard.online`;
+            }
+            const baseDomain = hostname.replace(/^admin\./, '');
+            return `https://api.${baseDomain}`;
+        }
     }
+    
+    if (process.env.NEXT_PUBLIC_SOCKET_URL) return process.env.NEXT_PUBLIC_SOCKET_URL.trim();
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL.trim();
     return 'http://localhost:4000';
 };
 
