@@ -1149,242 +1149,209 @@ export default function KitchenBarUnifiedPage() {
                     </div>
                 </aside>
 
-                {/* Main Grid */}
+                {/* Main Grid — Ultra-Compact KDS v2 */}
                 <div
-                    className={`h-full flex-1 min-w-0 p-2 sm:p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}
+                    className={`h-full flex-1 min-w-0 px-2 pt-2 pb-2 overflow-y-auto transition-all duration-500 no-scrollbar ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}
                     style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
                     onTouchMove={(e) => e.stopPropagation()}
                 >
-                    {/* Added items-start to prevent cards from stretching vertically in the grid row */}
-                    <div 
-                        className="grid gap-3 sm:gap-4 md:gap-6 pb-40 max-w-[1600px] mx-auto items-start"
-                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}
+                    <div
+                        className="grid gap-1.5 pb-24 items-start"
+                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 190px), 1fr))' }}
                     >
                         {orders.map((order) => {
                             const elapsed = getTimeElapsed(order.timestamp);
-                            const isLate = elapsed > 15 && order.status !== 'READY';
+                            const isUrgent = elapsed >= 20;
+                            const isWarning = elapsed >= 10 && elapsed < 20;
+                            const isCooking = order.status === 'COOKING';
+                            const isReady = order.status === 'READY';
+                            const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
+
+                            // Card border & bg based on priority
+                            const cardBorder = hasPendingCancel
+                                ? 'border-rose-500 bg-rose-950/50'
+                                : isUrgent
+                                    ? 'border-red-500/70 bg-red-950/30'
+                                    : isWarning
+                                        ? 'border-yellow-500/50 bg-yellow-950/20'
+                                        : isCooking
+                                            ? 'border-amber-500/40 bg-amber-950/20'
+                                            : isReady
+                                                ? 'border-emerald-500/40 bg-emerald-950/20'
+                                                : 'border-white/8 bg-[#1a1a1c]';
+
+                            const timerBg = isUrgent
+                                ? 'bg-red-500 text-white'
+                                : isWarning
+                                    ? 'bg-yellow-500 text-black'
+                                    : isCooking
+                                        ? 'bg-amber-500/80 text-black'
+                                        : isReady
+                                            ? 'bg-emerald-500/80 text-white'
+                                            : 'bg-white/8 text-slate-300';
 
                             return (
                                 <div
                                     key={order.orderId}
-                                    className={`relative group rounded-[2rem] flex flex-col overflow-hidden transition-all duration-300 border ${isLate ? 'bg-rose-950/40 border-rose-500/30' :
-                                        order.status === 'READY' ? 'bg-emerald-950/40 border-emerald-500/30' :
-                                            order.status === 'COOKING' ? 'bg-amber-950/40 border-amber-500/30' :
-                                                'bg-[#1C1C1E] border-white/10 hover:border-white/20'
-                                        } `}
+                                    className={`relative flex flex-col rounded-xl border overflow-hidden transition-all duration-200 ${cardBorder} ${isUrgent ? 'shadow-[0_0_8px_rgba(239,68,68,0.3)]' : ''}`}
                                 >
-                                    <div className="p-4 md:p-6 flex flex-col h-full">
-                                        {/* Card Header Compact */}
-                                        <div className="flex justify-between items-start mb-4 gap-4">
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                                    <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm ${isLate ? 'bg-red-500 text-white' :
-                                                        order.status === 'READY' ? 'bg-emerald-500 text-white' :
-                                                            order.status === 'COOKING' ? 'bg-amber-500 text-black' :
-                                                                'bg-amber-600/20 text-amber-500 border border-amber-500/30'
-                                                        }`}>
-                                                        {order.status}
+                                    {/* ── Card Header ── */}
+                                    <div className="flex items-center justify-between px-2.5 pt-2 pb-1.5 gap-1">
+                                        <div className="flex flex-col min-w-0 flex-1">
+                                            {/* Table Name */}
+                                            <span className="text-white font-black text-base leading-none tracking-tight truncate">
+                                                {order.tableName || (order.tableId ? `M-${order.tableId}` : 'WALK-IN')}
+                                            </span>
+                                            {/* Customer + Order ID */}
+                                            <div className="flex items-center gap-1 mt-0.5">
+                                                {hasPendingCancel && (
+                                                    <span className="text-[9px] font-black text-rose-400 uppercase animate-pulse">⚠ BATAL</span>
+                                                )}
+                                                {!hasPendingCancel && (
+                                                    <span className="text-slate-500 text-[10px] font-bold truncate">
+                                                        {order.customerName && order.customerName !== 'Guest' ? order.customerName : `#${String(order.orderId || '').slice(-4)}`}
                                                     </span>
-                                                    {(() => {
-                                                        const bdsItems = (order.items || []).filter((i: any) => i.station?.toUpperCase() === 'BDS');
-                                                        if (bdsItems.length === 0) return null;
-                                                        const bdsDone = bdsItems.every((i: any) => i.status === 'DONE');
-                                                        const bdsRemaining = bdsItems.filter((i: any) => i.status !== 'DONE').length;
-
-                                                        return (
-                                                            <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border shadow-sm ${bdsDone ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                                                                BDS: {bdsDone ? 'OK' : `${bdsRemaining} LEFT`}
-                                                            </span>
-                                                        );
-                                                    })()}
-                                                    {(order.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
-                                                        <span className="bg-amber-500/20 text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter shadow-sm border border-amber-500/30">
-                                                            BUNDLE
-                                                        </span>
-                                                    )}
-                                                    <span className="text-slate-500 text-[10px] font-mono font-bold ml-auto">#{String(order.orderId || '').slice(-4)}</span>
-                                                </div>
-                                                <h3 className="text-2xl md:text-3xl font-black text-white tracking-tighter drop-shadow-sm leading-none break-words">
-                                                    {order.tableName || (order.tableId ? `M-${order.tableId}` : 'WALK-IN')}
-                                                </h3>
-                                                {order.customerName && order.customerName !== 'Guest' && (
-                                                    <p className="text-slate-400 text-sm font-bold truncate mt-1.5 flex items-center gap-1.5">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
-                                                        {order.customerName}
-                                                    </p>
                                                 )}
                                             </div>
-                                            
-                                            {/* Timer Badge */}
-                                            <div className={`flex flex-col items-center justify-center shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl border transition-colors ${isLate ? 'border-rose-500 bg-rose-500 text-white' : order.status === 'READY' ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400' : 'border-white/10 bg-[#2C2C2E] text-slate-300'
-                                                }`}>
-                                                <span className="text-lg md:text-2xl font-black leading-none">{elapsed}</span>
-                                                <span className="text-[8px] md:text-[9px] uppercase font-black tracking-widest mt-0.5 opacity-80">Min</span>
-                                            </div>
                                         </div>
+                                        {/* Timer */}
+                                        <div className={`shrink-0 flex flex-col items-center justify-center w-9 h-9 rounded-lg font-black leading-none ${timerBg}`}>
+                                            <span className="text-sm">{elapsed}</span>
+                                            <span className="text-[8px] opacity-70">min</span>
+                                        </div>
+                                    </div>
 
-                                        {/* Order Items List */}
-                                        <div className="flex flex-col gap-2 mb-4 md:mb-6">
-                                            {(order.items || []).filter((i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase())).map((item: any, idx: number) => {
+                                    {/* ── Divider ── */}
+                                    <div className="h-px bg-white/5 mx-2" />
+
+                                    {/* ── Items List ── */}
+                                    <div className="flex flex-col gap-0 px-1.5 py-1">
+                                        {(order.items || [])
+                                            .filter((i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase()))
+                                            .map((item: any, idx: number) => {
                                                 const isKDS = item.station?.toUpperCase() !== 'BDS';
-                                                
+                                                const isDone = item.status === 'DONE';
+                                                const isCancelReq = item.status === 'CANCEL_REQUESTED';
+                                                const isCancelRej = item.status === 'CANCEL_REJECTED';
+
                                                 return (
-                                                <div key={idx} className={`group/item flex flex-col gap-1.5 p-2.5 md:p-3 rounded-[18px] transition-all border ${item.status === 'CANCEL_REQUESTED' ? 'bg-rose-500/10 animate-pulse border-rose-500/50' : item.status === 'DONE' ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : isKDS ? 'bg-black/30 border-white/5' : 'bg-black/30 border-white/5'}`}>
-                                                    <div className="flex justify-between items-start gap-3">
-                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                    <div key={idx}>
+                                                        <div className={`flex items-center gap-1 py-1 px-1 rounded-lg transition-all ${
+                                                            isCancelReq ? 'bg-rose-500/15 animate-pulse' :
+                                                            isDone ? 'opacity-40' : ''
+                                                        }`}>
+                                                            {/* Checkbox */}
                                                             <button
-                                                                disabled={item.status === 'CANCEL_REQUESTED'}
-                                                                onClick={() => updateStatusForItem(order, item, item.status === 'DONE' ? 'PENDING' : 'DONE')}
-                                                                className={`w-6 h-6 md:w-8 md:h-8 shrink-0 rounded-lg flex items-center justify-center border-2 transition-all duration-300 ${item.status === 'DONE'
-                                                                    ? 'bg-emerald-500 border-emerald-400 text-white'
-                                                                    : item.status === 'PROCESSING'
-                                                                        ? 'bg-blue-500 border-blue-400 text-white'
-                                                                        : item.status === 'CANCEL_REJECTED'
-                                                                            ? 'bg-orange-500 border-orange-400 text-white animate-pulse'
-                                                                            : 'border-white/20 hover:border-emerald-500/50 text-transparent hover:text-emerald-500/50 bg-[#2C2C2E]'
-                                                                    }`}
+                                                                disabled={isCancelReq}
+                                                                onClick={() => updateStatusForItem(order, item, isDone ? 'PENDING' : 'DONE')}
+                                                                className={`shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-all ${
+                                                                    isDone ? 'bg-emerald-500 border-emerald-400' :
+                                                                    item.status === 'PROCESSING' ? 'bg-blue-500 border-blue-400' :
+                                                                    isCancelRej ? 'bg-orange-500 border-orange-400 animate-pulse' :
+                                                                    'border-white/15 bg-black/30 hover:border-emerald-400'
+                                                                }`}
                                                             >
-                                                                {item.status === 'CANCEL_REQUESTED' ? <X className="w-4 h-4" /> :
-                                                                    item.status === 'CANCEL_REJECTED' ? <Ban className="w-4 h-4" /> :
-                                                                        <CheckCircle className="w-4 h-4" />}
+                                                                {isCancelReq ? <X className="w-2.5 h-2.5 text-rose-300" /> :
+                                                                    isCancelRej ? <Ban className="w-2.5 h-2.5 text-white" /> :
+                                                                    isDone ? <CheckCircle className="w-2.5 h-2.5 text-white" /> : null}
                                                             </button>
-                                                            
-                                                            <div className="flex flex-col flex-1 min-w-0 pt-0.5">
-                                                                <span className={`text-base md:text-lg font-bold leading-tight transition-all duration-300 break-words flex items-start gap-2 ${item.status === 'DONE' || order.status === 'READY' ? 'text-emerald-400/50 line-through decoration-2' : 'text-slate-100'
-                                                                    }`}>
-                                                                    <div className={`mt-0.5 shrink-0 p-1 rounded-md ${isKDS ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                                                                        {isKDS ? (
-                                                                            <ChefHat className="w-3 h-3 md:w-4 md:h-4" />
-                                                                        ) : (
-                                                                            <Volume2 className="w-3 h-3 md:w-4 md:h-4" />
-                                                                        )}
-                                                                    </div>
-                                                                    <span className="flex-1">{item.name}</span>
-                                                                </span>
-                                                                {item.status === 'CANCEL_REJECTED' && (
-                                                                    <div className="flex items-center gap-1.5 mt-1 bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 rounded-md w-fit animate-pulse">
-                                                                        <Ban className="w-3 h-3 text-orange-500" />
-                                                                        <span className="text-[9px] font-black text-orange-400">DITOLAK</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
+
+                                                            {/* Station dot */}
+                                                            <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                                                                isCancelReq ? 'bg-rose-400' :
+                                                                isKDS ? 'bg-amber-400' : 'bg-blue-400'
+                                                            }`} />
+
+                                                            {/* Item name */}
+                                                            <span className={`flex-1 text-[11px] font-bold leading-tight truncate ${
+                                                                isDone ? 'line-through text-slate-600' :
+                                                                isCancelReq ? 'text-rose-300' :
+                                                                'text-slate-100'
+                                                            }`}>
+                                                                {item.name}
+                                                            </span>
+
+                                                            {/* Qty */}
+                                                            <span className={`shrink-0 text-[11px] font-black px-1 rounded ${
+                                                                isDone ? 'text-emerald-600' :
+                                                                isCancelReq ? 'text-rose-300' :
+                                                                'text-white'
+                                                            }`}>
+                                                                ×{Number(item.quantity) || 1}
+                                                            </span>
                                                         </div>
 
-                                                        <div className="flex flex-col items-center gap-2 shrink-0">
-                                                            <div className={`text-lg md:text-xl font-black px-2.5 py-0.5 rounded-lg border transition-all duration-300 ${item.status === 'DONE' || order.status === 'READY' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/40' : 'bg-slate-800 border-white/10 text-white shadow-inner'
-                                                                }`}>
-                                                                x{Number(item.quantity) || 1}
+                                                        {/* Note */}
+                                                        {item.note && (
+                                                            <div className="ml-8 mb-0.5 text-[10px] font-bold text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded italic truncate">
+                                                                ↳ {item.note}
                                                             </div>
-                                                        </div>
+                                                        )}
+
+                                                        {/* Cancel action buttons */}
+                                                        {isCancelReq && (
+                                                            <div className="flex gap-1 ml-8 mb-1">
+                                                                <button
+                                                                    onClick={() => handleConfirmCancel(item)}
+                                                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded text-[9px] font-black uppercase tracking-wider animate-pulse flex items-center justify-center gap-0.5"
+                                                                >
+                                                                    <CheckCircle className="w-2.5 h-2.5" /> Batal ✓
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectCancel(item)}
+                                                                    className="flex-1 bg-red-600 hover:bg-red-500 text-white py-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5"
+                                                                >
+                                                                    <X className="w-2.5 h-2.5" /> Tolak
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-
-                                                    {/* Cancel Request Buttons directly below item */}
-                                                    {item.status === 'CANCEL_REQUESTED' && (
-                                                        <div className="flex gap-2 mt-2 ml-10 md:ml-12">
-                                                            <button
-                                                                onClick={() => handleConfirmCancel(item)}
-                                                                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg animate-pulse flex items-center justify-center gap-1"
-                                                            >
-                                                                <CheckCircle className="w-3 h-3" /> Ya
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleRejectCancel(item)}
-                                                                className="flex-1 bg-red-600 hover:bg-red-500 text-white px-2 py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-1"
-                                                            >
-                                                                <X className="w-3 h-3" /> Tolak
-                                                            </button>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Note Field Compact */}
-                                                    {item.note && (
-                                                        <div className="ml-10 md:ml-12 text-xs md:text-sm font-bold text-amber-400/90 bg-amber-400/10 px-2.5 py-1.5 rounded-lg border border-amber-400/20 italic flex items-start gap-1.5">
-                                                            <span className="text-amber-500 opacity-50 shrink-0">↳</span>
-                                                            <span className="flex-1">{item.note}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );})}
-                                        </div>
-
-                                        {/* Action Button */}
-                                        <div className="mt-auto pt-3 border-t border-white/5">
-                                            {(() => {
-                                                const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
-
-                                                if (order.status === 'PENDING') return (
-                                                    <button
-                                                        disabled={hasPendingCancel}
-                                                        onClick={() => updateStatus(order, 'COOKING')}
-                                                        className={`group w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg tracking-wider shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${hasPendingCancel
-                                                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5 opacity-50'
-                                                            : 'bg-amber-400 hover:bg-amber-300 text-black hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]'
-                                                            }`}
-                                                    >
-                                                        {hasPendingCancel ? (
-                                                            <>
-                                                                <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-xs">Selesaikan Batal</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <span>MULAI PROSES</span>
-                                                                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                                            </>
-                                                        )}
-                                                    </button>
                                                 );
+                                            })
+                                        }
+                                    </div>
 
-                                                if (order.status === 'COOKING') return (
-                                                    <button
-                                                        disabled={hasPendingCancel}
-                                                        onClick={() => updateStatus(order, 'READY')}
-                                                        className={`group w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg tracking-wider shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${hasPendingCancel
-                                                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5 opacity-50'
-                                                            : 'bg-emerald-500 hover:bg-emerald-400 text-white hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'
-                                                            }`}
-                                                    >
-                                                        {hasPendingCancel ? (
-                                                            <>
-                                                                <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-xs">Selesaikan Batal</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <span>SELESAI SEMUA</span>
-                                                                <CheckCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                );
-
-                                                if (order.status === 'READY') return (
-                                                    <button
-                                                        disabled={hasPendingCancel}
-                                                        onClick={() => updateStatus(order, 'SERVED')}
-                                                        className={`w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg tracking-wider border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${hasPendingCancel
-                                                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-white/5 opacity-50'
-                                                            : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-                                                            }`}
-                                                    >
-                                                        {hasPendingCancel ? (
-                                                            <>
-                                                                <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-xs">Selesaikan Batal</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <span>SUDAH DIAMBIL</span>
-                                                                <CheckCircle className="w-5 h-5 text-emerald-500" />
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                );
-
-
-                                                return null;
-                                            })()}
-                                        </div>
+                                    {/* ── Action Button ── */}
+                                    <div className="px-1.5 pb-1.5 pt-1">
+                                        {order.status === 'PENDING' && (
+                                            <button
+                                                disabled={hasPendingCancel}
+                                                onClick={() => updateStatus(order, 'COOKING')}
+                                                className={`w-full py-1.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all active:scale-[0.97] flex items-center justify-center gap-1 ${
+                                                    hasPendingCancel
+                                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-40'
+                                                        : 'bg-amber-400 hover:bg-amber-300 text-black shadow-[0_2px_8px_rgba(251,191,36,0.25)]'
+                                                }`}
+                                            >
+                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3 text-rose-400" /> Batal dulu</> : <>PROSES <ChevronRight className="w-3 h-3" /></>}
+                                            </button>
+                                        )}
+                                        {order.status === 'COOKING' && (
+                                            <button
+                                                disabled={hasPendingCancel}
+                                                onClick={() => updateStatus(order, 'READY')}
+                                                className={`w-full py-1.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all active:scale-[0.97] flex items-center justify-center gap-1 ${
+                                                    hasPendingCancel
+                                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-40'
+                                                        : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_2px_8px_rgba(16,185,129,0.25)]'
+                                                }`}
+                                            >
+                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3 text-rose-400" /> Batal dulu</> : <><CheckCircle className="w-3 h-3" /> SELESAI</>}
+                                            </button>
+                                        )}
+                                        {order.status === 'READY' && (
+                                            <button
+                                                disabled={hasPendingCancel}
+                                                onClick={() => updateStatus(order, 'SERVED')}
+                                                className={`w-full py-1.5 rounded-lg font-black text-[11px] uppercase tracking-wider border transition-all active:scale-[0.97] flex items-center justify-center gap-1 ${
+                                                    hasPendingCancel
+                                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-40 border-white/5'
+                                                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                                                }`}
+                                            >
+                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3 text-rose-400" /> Batal dulu</> : <><CheckCircle className="w-3 h-3 text-emerald-400" /> DIAMBIL</>}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -1393,9 +1360,9 @@ export default function KitchenBarUnifiedPage() {
                         {/* Empty State */}
                         {orders.length === 0 && (
                             <div className="col-span-full h-[60vh] flex flex-col items-center justify-center text-slate-800 animate-in fade-in zoom-in duration-1000">
-                                <ChefHat className="w-32 h-32 mb-6 opacity-10" />
-                                <h2 className="text-4xl font-black text-white/20 tracking-tighter">KITCHEN STANDBY</h2>
-                                <p className="text-lg font-bold text-slate-600 mt-2 uppercase tracking-[0.3em]">Waiting for new orders</p>
+                                <ChefHat className="w-24 h-24 mb-4 opacity-10" />
+                                <h2 className="text-3xl font-black text-white/20 tracking-tighter">KITCHEN STANDBY</h2>
+                                <p className="text-sm font-bold text-slate-600 mt-2 uppercase tracking-[0.3em]">Menunggu orderan baru...</p>
                             </div>
                         )}
                     </div>
