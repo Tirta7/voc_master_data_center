@@ -194,6 +194,10 @@ export default function KitchenBarUnifiedPage() {
                 if (item) itemStation = item.station?.toUpperCase() || '';
             });
 
+            // 🛡️ FIX: Hapus item dari seenItemIdsRef agar re-order item yang sama
+            // (dengan ID baru) bisa masuk ke KDS tanpa terblokir sebagai duplikat
+            seenItemIdsRef.current.delete(data.id);
+
             setOrders((prev) => prev.map(o => {
                 const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
                 if (newItems.length === 0) return null;
@@ -301,6 +305,14 @@ export default function KitchenBarUnifiedPage() {
                     !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
                 )
             );
+            // 🛡️ Rebuild seenItemIdsRef from fresh server data to stay in sync.
+            // This prevents blocking re-ordered items after a periodic sync.
+            const freshIds = new Set<number>();
+            filteredOrders.forEach((order: any) =>
+                (order.items || []).forEach((i: any) => freshIds.add(i.id))
+            );
+            seenItemIdsRef.current = freshIds;
+
             setOrders(filteredOrders.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
         } catch (error) {
             console.error("Failed to load active orders", error);
