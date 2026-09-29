@@ -2135,10 +2135,33 @@ export class BilliardService implements OnModuleInit {
         await this.redisService.setIdempotency(idempotencyKey, savedTable);
       }
 
+      // Notifikasi ke owner: tampilkan nama KASIR yang sedang shift aktif,
+      // bukan nama waiter/user yang membuka meja. Kasir bertanggung jawab atas shift.
+      // Fallback ke nama user pembuka meja jika tidak ada kasir shift aktif.
+      let cashierDisplayName = userName || 'Kasir';
+      try {
+        const svc = (this.transactionService as any).shiftService;
+        if (svc) {
+          // Prioritas 1: Kasir yang punya shift aktif saat ini
+          const activeCashierShift = await svc.findActiveCashierShift();
+          if (activeCashierShift?.user?.name) {
+            cashierDisplayName = activeCashierShift.user.name;
+          } else if (userId) {
+            // Prioritas 2: Nama lengkap user yang membuka meja (misal waiter)
+            const userRepo = this.dataSource.getRepository('User');
+            const userRecord = await userRepo.findOne({ where: { id: userId }, select: ['name', 'fullName'] } as any);
+            cashierDisplayName = (userRecord as any)?.name || (userRecord as any)?.fullName || userName || 'Kasir';
+          }
+        }
+      } catch (e) {
+        this.logger.warn(`[session.started] Could not resolve cashier name: ${e.message}`);
+      }
+
       this.eventEmitter.emit('session.started', {
         tableName: savedTable.tableName,
         customerName: finalCustomerName,
         tableType: 'Billiard',
+        cashierName: cashierDisplayName,
         userName: userName,
       });
 

@@ -1276,6 +1276,13 @@ export class CafeService {
         // Determine station (use persisted station first, fallback to calculation)
         const station = item.station || this.getStation(item.menuItem);
 
+        // 🛡️ CRITICAL FIX: Skip CANCELLED items entirely — they should NOT appear on KDS.
+        // Items with DONE status are kept for cross-station visibility (kitchen can see what's been served),
+        // but CANCELLED items (deleted orders) must never be shown to kitchen staff.
+        if (item.status === OrderItemStatus.CANCELLED) {
+          return acc;
+        }
+
         acc[key].items.push({
           id: item.id,
           name: item.menuItem?.name || item.customName || 'Unknown Item',
@@ -1292,17 +1299,26 @@ export class CafeService {
     );
 
     // Process into KDS/BDS ready format
-    const orders = Object.values(grouped).map((order: any) => {
-      // determine aggregate status
-      const hasCooking = order.items.some(
-        (i: any) =>
-          i.status === OrderItemStatus.PROCESSING ||
-          i.status === OrderItemStatus.CANCEL_REQUESTED ||
-          i.status === OrderItemStatus.CANCEL_REJECTED,
-      );
-      order.status = hasCooking ? 'COOKING' : 'PENDING';
-      return order;
-    });
+    const orders = Object.values(grouped)
+      .filter((order: any) => {
+        // 🛡️ Guard: Jangan tampilkan order yang tidak punya items aktif untuk KDS/BDS.
+        // Ini terjadi ketika semua items di-CANCELLED setelah filter di atas.
+        return (order.items || []).some((i: any) =>
+          ['KDS', 'BDS'].includes(i.station?.toUpperCase()) &&
+          !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
+        );
+      })
+      .map((order: any) => {
+        // determine aggregate status
+        const hasCooking = order.items.some(
+          (i: any) =>
+            i.status === OrderItemStatus.PROCESSING ||
+            i.status === OrderItemStatus.CANCEL_REQUESTED ||
+            i.status === OrderItemStatus.CANCEL_REJECTED,
+        );
+        order.status = hasCooking ? 'COOKING' : 'PENDING';
+        return order;
+      });
 
     return orders;
   }

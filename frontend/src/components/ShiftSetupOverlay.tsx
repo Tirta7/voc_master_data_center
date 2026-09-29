@@ -339,6 +339,11 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
 
     const handleStart = async (e: React.FormEvent) => {
         e.preventDefault();
+        // 🛡️ Kasir WAJIB mengisi modal tunai awal
+        if (isCashier && Number(cashStart) <= 0) {
+            showAlert('Modal Wajib Diisi', 'Kasir harus memasukkan Modal Tunai Awal sebelum mengaktifkan shift. Pastikan jumlah uang di laci kasir sudah benar.', { variant: 'error' });
+            return;
+        }
         setLoading(true);
         try {
             const res = await axios.post(`/finance/shifts/start`, {
@@ -369,7 +374,10 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
 
     if (!shouldShow) return null;
 
+    // Penugasan meja hanya wajib untuk WAITER. Kasir mengawasi semua meja tanpa pemilihan per-meja.
     const isAssignmentRequired = !['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(user?.role?.toUpperCase() || '');
+    // Kasir wajib isi modal > 0
+    const isCashierModalEmpty = isCashier && Number(cashStart) <= 0;
 
     const tableOccupancy = {
         CAFE: {} as Record<number, { id: number, name: string, isActive: boolean }[]>,
@@ -588,20 +596,35 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
 
                                 {!isWaiter && (
                                     <section className="space-y-2">
-                                        <p className="text-[13px] font-medium text-slate-500 px-1">Modal Tunai Awal</p>
-                                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                                        <div className="flex items-center justify-between px-1">
+                                            <p className="text-[13px] font-medium text-slate-500">Modal Tunai Awal</p>
+                                            {isCashier && isCashierModalEmpty && (
+                                                <span className="flex items-center gap-1 text-[11px] font-bold text-rose-500 uppercase tracking-widest">
+                                                    <span>⚠</span> Wajib Diisi
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+                                            isCashier && isCashierModalEmpty
+                                                ? 'border-rose-400 ring-2 ring-rose-200'
+                                                : 'border-slate-200/80'
+                                        }`}>
                                             <div className="flex items-center gap-3 px-5 py-4">
-                                                <span className="text-[15px] font-medium text-slate-400 shrink-0">IDR</span>
+                                                <span className={`text-[15px] font-medium shrink-0 ${
+                                                    isCashier && isCashierModalEmpty ? 'text-rose-400' : 'text-slate-400'
+                                                }`}>IDR</span>
                                                 <input
                                                     type="text"
                                                     required
-                                                    value={Number(cashStart).toLocaleString('id-ID')}
+                                                    value={Number(cashStart) === 0 ? '' : Number(cashStart).toLocaleString('id-ID')}
                                                     onChange={(e) => {
                                                         const val = e.target.value.replace(/\D/g, '');
                                                         setCashStart(val === '' ? 0 : parseInt(val));
                                                     }}
-                                                    className="w-full bg-transparent text-[34px] font-semibold text-slate-900 placeholder:text-slate-300 focus:outline-none tracking-tight"
-                                                    placeholder="0"
+                                                    className={`w-full bg-transparent text-[34px] font-semibold placeholder:text-slate-200 focus:outline-none tracking-tight ${
+                                                        isCashier && isCashierModalEmpty ? 'text-rose-400' : 'text-slate-900'
+                                                    }`}
+                                                    placeholder={isCashier ? 'Masukkan jumlah...' : '0'}
                                                 />
                                             </div>
                                             {/* Quick presets */}
@@ -617,6 +640,11 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                     </button>
                                                 ))}
                                             </div>
+                                            {isCashier && isCashierModalEmpty && (
+                                                <div className="bg-rose-50 border-t border-rose-100 px-4 py-2.5">
+                                                    <p className="text-[12px] font-medium text-rose-600">💰 Hitung uang di laci kasir dan masukkan jumlahnya sebagai modal awal shift.</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </section>
                                 )}
@@ -714,7 +742,46 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     )}
                                 </section>
 
-                                {/* ── 3. Penugasan Area Kerja ── */}
+                                {/* ── 3a. Info Area Kerja Kasir (hanya tampil untuk kasir) ── */}
+                                {isCashier && (
+                                    <section className="space-y-2">
+                                        <p className="text-[13px] font-medium text-slate-500 px-1">Area Tanggung Jawab</p>
+                                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                                            <div className="p-5 space-y-3">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-9 h-9 bg-blue-600 rounded-[12px] flex items-center justify-center shrink-0 shadow-sm">
+                                                        <ShieldCheck className="w-4.5 h-4.5 text-white" strokeWidth={2} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[14px] font-semibold text-slate-800">Kasir — Semua Area</p>
+                                                        <p className="text-[12px] text-slate-500 mt-0.5 leading-relaxed">Sebagai kasir, Anda bertanggung jawab atas seluruh transaksi shift ini. Waiter akan bertugas di meja yang ditugaskan oleh Anda.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                                    <div className="bg-slate-50 rounded-xl px-4 py-3 flex items-center gap-3">
+                                                        <Activity className="w-4 h-4 text-slate-600 shrink-0" strokeWidth={2} />
+                                                        <div>
+                                                            <p className="text-[11px] text-slate-400">Meja Billiard</p>
+                                                            <p className="text-[15px] font-bold text-slate-800">{billiardTables.length} meja</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-slate-50 rounded-xl px-4 py-3 flex items-center gap-3">
+                                                        <LayoutDashboard className="w-4 h-4 text-orange-500 shrink-0" strokeWidth={2} />
+                                                        <div>
+                                                            <p className="text-[11px] text-slate-400">Meja Cafe</p>
+                                                            <p className="text-[15px] font-bold text-slate-800">{cafeTables.length} meja</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                                                    <p className="text-[12px] font-medium text-amber-700">⚡ Penugasan meja per-waiter dapat diatur di menu <strong>Penugasan Waiter</strong> setelah shift dimulai.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* ── 3b. Penugasan Area Kerja (hanya tampil untuk WAITER) ── */}
                                 {isAssignmentRequired && (
                                     <section className="space-y-2">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-3">
@@ -1026,11 +1093,20 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     ) : (
                                         <button
                                             type="submit"
-                                            disabled={loading || !shiftName || shiftName === 'CUSTOM'}
-                                            className="w-full bg-[#E5E5EA] disabled:bg-[#F2F2F7] disabled:text-slate-400 hover:bg-blue-600 hover:text-white text-blue-600 h-14 rounded-[20px] font-semibold text-[15px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                                            disabled={loading || !shiftName || shiftName === 'CUSTOM' || isCashierModalEmpty}
+                                            className={`w-full h-14 rounded-[20px] font-semibold text-[15px] transition-all flex items-center justify-center gap-2 active:scale-[0.98] ${
+                                                isCashierModalEmpty
+                                                    ? 'bg-rose-100 text-rose-400 cursor-not-allowed'
+                                                    : 'bg-[#E5E5EA] disabled:bg-[#F2F2F7] disabled:text-slate-400 hover:bg-blue-600 hover:text-white text-blue-600'
+                                            }`}
                                         >
                                             {loading ? (
                                                 <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : isCashierModalEmpty ? (
+                                                <>
+                                                    <AlertTriangle className="w-4 h-4" strokeWidth={2.5} />
+                                                    <span>Isi Modal Tunai Terlebih Dahulu</span>
+                                                </>
                                             ) : (
                                                 <>
                                                     <Zap className="w-4 h-4" strokeWidth={2.5} />
