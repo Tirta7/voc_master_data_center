@@ -993,43 +993,47 @@ export default function KitchenBarUnifiedPage() {
                             const anyPending = hasAnyPending(item.name);
                             const isProcessing = item.processingCount > 0;
                             return (
-                                <div key={i} className="mx-3 mb-1 rounded-2xl overflow-hidden" style={{ background: isProcessing && !anyPending ? 'rgba(255,159,10,0.1)' : '#1C1C1E', border: `1px solid ${isProcessing && !anyPending ? 'rgba(255,159,10,0.25)' : ios.sep}` }}>
-                                    <div className="flex items-center gap-2.5 px-3 py-2.5">
-                                        {/* Qty */}
-                                        <div className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold font-mono" style={{ background: isProcessing && !anyPending ? 'rgba(255,159,10,0.2)' : 'rgba(10,132,255,0.15)', color: isProcessing && !anyPending ? ios.orange : ios.blue }}>
-                                            {Number(item.quantity) || 1}
-                                        </div>
-                                        {/* Name */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[12px] font-semibold truncate leading-tight">{item.name}</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                {item.pendingCount > 0 && <span className="text-[10px] font-bold" style={{ color: ios.blue }}>{item.pendingCount} antri</span>}
-                                                {item.processingCount > 0 && <span className="text-[10px] font-bold" style={{ color: ios.orange }}>{item.processingCount}🔥</span>}
+                                <div key={i} className="mx-3 mb-1 rounded-2xl overflow-hidden" style={{ background: isProcessing && !anyPending ? 'rgba(255,159,10,0.08)' : '#1C1C1E', border: `1px solid ${isProcessing && !anyPending ? 'rgba(255,159,10,0.25)' : ios.sep}` }}>
+                                    <div className="px-3 pt-2.5 pb-2 flex flex-col gap-1.5">
+                                        {/* Name — full width, no truncation */}
+                                        <p className="text-[13px] font-bold leading-snug" style={{ color: ios.label }}>{item.name}</p>
+
+                                        {/* Bottom row: qty + status + actions */}
+                                        <div className="flex items-center gap-1.5">
+                                            {/* Qty badge */}
+                                            <div className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold font-mono" style={{ background: isProcessing && !anyPending ? 'rgba(255,159,10,0.2)' : 'rgba(10,132,255,0.15)', color: isProcessing && !anyPending ? ios.orange : ios.blue }}>
+                                                {Number(item.quantity) || 1}
                                             </div>
-                                        </div>
-                                        {/* Icon actions */}
-                                        <div className="flex gap-1 shrink-0">
-                                            <button onClick={() => bulkStartCooking(item.name)} disabled={!anyPending || item.hasPendingCancel} title="Mulai masak"
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
-                                                style={{ background: anyPending && !item.hasPendingCancel ? 'rgba(255,159,10,0.2)' : 'rgba(255,255,255,0.05)', color: anyPending && !item.hasPendingCancel ? ios.orange : ios.label3, border: `1px solid ${anyPending && !item.hasPendingCancel ? 'rgba(255,159,10,0.35)' : ios.sep}` }}>
-                                                {item.hasPendingCancel ? <AlertCircle className="w-3.5 h-3.5" style={{ color: ios.red }} /> : <ChefHat className="w-3.5 h-3.5" />}
-                                            </button>
-                                            {item.processingCount > 0 && !item.hasPendingCancel && (
-                                                <button onClick={() => bulkUncheckProcessing(item.name)} title="Batal proses"
-                                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
-                                                    style={{ background: 'rgba(255,68,56,0.15)', color: ios.red, border: '1px solid rgba(255,68,56,0.3)' }}>
-                                                    <X className="w-3.5 h-3.5" />
+                                            {/* Status badges */}
+                                            <div className="flex-1 flex items-center gap-1 min-w-0">
+                                                {item.pendingCount > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(10,132,255,0.15)', color: ios.blue }}>{item.pendingCount} antri</span>}
+                                                {item.processingCount > 0 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,159,10,0.15)', color: ios.orange }}>{item.processingCount}🔥</span>}
+                                            </div>
+                                            {/* Icon action buttons */}
+                                            <div className="flex gap-0.5 shrink-0">
+                                                <button onClick={() => bulkStartCooking(item.name)} disabled={!anyPending || item.hasPendingCancel} title="Mulai masak"
+                                                    className="w-6 h-6 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                                                    style={{ background: anyPending && !item.hasPendingCancel ? 'rgba(255,159,10,0.2)' : 'rgba(255,255,255,0.05)', color: anyPending && !item.hasPendingCancel ? ios.orange : ios.label3, border: `1px solid ${anyPending && !item.hasPendingCancel ? 'rgba(255,159,10,0.35)' : ios.sep}` }}>
+                                                    {item.hasPendingCancel ? <AlertCircle className="w-3 h-3" style={{ color: ios.red }} /> : <ChefHat className="w-3 h-3" />}
                                                 </button>
-                                            )}
-                                            <button onClick={() => bulkFinishItem(item.name)} disabled={!item.readyToFinishCount || item.hasRejected || item.hasPendingCancel} title="Tandai selesai"
-                                                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
-                                                style={{ background: item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? 'rgba(48,209,88,0.2)' : 'rgba(255,255,255,0.05)', color: item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? ios.green : ios.label3, border: `1px solid ${item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? 'rgba(48,209,88,0.35)' : ios.sep}` }}>
-                                                {item.hasRejected ? <Ban className="w-3.5 h-3.5" style={{ color: ios.red }} /> : <CheckCircle className="w-3.5 h-3.5" />}
-                                            </button>
+                                                {item.processingCount > 0 && !item.hasPendingCancel && (
+                                                    <button onClick={() => bulkUncheckProcessing(item.name)} title="Batal proses"
+                                                        className="w-6 h-6 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                                                        style={{ background: 'rgba(255,68,56,0.15)', color: ios.red, border: '1px solid rgba(255,68,56,0.3)' }}>
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                                <button onClick={() => bulkFinishItem(item.name)} disabled={!item.readyToFinishCount || item.hasRejected || item.hasPendingCancel} title="Tandai selesai"
+                                                    className="w-6 h-6 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                                                    style={{ background: item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? 'rgba(48,209,88,0.2)' : 'rgba(255,255,255,0.05)', color: item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? ios.green : ios.label3, border: `1px solid ${item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? 'rgba(48,209,88,0.35)' : ios.sep}` }}>
+                                                    {item.hasRejected ? <Ban className="w-3 h-3" style={{ color: ios.red }} /> : <CheckCircle className="w-3 h-3" />}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             );
+
                         })}
                         {aggregatedItems.length === 0 && (
                             <div className="flex flex-col items-center justify-center py-12 px-4 text-center" style={{ color: ios.label3 }}>
