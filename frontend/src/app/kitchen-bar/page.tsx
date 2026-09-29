@@ -1028,30 +1028,27 @@ export default function KitchenBarUnifiedPage() {
             {/* Content Area */}
             <div className="flex-1 overflow-hidden relative flex flex-row bg-black">
                 {/* AGGREGATION SIDEBAR - integrated into flex flow */}
-                <aside className={`flex flex-col shrink-0 h-full w-72 md:w-80 bg-[#1C1C1E]/95 backdrop-blur-3xl md:border-r border-white/5 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] z-[150] ${isSummaryOpen ? 'ml-0 opacity-100 shadow-[8px_0_30px_rgba(0,0,0,0.5)]' : '-ml-72 md:-ml-80 opacity-0 pointer-events-none'}`}>
-                    {/* Header Summary - BDS style */}
-                    <div className="p-6 md:p-8 border-b border-white/5 bg-[#1C1C1E] shrink-0 relative z-10 shadow-sm">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xs font-black text-blue-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <LayoutGrid className="w-4 h-4" />
-                                Live Inventory
-                            </h2>
-                            <button
-                                onClick={() => setIsSummaryOpen(false)}
-                                className="p-2 rounded-lg hover:bg-white/5 text-slate-500"
-                            >
-                                <ChevronLeft className="w-5 h-5" />
-                            </button>
+                <aside className={`flex flex-col shrink-0 h-full w-52 bg-[#141416]/98 border-r border-white/5 overflow-hidden transition-all duration-300 ease-out z-[150] ${isSummaryOpen ? 'ml-0 opacity-100' : '-ml-52 opacity-0 pointer-events-none'}`}>
+                    {/* Header compact */}
+                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/5 shrink-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <LayoutGrid className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                            <div className="min-w-0">
+                                <div className="text-[11px] font-black text-white leading-none truncate">Ringkasan</div>
+                                <div className="text-[9px] font-bold text-slate-600 uppercase tracking-wider mt-0.5">Antrian Masak</div>
+                            </div>
                         </div>
-                        <div className="space-y-1">
-                            <div className="text-3xl font-black text-white tracking-tighter">Ringkasan</div>
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Antrian Masak</div>
-                        </div>
+                        <button
+                            onClick={() => setIsSummaryOpen(false)}
+                            className="p-1.5 rounded-lg hover:bg-white/8 text-slate-600 hover:text-slate-400 shrink-0"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
                     </div>
 
-                    {/* Summary List */}
+                    {/* Summary List — slim rows */}
                     <div
-                        className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 no-scrollbar pb-32"
+                        className="flex-1 overflow-y-auto no-scrollbar pb-20"
                         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
                         onTouchMove={(e) => e.stopPropagation()}
                     >
@@ -1059,76 +1056,67 @@ export default function KitchenBarUnifiedPage() {
                             const anyPending = hasAnyPending(item.name);
                             const isProcessing = item.processingCount > 0;
                             return (
-                                <div key={i} className={`group flex flex-col gap-3 p-4 rounded-2xl border transition-all duration-300 ${isProcessing && !anyPending
-                                    ? 'bg-amber-500/10 border-amber-500/30'
-                                    : 'bg-white/5 border-white/5 hover:bg-white/[0.08] hover:border-blue-500/20'
-                                    }`}>
-                                    {/* Item Name & Qty + status pill */}
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="text-slate-200 font-bold text-lg leading-tight truncate">{item.name}</span>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                {item.pendingCount > 0 && (
-                                                    <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{item.pendingCount} ANTRI</span>
-                                                )}
-                                                {item.processingCount > 0 && (
-                                                    <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">{item.processingCount} PROSES 🔥</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className={`flex items-center justify-center min-w-[3rem] h-12 rounded-xl border text-2xl font-black font-mono shadow-inner shrink-0 ${isProcessing && !anyPending
+                                <div key={i} className={`flex items-center gap-1.5 px-2 py-1.5 border-b border-white/4 transition-colors ${
+                                    isProcessing && !anyPending ? 'bg-amber-500/8' : 'hover:bg-white/4'
+                                }`}>
+                                    {/* Qty badge */}
+                                    <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black font-mono border ${
+                                        isProcessing && !anyPending
                                             ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
-                                            : 'bg-black/40 border-white/5 text-blue-400'
-                                            }`}>
-                                            {Number(item.quantity) || 1}
+                                            : 'bg-black/40 border-white/8 text-blue-400'
+                                    }`}>
+                                        {Number(item.quantity) || 1}
+                                    </div>
+                                    {/* Name + status */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-[11px] font-bold text-slate-200 leading-tight truncate">{item.name}</div>
+                                        <div className="flex gap-1 mt-0.5">
+                                            {item.pendingCount > 0 && (
+                                                <span className="text-[8px] font-black text-blue-400">{item.pendingCount}Q</span>
+                                            )}
+                                            {item.processingCount > 0 && (
+                                                <span className="text-[8px] font-black text-amber-400">{item.processingCount}🔥</span>
+                                            )}
                                         </div>
                                     </div>
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-2">
+                                    {/* Action icon buttons */}
+                                    <div className="flex gap-0.5 shrink-0">
                                         <button
                                             onClick={() => bulkStartCooking(item.name)}
                                             disabled={!anyPending || item.hasPendingCancel}
-                                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-200 active:scale-95 ${anyPending && !item.hasPendingCancel
-                                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 cursor-pointer'
-                                                : 'bg-white/5 border-white/5 text-slate-600 cursor-not-allowed opacity-50'
-                                                }`}
+                                            title="Mulai masak"
+                                            className={`w-6 h-6 rounded flex items-center justify-center transition-all active:scale-90 border ${
+                                                anyPending && !item.hasPendingCancel
+                                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
+                                                    : 'bg-white/4 border-white/4 text-slate-700 cursor-not-allowed'
+                                            }`}
                                         >
-                                            {item.hasPendingCancel ? (
-                                                <div className="flex flex-col items-center">
-                                                    <AlertCircle className="w-3 h-3 text-red-500 animate-pulse" />
-                                                    <span className="text-[8px] text-red-400 mt-0.5 font-bold">Selesaikan Batal</span>
-                                                </div>
-                                            ) : (
-                                                ' Mulai'
-                                            )}
+                                            {item.hasPendingCancel
+                                                ? <AlertCircle className="w-3 h-3 text-rose-500 animate-pulse" />
+                                                : <ChefHat className="w-3 h-3" />}
                                         </button>
                                         {item.processingCount > 0 && !item.hasPendingCancel && (
                                             <button
                                                 onClick={() => bulkUncheckProcessing(item.name)}
-                                                className="px-3 flex items-center justify-center rounded-xl bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 transition-all font-bold"
-                                                title="Uncheck/Cancel Mulai"
+                                                title="Batal proses"
+                                                className="w-6 h-6 rounded flex items-center justify-center bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-all active:scale-90"
                                             >
-                                                <X className="w-4 h-4" />
+                                                <X className="w-3 h-3" />
                                             </button>
                                         )}
                                         <button
                                             onClick={() => bulkFinishItem(item.name)}
                                             disabled={!item.readyToFinishCount || item.readyToFinishCount === 0 || item.hasRejected || item.hasPendingCancel}
-                                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-200 active:scale-95 ${item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel
-                                                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30 cursor-pointer'
-                                                : 'bg-white/5 border-white/5 text-slate-600 cursor-not-allowed opacity-50'
-                                                }`}
+                                            title="Tandai selesai"
+                                            className={`w-6 h-6 rounded flex items-center justify-center transition-all active:scale-90 border ${
+                                                item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel
+                                                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                                                    : 'bg-white/4 border-white/4 text-slate-700 cursor-not-allowed'
+                                            }`}
                                         >
-                                            {item.hasPendingCancel ? (
-                                                <div className="flex flex-col items-center">
-                                                    <AlertCircle className="w-3 h-3 text-red-500 animate-pulse" />
-                                                    <span className="text-[8px] text-red-400 mt-0.5 font-bold">Selesaikan Batal</span>
-                                                </div>
-                                            ) : item.hasRejected ? (
-                                                <><Ban className="w-3 h-3 text-red-500" /> Ditolak</>
-                                            ) : (
-                                                <><CheckCircle className="w-3 h-3" /> Selesai</>
-                                            )}
+                                            {item.hasRejected
+                                                ? <Ban className="w-3 h-3 text-red-500" />
+                                                : <CheckCircle className="w-3 h-3" />}
                                         </button>
                                     </div>
                                 </div>
@@ -1136,14 +1124,9 @@ export default function KitchenBarUnifiedPage() {
                         })}
 
                         {aggregatedItems.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-20 px-6 text-center space-y-4 opacity-20">
-                                <div className="p-6 rounded-full bg-slate-800/50">
-                                    <ChefHat className="w-12 h-12 text-slate-400" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-black uppercase tracking-widest text-slate-400">Dapur Bersih</p>
-                                    <p className="text-xs font-bold text-slate-600 mt-1 uppercase">Semua pesanan selesai</p>
-                                </div>
+                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center opacity-20">
+                                <ChefHat className="w-8 h-8 text-slate-400 mb-2" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dapur Bersih</p>
                             </div>
                         )}
                     </div>
@@ -1501,26 +1484,26 @@ export default function KitchenBarUnifiedPage() {
                 </div>
             </div>
 
-            {/* Bottom Stats Content */}
-            <div className={`fixed bottom-0 left-0 right-0 ${isSummaryOpen ? 'lg:pl-[320px]' : ''} bg-slate-950 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/10 p-4 md:p-6 z-[180] transition-all duration-500`}>
-                <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-                    <div className="flex-1 flex justify-around items-center">
-                        <div className="text-center group cursor-help transition-all hover:scale-110">
-                            <div className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] mb-1.5">Total Orders</div>
-                            <div className="text-3xl md:text-4xl font-black text-white leading-none tracking-tighter drop-shadow-lg">{orders.length}</div>
-                        </div>
-                        <div className="w-px h-12 bg-white/5 mx-4 md:mx-8" />
-                        <div className="text-center group cursor-help transition-all hover:scale-110">
-                            <div className="text-blue-500/80 text-[9px] font-black uppercase tracking-[0.2em] mb-1.5">Queued</div>
-                            <div className="text-3xl md:text-4xl font-black text-blue-400 leading-none tracking-tighter drop-shadow-[0_0_15px_rgba(96,165,250,0.3)]">{orders.filter(o => o.status === 'PENDING').length}</div>
-                        </div>
-                        <div className="w-px h-12 bg-white/5 mx-4 md:mx-8" />
-                        <div className="text-center group cursor-help transition-all hover:scale-110">
-                            <div className="text-amber-500/80 text-[9px] font-black uppercase tracking-[0.2em] mb-1.5">In Progress</div>
-                            <div className="text-3xl md:text-4xl font-black text-amber-400 leading-none tracking-tighter drop-shadow-[0_0_15px_rgba(251,191,36,0.3)]">{orders.filter(o => o.status === 'COOKING').length}</div>
-                        </div>
-                    </div>
-                    {/* Compact View Toggle for Desktop? Maybe later */}
+            {/* Bottom Stats Bar — Compact */}
+            <div className={`fixed bottom-0 left-0 right-0 ${isSummaryOpen ? 'pl-52' : ''} bg-black/90 backdrop-blur-sm border-t border-white/8 py-1.5 px-4 z-[180] transition-all duration-300 flex items-center justify-around gap-6`}>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-slate-600 text-[9px] font-black uppercase tracking-wider">Total</span>
+                    <span className="text-lg font-black text-white leading-none">{orders.length}</span>
+                </div>
+                <div className="w-px h-5 bg-white/8" />
+                <div className="flex items-center gap-1.5">
+                    <span className="text-blue-500/70 text-[9px] font-black uppercase tracking-wider">Queued</span>
+                    <span className="text-lg font-black text-blue-400 leading-none">{orders.filter(o => o.status === 'PENDING').length}</span>
+                </div>
+                <div className="w-px h-5 bg-white/8" />
+                <div className="flex items-center gap-1.5">
+                    <span className="text-amber-500/70 text-[9px] font-black uppercase tracking-wider">Proses</span>
+                    <span className="text-lg font-black text-amber-400 leading-none">{orders.filter(o => o.status === 'COOKING').length}</span>
+                </div>
+                <div className="w-px h-5 bg-white/8" />
+                <div className="flex items-center gap-1.5">
+                    <span className="text-emerald-500/70 text-[9px] font-black uppercase tracking-wider">Ready</span>
+                    <span className="text-lg font-black text-emerald-400 leading-none">{orders.filter(o => o.status === 'READY').length}</span>
                 </div>
             </div>
         </div>
