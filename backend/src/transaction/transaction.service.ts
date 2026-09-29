@@ -2846,6 +2846,13 @@ export class TransactionService {
           lastSessionData: null,
         });
         const savedTable = await this.tableRepository.save(table);
+
+        // 🛡️ FIX: Invalidate Redis cache agar frontend langsung dapat data terbaru
+        // Tanpa ini, client masih dapat data IN_USE dari cache selama ~60 detik (TTL)
+        await this.redisService.del(`bill_preview_${tableId}`).catch(() => {});
+        await this.redisService.del(`bill_preview_${tableId}_light`).catch(() => {});
+        await this.redisService.del('billiard_all_tables').catch(() => {});
+
         this.billiardGateway.broadcastTableUpdate({
           ...savedTable,
           status: TableStatus.AVAILABLE,
@@ -2866,6 +2873,11 @@ export class TransactionService {
           currentCustomer: null,
         });
         await this.cafeTableRepository.save(ct);
+
+        // 🛡️ FIX: Invalidate Cafe table cache
+        await this.redisService.del(`bill_preview_cafe_${cafeTableId}`).catch(() => {});
+        await this.redisService.del('cafe_all_tables').catch(() => {});
+
         this.billiardGateway.broadcastTableUpdate({
           ...ct,
           type: 'cafe',
@@ -2877,6 +2889,7 @@ export class TransactionService {
     this.billiardGateway.broadcastDebtUpdate();
     return saved;
   }
+
 
   async getDebtTransactions(): Promise<Transaction[]> {
     return this.transactionRepository.find({
