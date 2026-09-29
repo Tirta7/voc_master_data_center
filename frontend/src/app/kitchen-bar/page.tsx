@@ -813,336 +813,239 @@ export default function KitchenBarUnifiedPage() {
         return Math.floor(diff / 60000);
     };
 
+    // ── iOS Color Tokens ──────────────────────────────────────────────────────
+    const ios = {
+        bg:       '#000000',
+        card:     '#1C1C1E',
+        card2:    '#2C2C2E',
+        sep:      'rgba(255,255,255,0.08)',
+        label:    '#FFFFFF',
+        label2:   'rgba(255,255,255,0.55)',
+        label3:   'rgba(255,255,255,0.25)',
+        blue:     '#0A84FF',
+        green:    '#30D158',
+        red:      '#FF453A',
+        orange:   '#FF9F0A',
+        yellow:   '#FFD60A',
+        indigo:   '#5E5CE6',
+    };
+
     return (
-        <div className="h-screen w-screen overflow-hidden bg-black text-slate-100 flex flex-col relative selection:bg-blue-500/30">
+        <div className="h-screen w-screen overflow-hidden flex flex-col relative" style={{ background: ios.bg, color: ios.label, fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif' }}>
 
-
-            {/* CANCELLATION REQUEST MODAL (DANGER) */}
+            {/* ── CANCELLATION MODAL (iOS Alert) ─────────────────────── */}
             {cancellationAlert && (
-                <div className="fixed inset-0 z-[210] bg-red-950/90  flex items-center justify-center p-4 overscroll-contain">
-                    <div className="bg-slate-900 border-2 md:border-4 border-red-500 rounded-3xl md:rounded-[3rem] p-6 md:p-10 max-w-2xl w-full text-center shadow-[0_0_60px_rgba(239,68,68,0.4)] relative overflow-hidden animate-bounce-slow">
-                        {/* Red Pulse Overlay */}
-                        <div className="absolute inset-0 bg-red-600/10 md:bg-red-600/20 animate-pulse"></div>
-
-                        <div className="relative z-10 space-y-6 md:space-y-8">
-                            <div className="flex flex-col items-center gap-3 md:gap-4">
-                                <div className="w-16 h-16 md:w-20 md:h-20 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.6)] animate-ping-slow">
-                                    <X className="w-8 h-8 md:w-10 md:h-10 text-white" />
-                                </div>
-                                <h2 className="text-xl md:text-2xl font-black text-red-500 uppercase tracking-[0.2em]">⚠️ PERMINTAAN BATAL ⚠️</h2>
+                <div className="fixed inset-0 z-[210] flex items-center justify-center p-5" style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(20px)' }}>
+                    <div className="w-full max-w-sm rounded-[28px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" style={{ background: '#1C1C1E', border: '1px solid rgba(255,68,56,0.4)' }}>
+                        {/* Red strip */}
+                        <div className="px-6 pt-6 pb-4 text-center" style={{ background: 'rgba(255,68,56,0.1)' }}>
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse" style={{ background: 'rgba(255,68,56,0.2)', border: '2px solid #FF453A' }}>
+                                <X className="w-7 h-7" style={{ color: '#FF453A' }} />
                             </div>
-
-                            <div className="space-y-2 md:space-y-3">
-                                <h3 className="text-4xl sm:text-5xl md:text-7xl font-black text-white tracking-tighter uppercase leading-tight md:leading-none break-words">
-                                    {cancellationAlert.tableName?.toUpperCase()}
-                                </h3>
-                                <div className="bg-red-500/20 border border-red-500/30 py-3 md:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl inline-block w-full">
-                                    <p className="text-2xl md:text-4xl font-black text-red-400 uppercase tracking-tight break-words mb-2 md:mb-4">
-                                        {cancellationAlert.itemName}
-                                    </p>
-                                    
-                                    {(cancellationAlert.reason || cancellationAlert.user) && (
-                                        <div className="mt-4 pt-4 border-t border-red-500/30 text-left bg-black/20 rounded-xl p-3 md:p-4">
-                                            {cancellationAlert.reason && (
-                                                <div className="mb-2">
-                                                    <span className="text-[10px] md:text-xs font-bold text-red-300 uppercase tracking-widest block mb-1">Alasan Pembatalan:</span>
-                                                    <p className="text-sm md:text-lg font-medium text-white italic">"{cancellationAlert.reason}"</p>
-                                                </div>
-                                            )}
-                                            {cancellationAlert.user && (
-                                                <div>
-                                                    <span className="text-[10px] md:text-xs font-bold text-red-300 uppercase tracking-widest block mb-1">Diminta Oleh:</span>
-                                                    <p className="text-xs md:text-sm font-bold text-slate-300 uppercase">{cancellationAlert.user}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#FF453A' }}>⚠ Permintaan Batal</p>
+                            <h2 className="text-3xl font-bold tracking-tight">{cancellationAlert.tableName?.toUpperCase()}</h2>
+                        </div>
+                        <div className="px-6 py-4">
+                            <div className="rounded-2xl px-4 py-3 mb-4" style={{ background: '#2C2C2E' }}>
+                                <p className="text-lg font-bold">{cancellationAlert.itemName}</p>
+                                {cancellationAlert.reason && (
+                                    <p className="text-sm mt-1 italic" style={{ color: ios.label2 }}>"{cancellationAlert.reason}"</p>
+                                )}
+                                {cancellationAlert.user && (
+                                    <p className="text-xs mt-1" style={{ color: ios.label3 }}>Diminta: {cancellationAlert.user}</p>
+                                )}
                             </div>
-
-                            <div className="flex flex-col gap-3 md:gap-4 pt-2">
-                                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                                    <button
-                                        onClick={() => {
-                                            handleConfirmCancel(cancellationAlert);
-                                            stopAlarm();
-                                        }}
-                                        className="flex-1 py-4 md:py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl md:text-2xl rounded-xl md:rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-3"
-                                    >
-                                        <CheckCircle className="w-6 h-6 md:w-8 md:h-8" />
-                                        TERIMA
-                                    </button>
-                                    <button
-                                        onClick={() => handleRejectCancel(cancellationAlert)}
-                                        className="flex-1 py-4 md:py-5 bg-red-600 hover:bg-red-500 text-white font-black text-xl md:text-2xl rounded-xl md:rounded-2xl shadow-lg shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-3"
-                                    >
-                                        <X className="w-6 h-6 md:w-8 md:h-8" />
-                                        TOLAK
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={stopAlarm}
-                                    className="w-full py-3 md:py-4 bg-slate-800 text-slate-400 font-bold text-sm md:text-base rounded-xl md:rounded-2xl hover:bg-slate-700 transition-colors"
-                                >
-                                    DIAMKAN ALARM
+                            <div className="flex gap-3">
+                                <button onClick={() => { handleConfirmCancel(cancellationAlert); stopAlarm(); }}
+                                    className="flex-1 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    style={{ background: ios.green, color: '#000' }}>
+                                    <CheckCircle className="w-4 h-4" /> Terima
+                                </button>
+                                <button onClick={() => handleRejectCancel(cancellationAlert)}
+                                    className="flex-1 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    style={{ background: ios.red, color: '#fff' }}>
+                                    <X className="w-4 h-4" /> Tolak
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* NEW ORDER MODAL */}
-            {newOrderAlert && (
-                <div className="fixed inset-0 z-[200] bg-slate-950/90  flex items-center justify-center p-4 animate-in fade-in duration-200 overscroll-contain">
-                    <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-                        {/* Pulse Effect */}
-                        <div className="absolute inset-0 bg-blue-600/10 animate-pulse"></div>
-
-                        <div className="relative z-10 space-y-8">
-                            <div className="inline-flex flex-col items-center gap-3">
-                                { (newOrderAlert.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
-                                    <div className="bg-amber-500 text-black px-4 py-1.5 rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-lg animate-bounce mb-2">
-                                        ⚡ PAKET BUNDLING ⚡
-                                    </div>
-                                )}
-                                <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-blue-600/20 text-blue-400 font-bold border border-blue-600/30">
-                                    <span>ORDERAN BARU MASUK!</span>
-                                    {/* Queue badge — tunjukkan berapa orderan lagi dalam antrian */}
-                                    {queueCount > 0 && (
-                                        <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full animate-pulse">
-                                            +{queueCount} lagi
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div>
-                                <h2 className="text-8xl font-black text-white tracking-tighter mb-2">
-                                    {newOrderAlert.tableName
-                                        ? newOrderAlert.tableName.toUpperCase()
-                                        : (newOrderAlert.tableId ? `MEJA ${newOrderAlert.tableId}` : 'TAKEAWAY')
-                                    }
-                                </h2>
-                                {newOrderAlert.customerName && (
-                                    <p className="text-3xl font-medium text-slate-400">
-                                        {newOrderAlert.customerName}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="bg-slate-800/50 rounded-2xl p-6 text-left border border-slate-700/50 max-h-[300px] overflow-y-auto">
-                                {(newOrderAlert.items || []).map((item: any, i: number) => (
-                                    <div key={i} className="flex justify-between items-center py-3 border-b border-slate-700 last:border-0">
-                                        <span className="text-2xl font-bold text-slate-200">{item.name}</span>
-                                        <span className="text-2xl font-black text-blue-400 bg-blue-400/10 px-4 py-1 rounded-lg">x{Number(item.quantity) || 1}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <button
-                                onClick={showNextAlert}
-                                className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black text-3xl rounded-2xl shadow-xl shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-4"
-                            >
-                                <CheckCircle className="w-10 h-10" />
-                                {queueCount > 0
-                                    ? `TERIMA → BERIKUTNYA (${queueCount} sisa)`
-                                    : 'TERIMA ORDER'}
+                            <button onClick={stopAlarm} className="w-full mt-2 py-2.5 rounded-2xl text-xs font-medium transition-all active:scale-95" style={{ background: '#3A3A3C', color: ios.label2 }}>
+                                Diamkan Alarm
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Header / Topbar */}
-            <header className="sticky top-0 z-[100] bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 py-3 md:py-4 flex justify-between items-center shadow-sm">
-                <div className="flex items-center gap-2 md:gap-6">
-                    <button
-                        onClick={() => setIsSummaryOpen(!isSummaryOpen)}
-                        className="p-2 hover:bg-white/10 rounded-xl transition-colors text-blue-400"
-                    >
-                        <Menu className="w-6 h-6 md:w-8 md:h-8" />
-                    </button>
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => {
-                                kdsSocket.disconnect().connect();
-                                fetchActiveOrders();
-                            }}
-                            title="Klik untuk paksa hubungkan ulang realtime"
-                            className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-all ${isConnected ? 'bg-emerald-500/10 hover:bg-emerald-500/20' : 'bg-red-500/10 hover:bg-red-500/20'}`}
-                        >
-                            <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]'} animate-pulse`} />
-                            <span className={`text-[10px] font-black uppercase ${isConnected ? 'text-emerald-500' : 'text-red-500'}`}>
-                                {isConnected ? 'Realtime' : 'Offline'}
-                            </span>
-                        </button>
-                        <h1 className="text-base sm:text-lg md:text-xl lg:text-3xl font-black tracking-tighter text-white flex items-center gap-1 sm:gap-2 truncate">
-                            <ChefHat className="w-6 h-6 md:w-8 md:h-8 lg:w-10 lg:h-10 text-indigo-500 drop-shadow-[0_0_10px_rgba(99,102,241,0.5)] shrink-0" />
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-0 sm:gap-2 leading-tight truncate">
-                                <span>KITCHEN & BAR</span>
-                                <span className="text-indigo-400 opacity-80 text-[10px] sm:text-sm md:text-base lg:text-3xl">(UNIFIED)</span>
+            {/* ── NEW ORDER MODAL (iOS Sheet) ─────────────────────────── */}
+            {newOrderAlert && (
+                <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(20px)' }}>
+                    <div className="w-full max-w-md rounded-[28px] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300" style={{ background: '#1C1C1E', border: '1px solid rgba(10,132,255,0.3)' }}>
+                        {/* Header */}
+                        <div className="px-6 pt-6 pb-4 text-center" style={{ background: 'rgba(10,132,255,0.08)' }}>
+                            {(newOrderAlert.items || []).some((i: any) => i.note?.toLowerCase().includes('bundle')) && (
+                                <span className="inline-block px-3 py-1 rounded-full text-xs font-bold mb-3 animate-bounce" style={{ background: ios.orange, color: '#000' }}>⚡ PAKET BUNDLING</span>
+                            )}
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-3 text-sm font-semibold" style={{ background: 'rgba(10,132,255,0.2)', color: ios.blue, border: '1px solid rgba(10,132,255,0.3)' }}>
+                                <Bell className="w-3.5 h-3.5" />
+                                ORDER BARU MASUK
+                                {queueCount > 0 && <span className="px-2 py-0.5 rounded-full text-xs font-bold animate-pulse" style={{ background: ios.red, color: '#fff' }}>+{queueCount}</span>}
                             </div>
-                        </h1>
+                            <h2 className="text-5xl font-black tracking-tighter">
+                                {newOrderAlert.tableName ? newOrderAlert.tableName.toUpperCase() : newOrderAlert.tableId ? `MEJA ${newOrderAlert.tableId}` : 'TAKEAWAY'}
+                            </h2>
+                            {newOrderAlert.customerName && <p className="mt-1 text-base" style={{ color: ios.label2 }}>{newOrderAlert.customerName}</p>}
+                        </div>
+                        {/* Items */}
+                        <div className="mx-4 my-3 rounded-2xl overflow-hidden" style={{ background: '#2C2C2E' }}>
+                            {(newOrderAlert.items || []).map((item: any, i: number) => (
+                                <div key={i} className="flex justify-between items-center px-4 py-3" style={{ borderBottom: i < (newOrderAlert.items?.length - 1) ? `1px solid ${ios.sep}` : 'none' }}>
+                                    <span className="font-semibold text-sm">{item.name}</span>
+                                    <span className="text-sm font-bold px-2.5 py-0.5 rounded-full" style={{ background: 'rgba(10,132,255,0.2)', color: ios.blue }}>×{Number(item.quantity) || 1}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="px-4 pb-5">
+                            <button onClick={showNextAlert}
+                                className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2"
+                                style={{ background: ios.blue, color: '#fff' }}>
+                                <CheckCircle className="w-5 h-5" />
+                                {queueCount > 0 ? `TERIMA & BERIKUTNYA (${queueCount} sisa)` : 'TERIMA ORDER'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── HEADER (iOS Navigation Bar) ────────────────────────── */}
+            <header className="sticky top-0 z-[100] flex items-center justify-between px-4 py-2.5" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${ios.sep}` }}>
+                <div className="flex items-center gap-3">
+                    {/* Sidebar toggle */}
+                    <button onClick={() => setIsSummaryOpen(!isSummaryOpen)}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                        style={{ background: isSummaryOpen ? 'rgba(10,132,255,0.2)' : 'rgba(255,255,255,0.06)', color: isSummaryOpen ? ios.blue : ios.label2 }}>
+                        <Menu className="w-5 h-5" />
+                    </button>
+                    {/* Realtime pill */}
+                    <button onClick={() => { kdsSocket.disconnect().connect(); fetchActiveOrders(); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-95"
+                        style={{ background: isConnected ? 'rgba(48,209,88,0.15)' : 'rgba(255,68,56,0.15)', border: `1px solid ${isConnected ? 'rgba(48,209,88,0.3)' : 'rgba(255,68,56,0.3)'}` }}>
+                        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: isConnected ? ios.green : ios.red }} />
+                        <span className="text-[11px] font-bold" style={{ color: isConnected ? ios.green : ios.red }}>{isConnected ? 'Realtime' : 'Offline'}</span>
+                    </button>
+                    {/* Title */}
+                    <div className="flex items-center gap-2">
+                        <ChefHat className="w-5 h-5" style={{ color: ios.indigo }} />
+                        <span className="text-base font-bold tracking-tight">Kitchen & Bar</span>
+                        <span className="text-sm" style={{ color: ios.label3 }}>Unified</span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 md:gap-6">
-                    {/* TEST AUDIO BUTTON */}
-                    <button
-                        onClick={() => playVocalAlert("Tes Audio Kitchen", false)}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] md:text-xs font-black rounded-lg border border-slate-700 text-slate-400 transition-all active:scale-95"
-                    >
-                        🔊 {t('kds.audioEnabled')}
+                <div className="flex items-center gap-2">
+                    {/* Audio btn */}
+                    <button onClick={() => playVocalAlert("Tes Audio Kitchen", false)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-90"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: ios.label2 }}>
+                        🔊 Audio
                     </button>
-
-                    <button
-                        onClick={() => {
-                            const dept = selectedStation === 'BDS' ? 'BAR' : 'KITCHEN';
-                            router.push(`/admin/closing/stock-opname?dept=${dept}`);
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] md:text-xs font-black rounded-xl border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
-                    >
-                        <ClipboardCheck className="w-4 h-4" />
-                        <span className="hidden sm:inline">LAPOR STOK</span>
-                        <span className="sm:hidden">STOK</span>
+                    {/* Stock */}
+                    <button onClick={() => { const dept = selectedStation === 'BDS' ? 'BAR' : 'KITCHEN'; router.push(`/admin/closing/stock-opname?dept=${dept}`); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-90"
+                        style={{ background: 'rgba(94,92,230,0.2)', color: ios.indigo, border: '1px solid rgba(94,92,230,0.3)' }}>
+                        <ClipboardCheck className="w-3.5 h-3.5" />
+                        Lapor Stok
                     </button>
-
-                    <div className="text-right hidden sm:block border-l border-white/10 pl-6">
-                        <div className="text-2xl md:text-3xl font-black font-mono tracking-tighter text-white leading-none">
+                    {/* Clock */}
+                    <div className="text-right pl-3" style={{ borderLeft: `1px solid ${ios.sep}` }}>
+                        <div className="text-xl font-bold font-mono tracking-tight leading-none">
                             {currentTime.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}
                         </div>
-                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-1">
+                        <div className="text-[10px] font-medium mt-0.5" style={{ color: ios.label3 }}>
                             {currentTime.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
                         </div>
                     </div>
-                    <button
-                        onClick={toggleHistory}
-                        className={`p-2.5 md:p-3.5 rounded-2xl transition-all border ${showHistory ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-400'}`}
-                    >
-                        <RotateCcw className={`w-5 h-5 md:w-6 md:h-6 ${showHistory ? 'animate-spin-slow' : ''}`} />
+                    {/* History */}
+                    <button onClick={toggleHistory}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                        style={{ background: showHistory ? 'rgba(10,132,255,0.2)' : 'rgba(255,255,255,0.06)', color: showHistory ? ios.blue : ios.label2 }}>
+                        <RotateCcw className="w-4.5 h-4.5" />
                     </button>
                 </div>
             </header>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-hidden relative flex flex-row bg-black">
-                {/* AGGREGATION SIDEBAR - integrated into flex flow */}
-                <aside className={`flex flex-col shrink-0 h-full w-52 bg-[#141416]/98 border-r border-white/5 overflow-hidden transition-all duration-300 ease-out z-[150] ${isSummaryOpen ? 'ml-0 opacity-100' : '-ml-52 opacity-0 pointer-events-none'}`}>
-                    {/* Header compact */}
-                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/5 shrink-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <LayoutGrid className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                            <div className="min-w-0">
-                                <div className="text-[11px] font-black text-white leading-none truncate">Ringkasan</div>
-                                <div className="text-[9px] font-bold text-slate-600 uppercase tracking-wider mt-0.5">Antrian Masak</div>
-                            </div>
+            {/* ── CONTENT ────────────────────────────────────────────── */}
+            <div className="flex-1 overflow-hidden flex flex-row" style={{ background: ios.bg }}>
+
+                {/* ── SIDEBAR (iOS grouped inset list) ── */}
+                <aside className="flex flex-col shrink-0 h-full overflow-hidden transition-all duration-300 ease-out" style={{ width: isSummaryOpen ? 200 : 0, opacity: isSummaryOpen ? 1 : 0, pointerEvents: isSummaryOpen ? 'auto' : 'none', background: '#111113', borderRight: `1px solid ${ios.sep}` }}>
+                    {/* Sidebar header */}
+                    <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: `1px solid ${ios.sep}` }}>
+                        <div>
+                            <p className="text-[13px] font-semibold">Ringkasan</p>
+                            <p className="text-[10px] font-medium" style={{ color: ios.label3 }}>Antrian masak</p>
                         </div>
-                        <button
-                            onClick={() => setIsSummaryOpen(false)}
-                            className="p-1.5 rounded-lg hover:bg-white/8 text-slate-600 hover:text-slate-400 shrink-0"
-                        >
+                        <button onClick={() => setIsSummaryOpen(false)} className="w-7 h-7 rounded-full flex items-center justify-center transition-all active:scale-90" style={{ background: '#2C2C2E', color: ios.label2 }}>
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                     </div>
 
-                    {/* Summary List — slim rows */}
-                    <div
-                        className="flex-1 overflow-y-auto no-scrollbar pb-20"
-                        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
-                        onTouchMove={(e) => e.stopPropagation()}
-                    >
+                    {/* Sidebar list */}
+                    <div className="flex-1 overflow-y-auto no-scrollbar py-2 pb-20" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties} onTouchMove={e => e.stopPropagation()}>
                         {aggregatedItems.map((item: any, i: number) => {
                             const anyPending = hasAnyPending(item.name);
                             const isProcessing = item.processingCount > 0;
                             return (
-                                <div key={i} className={`flex items-center gap-1.5 px-2 py-1.5 border-b border-white/4 transition-colors ${
-                                    isProcessing && !anyPending ? 'bg-amber-500/8' : 'hover:bg-white/4'
-                                }`}>
-                                    {/* Qty badge */}
-                                    <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black font-mono border ${
-                                        isProcessing && !anyPending
-                                            ? 'bg-amber-500/20 border-amber-500/30 text-amber-300'
-                                            : 'bg-black/40 border-white/8 text-blue-400'
-                                    }`}>
-                                        {Number(item.quantity) || 1}
-                                    </div>
-                                    {/* Name + status */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-[11px] font-bold text-slate-200 leading-tight truncate">{item.name}</div>
-                                        <div className="flex gap-1 mt-0.5">
-                                            {item.pendingCount > 0 && (
-                                                <span className="text-[8px] font-black text-blue-400">{item.pendingCount}Q</span>
-                                            )}
-                                            {item.processingCount > 0 && (
-                                                <span className="text-[8px] font-black text-amber-400">{item.processingCount}🔥</span>
-                                            )}
+                                <div key={i} className="mx-3 mb-1 rounded-2xl overflow-hidden" style={{ background: isProcessing && !anyPending ? 'rgba(255,159,10,0.1)' : '#1C1C1E', border: `1px solid ${isProcessing && !anyPending ? 'rgba(255,159,10,0.25)' : ios.sep}` }}>
+                                    <div className="flex items-center gap-2.5 px-3 py-2.5">
+                                        {/* Qty */}
+                                        <div className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold font-mono" style={{ background: isProcessing && !anyPending ? 'rgba(255,159,10,0.2)' : 'rgba(10,132,255,0.15)', color: isProcessing && !anyPending ? ios.orange : ios.blue }}>
+                                            {Number(item.quantity) || 1}
                                         </div>
-                                    </div>
-                                    {/* Action icon buttons */}
-                                    <div className="flex gap-0.5 shrink-0">
-                                        <button
-                                            onClick={() => bulkStartCooking(item.name)}
-                                            disabled={!anyPending || item.hasPendingCancel}
-                                            title="Mulai masak"
-                                            className={`w-6 h-6 rounded flex items-center justify-center transition-all active:scale-90 border ${
-                                                anyPending && !item.hasPendingCancel
-                                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
-                                                    : 'bg-white/4 border-white/4 text-slate-700 cursor-not-allowed'
-                                            }`}
-                                        >
-                                            {item.hasPendingCancel
-                                                ? <AlertCircle className="w-3 h-3 text-rose-500 animate-pulse" />
-                                                : <ChefHat className="w-3 h-3" />}
-                                        </button>
-                                        {item.processingCount > 0 && !item.hasPendingCancel && (
-                                            <button
-                                                onClick={() => bulkUncheckProcessing(item.name)}
-                                                title="Batal proses"
-                                                className="w-6 h-6 rounded flex items-center justify-center bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 transition-all active:scale-90"
-                                            >
-                                                <X className="w-3 h-3" />
+                                        {/* Name */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[12px] font-semibold truncate leading-tight">{item.name}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                {item.pendingCount > 0 && <span className="text-[10px] font-bold" style={{ color: ios.blue }}>{item.pendingCount} antri</span>}
+                                                {item.processingCount > 0 && <span className="text-[10px] font-bold" style={{ color: ios.orange }}>{item.processingCount}🔥</span>}
+                                            </div>
+                                        </div>
+                                        {/* Icon actions */}
+                                        <div className="flex gap-1 shrink-0">
+                                            <button onClick={() => bulkStartCooking(item.name)} disabled={!anyPending || item.hasPendingCancel} title="Mulai masak"
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                                                style={{ background: anyPending && !item.hasPendingCancel ? 'rgba(255,159,10,0.2)' : 'rgba(255,255,255,0.05)', color: anyPending && !item.hasPendingCancel ? ios.orange : ios.label3, border: `1px solid ${anyPending && !item.hasPendingCancel ? 'rgba(255,159,10,0.35)' : ios.sep}` }}>
+                                                {item.hasPendingCancel ? <AlertCircle className="w-3.5 h-3.5" style={{ color: ios.red }} /> : <ChefHat className="w-3.5 h-3.5" />}
                                             </button>
-                                        )}
-                                        <button
-                                            onClick={() => bulkFinishItem(item.name)}
-                                            disabled={!item.readyToFinishCount || item.readyToFinishCount === 0 || item.hasRejected || item.hasPendingCancel}
-                                            title="Tandai selesai"
-                                            className={`w-6 h-6 rounded flex items-center justify-center transition-all active:scale-90 border ${
-                                                item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel
-                                                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
-                                                    : 'bg-white/4 border-white/4 text-slate-700 cursor-not-allowed'
-                                            }`}
-                                        >
-                                            {item.hasRejected
-                                                ? <Ban className="w-3 h-3 text-red-500" />
-                                                : <CheckCircle className="w-3 h-3" />}
-                                        </button>
+                                            {item.processingCount > 0 && !item.hasPendingCancel && (
+                                                <button onClick={() => bulkUncheckProcessing(item.name)} title="Batal proses"
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                                                    style={{ background: 'rgba(255,68,56,0.15)', color: ios.red, border: '1px solid rgba(255,68,56,0.3)' }}>
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            <button onClick={() => bulkFinishItem(item.name)} disabled={!item.readyToFinishCount || item.hasRejected || item.hasPendingCancel} title="Tandai selesai"
+                                                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                                                style={{ background: item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? 'rgba(48,209,88,0.2)' : 'rgba(255,255,255,0.05)', color: item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? ios.green : ios.label3, border: `1px solid ${item.readyToFinishCount > 0 && !item.hasRejected && !item.hasPendingCancel ? 'rgba(48,209,88,0.35)' : ios.sep}` }}>
+                                                {item.hasRejected ? <Ban className="w-3.5 h-3.5" style={{ color: ios.red }} /> : <CheckCircle className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
-
                         {aggregatedItems.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center opacity-20">
-                                <ChefHat className="w-8 h-8 text-slate-400 mb-2" />
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dapur Bersih</p>
+                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center" style={{ color: ios.label3 }}>
+                                <ChefHat className="w-8 h-8 mb-2 opacity-30" />
+                                <p className="text-xs font-semibold">Dapur Bersih</p>
                             </div>
                         )}
                     </div>
                 </aside>
 
-                {/* Main Grid — Ultra-Compact KDS v2 */}
-                <div
-                    className={`h-full flex-1 min-w-0 px-2 pt-2 pb-2 overflow-y-auto transition-all duration-500 no-scrollbar ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}
+                {/* ── MAIN GRID (iOS Card Grid) ────────────────────── */}
+                <div className={`h-full flex-1 min-w-0 overflow-y-auto no-scrollbar px-2 pt-2 pb-16 transition-all duration-300 ${showHistory ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                     style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
-                    onTouchMove={(e) => e.stopPropagation()}
-                >
-                    <div
-                        className="grid gap-1.5 pb-24 items-start"
-                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 190px), 1fr))' }}
-                    >
-                        {orders.map((order) => {
+                    onTouchMove={e => e.stopPropagation()}>
+                    <div className="grid gap-2 items-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 185px), 1fr))' }}>
+                        {orders.map(order => {
                             const elapsed = getTimeElapsed(order.timestamp);
                             const isUrgent = elapsed >= 20;
                             const isWarning = elapsed >= 10 && elapsed < 20;
@@ -1150,189 +1053,142 @@ export default function KitchenBarUnifiedPage() {
                             const isReady = order.status === 'READY';
                             const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
 
-                            // Card border & bg based on priority
-                            const cardBorder = hasPendingCancel
-                                ? 'border-rose-500 bg-rose-950/50'
-                                : isUrgent
-                                    ? 'border-red-500/70 bg-red-950/30'
-                                    : isWarning
-                                        ? 'border-yellow-500/50 bg-yellow-950/20'
-                                        : isCooking
-                                            ? 'border-amber-500/40 bg-amber-950/20'
-                                            : isReady
-                                                ? 'border-emerald-500/40 bg-emerald-950/20'
-                                                : 'border-white/8 bg-[#1a1a1c]';
+                            // Timer chip style
+                            const timerStyle = hasPendingCancel
+                                ? { background: 'rgba(255,68,56,0.25)', color: ios.red, border: '1px solid rgba(255,68,56,0.5)' }
+                                : isUrgent ? { background: ios.red, color: '#fff', border: 'none' }
+                                : isWarning ? { background: ios.yellow, color: '#000', border: 'none' }
+                                : isCooking ? { background: ios.orange, color: '#000', border: 'none' }
+                                : isReady ? { background: ios.green, color: '#000', border: 'none' }
+                                : { background: '#3A3A3C', color: ios.label2, border: 'none' };
 
-                            const timerBg = isUrgent
-                                ? 'bg-red-500 text-white'
-                                : isWarning
-                                    ? 'bg-yellow-500 text-black'
-                                    : isCooking
-                                        ? 'bg-amber-500/80 text-black'
-                                        : isReady
-                                            ? 'bg-emerald-500/80 text-white'
-                                            : 'bg-white/8 text-slate-300';
+                            // Card border accent
+                            const cardAccent = hasPendingCancel ? `0 0 0 1.5px ${ios.red}`
+                                : isUrgent ? `0 0 0 1px rgba(255,68,56,0.5)` 
+                                : isWarning ? `0 0 0 1px rgba(255,214,10,0.4)` 
+                                : `0 0 0 1px ${ios.sep}`;
 
                             return (
-                                <div
-                                    key={order.orderId}
-                                    className={`relative flex flex-col rounded-xl border overflow-hidden transition-all duration-200 ${cardBorder} ${isUrgent ? 'shadow-[0_0_8px_rgba(239,68,68,0.3)]' : ''}`}
-                                >
-                                    {/* ── Card Header ── */}
-                                    <div className="flex items-center justify-between px-2.5 pt-2 pb-1.5 gap-1">
-                                        <div className="flex flex-col min-w-0 flex-1">
-                                            {/* Table Name */}
-                                            <span className="text-white font-black text-base leading-none tracking-tight truncate">
-                                                {order.tableName || (order.tableId ? `M-${order.tableId}` : 'WALK-IN')}
+                                <div key={order.orderId} className="flex flex-col rounded-2xl overflow-hidden transition-all duration-200" style={{ background: ios.card, boxShadow: cardAccent }}>
+
+                                    {/* Card Header */}
+                                    <div className="px-3 pt-3 pb-2">
+                                        <div className="flex items-start justify-between gap-1 mb-1.5">
+                                            {/* Status pill */}
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider shrink-0"
+                                                style={hasPendingCancel ? { background: 'rgba(255,68,56,0.2)', color: ios.red } :
+                                                    isReady ? { background: 'rgba(48,209,88,0.2)', color: ios.green } :
+                                                    isCooking ? { background: 'rgba(255,159,10,0.2)', color: ios.orange } :
+                                                    { background: 'rgba(255,255,255,0.08)', color: ios.label2 }}>
+                                                {hasPendingCancel ? '⚠ Batal' : order.status}
                                             </span>
-                                            {/* Customer + Order ID */}
-                                            <div className="flex items-center gap-1 mt-0.5">
-                                                {hasPendingCancel && (
-                                                    <span className="text-[9px] font-black text-rose-400 uppercase animate-pulse">⚠ BATAL</span>
-                                                )}
-                                                {!hasPendingCancel && (
-                                                    <span className="text-slate-500 text-[10px] font-bold truncate">
-                                                        {order.customerName && order.customerName !== 'Guest' ? order.customerName : `#${String(order.orderId || '').slice(-4)}`}
-                                                    </span>
-                                                )}
+                                            {/* Timer chip */}
+                                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold" style={timerStyle}>
+                                                <Clock className="w-2.5 h-2.5" />
+                                                {elapsed}m
                                             </div>
                                         </div>
-                                        {/* Timer */}
-                                        <div className={`shrink-0 flex flex-col items-center justify-center w-9 h-9 rounded-lg font-black leading-none ${timerBg}`}>
-                                            <span className="text-sm">{elapsed}</span>
-                                            <span className="text-[8px] opacity-70">min</span>
-                                        </div>
+                                        {/* Table name */}
+                                        <h3 className="text-[17px] font-bold tracking-tight leading-tight">
+                                            {order.tableName || (order.tableId ? `Meja ${order.tableId}` : 'Walk-In')}
+                                        </h3>
+                                        {/* Customer */}
+                                        {order.customerName && order.customerName !== 'Guest' && (
+                                            <p className="text-[11px] mt-0.5 truncate" style={{ color: ios.label2 }}>{order.customerName}</p>
+                                        )}
                                     </div>
 
-                                    {/* ── Divider ── */}
-                                    <div className="h-px bg-white/5 mx-2" />
+                                    {/* Divider */}
+                                    <div className="mx-3" style={{ height: 1, background: ios.sep }} />
 
-                                    {/* ── Items List ── */}
-                                    <div className="flex flex-col gap-0 px-1.5 py-1">
-                                        {(order.items || [])
-                                            .filter((i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase()))
-                                            .map((item: any, idx: number) => {
-                                                const isKDS = item.station?.toUpperCase() !== 'BDS';
-                                                const isDone = item.status === 'DONE';
-                                                const isCancelReq = item.status === 'CANCEL_REQUESTED';
-                                                const isCancelRej = item.status === 'CANCEL_REJECTED';
+                                    {/* Items */}
+                                    <div className="px-3 py-2 flex flex-col gap-0">
+                                        {(order.items || []).filter((i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase())).map((item: any, idx: number) => {
+                                            const isKDS = item.station?.toUpperCase() !== 'BDS';
+                                            const isDone = item.status === 'DONE';
+                                            const isCancelReq = item.status === 'CANCEL_REQUESTED';
+                                            const isCancelRej = item.status === 'CANCEL_REJECTED';
 
-                                                return (
-                                                    <div key={idx}>
-                                                        <div className={`flex items-center gap-1 py-1 px-1 rounded-lg transition-all ${
-                                                            isCancelReq ? 'bg-rose-500/15 animate-pulse' :
-                                                            isDone ? 'opacity-40' : ''
-                                                        }`}>
-                                                            {/* Checkbox */}
-                                                            <button
-                                                                disabled={isCancelReq}
-                                                                onClick={() => updateStatusForItem(order, item, isDone ? 'PENDING' : 'DONE')}
-                                                                className={`shrink-0 w-5 h-5 rounded flex items-center justify-center border transition-all ${
-                                                                    isDone ? 'bg-emerald-500 border-emerald-400' :
-                                                                    item.status === 'PROCESSING' ? 'bg-blue-500 border-blue-400' :
-                                                                    isCancelRej ? 'bg-orange-500 border-orange-400 animate-pulse' :
-                                                                    'border-white/15 bg-black/30 hover:border-emerald-400'
-                                                                }`}
-                                                            >
-                                                                {isCancelReq ? <X className="w-2.5 h-2.5 text-rose-300" /> :
-                                                                    isCancelRej ? <Ban className="w-2.5 h-2.5 text-white" /> :
-                                                                    isDone ? <CheckCircle className="w-2.5 h-2.5 text-white" /> : null}
-                                                            </button>
-
-                                                            {/* Station dot */}
-                                                            <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${
-                                                                isCancelReq ? 'bg-rose-400' :
-                                                                isKDS ? 'bg-amber-400' : 'bg-blue-400'
-                                                            }`} />
-
-                                                            {/* Item name */}
-                                                            <span className={`flex-1 text-[11px] font-bold leading-tight truncate ${
-                                                                isDone ? 'line-through text-slate-600' :
-                                                                isCancelReq ? 'text-rose-300' :
-                                                                'text-slate-100'
-                                                            }`}>
-                                                                {item.name}
-                                                            </span>
-
-                                                            {/* Qty */}
-                                                            <span className={`shrink-0 text-[11px] font-black px-1 rounded ${
-                                                                isDone ? 'text-emerald-600' :
-                                                                isCancelReq ? 'text-rose-300' :
-                                                                'text-white'
-                                                            }`}>
-                                                                ×{Number(item.quantity) || 1}
-                                                            </span>
-                                                        </div>
-
-                                                        {/* Note */}
-                                                        {item.note && (
-                                                            <div className="ml-8 mb-0.5 text-[10px] font-bold text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded italic truncate">
-                                                                ↳ {item.note}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Cancel action buttons */}
-                                                        {isCancelReq && (
-                                                            <div className="flex gap-1 ml-8 mb-1">
-                                                                <button
-                                                                    onClick={() => handleConfirmCancel(item)}
-                                                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded text-[9px] font-black uppercase tracking-wider animate-pulse flex items-center justify-center gap-0.5"
-                                                                >
-                                                                    <CheckCircle className="w-2.5 h-2.5" /> Batal ✓
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleRejectCancel(item)}
-                                                                    className="flex-1 bg-red-600 hover:bg-red-500 text-white py-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5"
-                                                                >
-                                                                    <X className="w-2.5 h-2.5" /> Tolak
-                                                                </button>
-                                                            </div>
-                                                        )}
+                                            return (
+                                                <div key={idx}>
+                                                    <div className={`flex items-center gap-2 py-1 px-1 rounded-xl ${isCancelReq ? 'animate-pulse' : ''}`}
+                                                        style={{ background: isCancelReq ? 'rgba(255,68,56,0.1)' : 'transparent' }}>
+                                                        {/* Checkbox */}
+                                                        <button disabled={isCancelReq}
+                                                            onClick={() => updateStatusForItem(order, item, isDone ? 'PENDING' : 'DONE')}
+                                                            className="shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center transition-all active:scale-90 border"
+                                                            style={{
+                                                                background: isDone ? ios.blue : item.status === 'PROCESSING' ? 'rgba(10,132,255,0.2)' : isCancelRej ? ios.orange : 'transparent',
+                                                                borderColor: isDone ? ios.blue : item.status === 'PROCESSING' ? ios.blue : isCancelRej ? ios.orange : ios.label3
+                                                            }}>
+                                                            {isCancelReq ? <X className="w-2.5 h-2.5" style={{ color: ios.red }} /> :
+                                                                isCancelRej ? <Ban className="w-2.5 h-2.5" style={{ color: '#fff' }} /> :
+                                                                isDone ? <CheckCircle className="w-2.5 h-2.5" style={{ color: '#fff' }} /> : null}
+                                                        </button>
+                                                        {/* Station dot */}
+                                                        <span className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: isCancelReq ? ios.red : isKDS ? ios.orange : ios.blue }} />
+                                                        {/* Name */}
+                                                        <span className="flex-1 text-[11px] font-medium leading-tight truncate" style={{
+                                                            color: isDone ? ios.label3 : isCancelReq ? ios.red : ios.label,
+                                                            textDecoration: isDone ? 'line-through' : 'none'
+                                                        }}>{item.name}</span>
+                                                        {/* Qty */}
+                                                        <span className="text-[11px] font-bold shrink-0" style={{ color: isDone ? ios.label3 : isCancelReq ? ios.red : ios.blue }}>×{Number(item.quantity) || 1}</span>
                                                     </div>
-                                                );
-                                            })
-                                        }
+
+                                                    {/* Note */}
+                                                    {item.note && (
+                                                        <div className="ml-6 mb-0.5 text-[10px] italic truncate" style={{ color: ios.orange }}>↳ {item.note}</div>
+                                                    )}
+
+                                                    {/* Cancel rejected badge */}
+                                                    {isCancelRej && (
+                                                        <div className="ml-6 mb-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold animate-pulse" style={{ background: 'rgba(255,159,10,0.2)', color: ios.orange }}>
+                                                            <Ban className="w-2.5 h-2.5" /> DITOLAK
+                                                        </div>
+                                                    )}
+
+                                                    {/* Cancel confirm buttons */}
+                                                    {isCancelReq && (
+                                                        <div className="flex gap-1.5 ml-6 mb-1.5">
+                                                            <button onClick={() => handleConfirmCancel(item)}
+                                                                className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 animate-pulse transition-all active:scale-95"
+                                                                style={{ background: ios.green, color: '#000' }}>
+                                                                <CheckCircle className="w-3 h-3" /> OK
+                                                            </button>
+                                                            <button onClick={() => handleRejectCancel(item)}
+                                                                className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all active:scale-95"
+                                                                style={{ background: ios.red, color: '#fff' }}>
+                                                                <X className="w-3 h-3" /> Tolak
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
 
-                                    {/* ── Action Button ── */}
-                                    <div className="px-1.5 pb-1.5 pt-1">
+                                    {/* Action Button */}
+                                    <div className="px-2 pb-2 mt-auto">
                                         {order.status === 'PENDING' && (
-                                            <button
-                                                disabled={hasPendingCancel}
-                                                onClick={() => updateStatus(order, 'COOKING')}
-                                                className={`w-full py-1.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all active:scale-[0.97] flex items-center justify-center gap-1 ${
-                                                    hasPendingCancel
-                                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-40'
-                                                        : 'bg-amber-400 hover:bg-amber-300 text-black shadow-[0_2px_8px_rgba(251,191,36,0.25)]'
-                                                }`}
-                                            >
-                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3 text-rose-400" /> Batal dulu</> : <>PROSES <ChevronRight className="w-3 h-3" /></>}
+                                            <button disabled={hasPendingCancel} onClick={() => updateStatus(order, 'COOKING')}
+                                                className="w-full py-2 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1 transition-all active:scale-[0.97]"
+                                                style={{ background: hasPendingCancel ? '#3A3A3C' : ios.orange, color: hasPendingCancel ? ios.label3 : '#000' }}>
+                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3" style={{ color: ios.red }} /> Batal dulu</> : <>PROSES <ChevronRight className="w-3.5 h-3.5" /></>}
                                             </button>
                                         )}
                                         {order.status === 'COOKING' && (
-                                            <button
-                                                disabled={hasPendingCancel}
-                                                onClick={() => updateStatus(order, 'READY')}
-                                                className={`w-full py-1.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all active:scale-[0.97] flex items-center justify-center gap-1 ${
-                                                    hasPendingCancel
-                                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-40'
-                                                        : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-[0_2px_8px_rgba(16,185,129,0.25)]'
-                                                }`}
-                                            >
-                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3 text-rose-400" /> Batal dulu</> : <><CheckCircle className="w-3 h-3" /> SELESAI</>}
+                                            <button disabled={hasPendingCancel} onClick={() => updateStatus(order, 'READY')}
+                                                className="w-full py-2 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1 transition-all active:scale-[0.97]"
+                                                style={{ background: hasPendingCancel ? '#3A3A3C' : ios.green, color: hasPendingCancel ? ios.label3 : '#000' }}>
+                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3" style={{ color: ios.red }} /> Batal dulu</> : <><CheckCircle className="w-3.5 h-3.5" /> SELESAI</>}
                                             </button>
                                         )}
                                         {order.status === 'READY' && (
-                                            <button
-                                                disabled={hasPendingCancel}
-                                                onClick={() => updateStatus(order, 'SERVED')}
-                                                className={`w-full py-1.5 rounded-lg font-black text-[11px] uppercase tracking-wider border transition-all active:scale-[0.97] flex items-center justify-center gap-1 ${
-                                                    hasPendingCancel
-                                                        ? 'bg-slate-800 text-slate-600 cursor-not-allowed opacity-40 border-white/5'
-                                                        : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-                                                }`}
-                                            >
-                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3 text-rose-400" /> Batal dulu</> : <><CheckCircle className="w-3 h-3 text-emerald-400" /> DIAMBIL</>}
+                                            <button disabled={hasPendingCancel} onClick={() => updateStatus(order, 'SERVED')}
+                                                className="w-full py-2 rounded-xl text-[12px] font-bold flex items-center justify-center gap-1 transition-all active:scale-[0.97]"
+                                                style={{ background: hasPendingCancel ? '#3A3A3C' : '#3A3A3C', color: hasPendingCancel ? ios.label3 : ios.label2, border: `1px solid ${ios.sep}` }}>
+                                                {hasPendingCancel ? <><AlertCircle className="w-3 h-3" style={{ color: ios.red }} /> Batal dulu</> : <><CheckCircle className="w-3.5 h-3.5" style={{ color: ios.green }} /> DIAMBIL</>}
                                             </button>
                                         )}
                                     </div>
@@ -1340,171 +1196,103 @@ export default function KitchenBarUnifiedPage() {
                             );
                         })}
 
-                        {/* Empty State */}
                         {orders.length === 0 && (
-                            <div className="col-span-full h-[60vh] flex flex-col items-center justify-center text-slate-800 animate-in fade-in zoom-in duration-1000">
-                                <ChefHat className="w-24 h-24 mb-4 opacity-10" />
-                                <h2 className="text-3xl font-black text-white/20 tracking-tighter">KITCHEN STANDBY</h2>
-                                <p className="text-sm font-bold text-slate-600 mt-2 uppercase tracking-[0.3em]">Menunggu orderan baru...</p>
+                            <div className="col-span-full h-[60vh] flex flex-col items-center justify-center" style={{ color: ios.label3 }}>
+                                <ChefHat className="w-16 h-16 mb-4 opacity-20" />
+                                <p className="text-lg font-semibold opacity-30">Kitchen Standby</p>
+                                <p className="text-xs mt-1 opacity-20">Menunggu orderan baru...</p>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* History Panel Overlay */}
-            <div
-                className={`fixed inset-y-0 right-0 w-full md:w-[600px] lg:w-[700px] bg-slate-900 shadow-[0_0_100px_rgba(0,0,0,0.8)] z-[200] transform transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] border-l border-white/5 ${showHistory ? 'translate-x-0' : 'translate-x-full'
-                    }`}
-            >
-                <div className="h-full flex flex-col bg-slate-900/95 ">
-                    <div className="p-8 border-b border-white/5 flex flex-col gap-6 bg-white/[0.02]">
-                        <div className="flex justify-between items-center">
-                            <h2 className="text-4xl font-black text-white flex items-center gap-4 tracking-tighter">
-                                <RotateCcw className="w-10 h-10 text-blue-500" />
-                                Riwayat Order
-                            </h2>
-                            <button
-                                onClick={toggleHistory}
-                                className="p-3 hover:bg-white/10 rounded-2xl transition-all text-slate-400 hover:text-white border border-white/5 active:scale-90"
-                            >
-                                <X className="w-8 h-8" />
-                            </button>
+            {/* ── HISTORY PANEL (iOS Sheet from right) ───────────────── */}
+            <div className={`fixed inset-y-0 right-0 w-full sm:w-[400px] z-[200] transform transition-transform duration-500 ease-out ${showHistory ? 'translate-x-0' : 'translate-x-full'}`}
+                style={{ background: '#111113', borderLeft: `1px solid ${ios.sep}`, boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
+                <div className="h-full flex flex-col">
+                    {/* History Header */}
+                    <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: `1px solid ${ios.sep}` }}>
+                        <div className="flex items-center gap-3">
+                            <RotateCcw className="w-5 h-5" style={{ color: ios.blue }} />
+                            <h2 className="text-lg font-bold">Riwayat Order</h2>
                         </div>
-
-                        {/* Search Bar */}
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <svg className="h-6 w-6 text-slate-500 group-focus-within:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-                            <input
-                                type="text"
-                                className="block w-full pl-12 pr-4 py-4 border border-white/10 rounded-2xl leading-5 bg-black/40 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all font-bold"
-                                placeholder="Cari nomor meja, nama customer..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
+                        <button onClick={toggleHistory} className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90" style={{ background: '#2C2C2E', color: ios.label2 }}>
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                    {/* Search */}
+                    <div className="px-4 py-3 shrink-0" style={{ borderBottom: `1px solid ${ios.sep}` }}>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#2C2C2E' }}>
+                            <Search className="w-4 h-4 shrink-0" style={{ color: ios.label3 }} />
+                            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Cari meja, customer..." className="flex-1 text-sm bg-transparent outline-none" style={{ color: ios.label }} />
                         </div>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto p-8 no-scrollbar">
-                        {stationSummary && (
-                            <div className="mb-8 p-6 bg-amber-500/10 border border-amber-500/30 rounded-3xl">
-                                <h3 className="text-xl font-black text-amber-400 mb-4 flex items-center gap-2">
-                                    <CheckCircle className="w-5 h-5" />
-                                    Daily Summary ({selectedStation})
-                                </h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="p-4 bg-black/40 rounded-2xl border border-white/5">
-                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Items</div>
-                                        <div className="text-3xl font-black text-white">{stationSummary.totalItems}</div>
+                    {/* History list */}
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-2">
+                        {historyOrders.filter(o => {
+                            const d = new Date(o.timestamp).toISOString().split('T')[0];
+                            const today = new Date().toISOString().split('T')[0];
+                            return d === today;
+                        }).filter(o =>
+                            o.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            o.tableName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            o.tableId?.toString().includes(searchQuery) ||
+                            o.orderId?.includes(searchQuery)
+                        ).map((order: any) => (
+                            <div key={order.orderId} className="rounded-2xl overflow-hidden" style={{ background: ios.card, border: `1px solid ${ios.sep}` }}>
+                                <div className="flex items-center justify-between px-4 py-3">
+                                    <div>
+                                        <p className="text-sm font-bold">{order.tableName || 'Walk-In'}</p>
+                                        <p className="text-xs" style={{ color: ios.label2 }}>{order.customerName} · #{(order.orderId || '').slice(-4)}</p>
                                     </div>
-                                    <div className="p-4 bg-black/40 rounded-2xl border border-white/5">
-                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Orders</div>
-                                        <div className="text-3xl font-black text-white">{orders.length}</div>
+                                    <div className="text-right">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(48,209,88,0.15)', color: ios.green }}>
+                                            <CheckCircle className="w-3 h-3" /> SERVED
+                                        </span>
+                                        <p className="text-[10px] mt-1" style={{ color: ios.label3 }}>
+                                            {new Date(order.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
                                     </div>
                                 </div>
-                                {stationSummary.itemsJson && (
-                                    <div className="mt-4 p-4 bg-black/20 rounded-2xl border border-white/5 space-y-2">
-                                        {Object.entries(JSON.parse(stationSummary.itemsJson)).map(([name, count]: any) => (
-                                            <div key={name} className="flex justify-between items-center text-sm">
-                                                <span className="text-slate-400 font-medium">{name}</span>
-                                                <span className="text-white font-black">x{count}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                <div className="px-4 pb-3 space-y-1" style={{ borderTop: `1px solid ${ios.sep}` }}>
+                                    {(order.items || []).map((item: any, i: number) => (
+                                        <div key={i} className="flex justify-between items-center pt-1">
+                                            <span className="text-xs" style={{ color: ios.label2 }}>{item.name}</span>
+                                            <span className="text-xs font-bold" style={{ color: ios.label }}>×{Number(item.quantity) || 1}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            {historyOrders
-                                .filter(order => {
-                                    // Filter by current day
-                                    const orderDate = new Date(order.timestamp).toISOString().split('T')[0];
-                                    const today = new Date().toISOString().split('T')[0];
-                                    return orderDate === today;
-                                })
-                                .filter(order =>
-                                    order.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                    order.tableName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                    order.tableId?.toString().includes(searchQuery) ||
-                                    order.orderId?.includes(searchQuery)
-                                )
-                                .map((order: any) => (
-                                    <div key={order.orderId} className="group bg-white/5 hover:bg-white/10 rounded-[2rem] p-6 border border-white/5 hover:border-blue-500/30 transition-all duration-300 hover:shadow-2xl flex flex-col">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <div className="font-black text-2xl text-white tracking-tighter group-hover:text-blue-300 transition-colors">
-                                                    {order.tableName || 'WALK-IN'}
-                                                </div>
-                                                <div className="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2">
-                                                    <span className="truncate max-w-[120px]">{order.customerName}</span>
-                                                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                                    <span className="font-mono opacity-60">#{(order.orderId || "").slice(-4)}</span>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">COMPLETED</div>
-                                                <div className="font-mono text-slate-400 font-bold text-sm">
-                                                    {new Date(order.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2 flex-1 border-t border-white/5 pt-4 mt-2">
-                                            <div className="text-[10px] text-red-500 overflow-hidden text-ellipsis whitespace-nowrap">{JSON.stringify(order.items || 'NO ITEMS')}</div>
-                                            {(order.items || []).filter((item: any) => selectedStation === 'ALL' ? true : item.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, i: number) => (
-                                                <div key={i} className="flex justify-between items-start text-xs">
-                                                    <span className="text-slate-400 font-bold leading-snug">{item.name}</span>
-                                                    <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{Number(item.quantity) || 1}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-                                            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">
-                                                <CheckCircle className="w-3.5 h-3.5" />
-                                                SERVED
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                        </div>
-
+                        ))}
                         {historyOrders.length === 0 && (
-                            <div className="h-[50vh] flex flex-col items-center justify-center text-slate-700 opacity-20">
-                                <RotateCcw className="w-20 h-20 mb-4" />
-                                <p className="text-xl font-black uppercase tracking-widest">No History</p>
+                            <div className="flex flex-col items-center justify-center py-16" style={{ color: ios.label3 }}>
+                                <RotateCcw className="w-10 h-10 mb-3 opacity-20" />
+                                <p className="text-sm font-medium opacity-30">Belum ada riwayat</p>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Bottom Stats Bar — Compact */}
-            <div className={`fixed bottom-0 left-0 right-0 ${isSummaryOpen ? 'pl-52' : ''} bg-black/90 backdrop-blur-sm border-t border-white/8 py-1.5 px-4 z-[180] transition-all duration-300 flex items-center justify-around gap-6`}>
-                <div className="flex items-center gap-1.5">
-                    <span className="text-slate-600 text-[9px] font-black uppercase tracking-wider">Total</span>
-                    <span className="text-lg font-black text-white leading-none">{orders.length}</span>
-                </div>
-                <div className="w-px h-5 bg-white/8" />
-                <div className="flex items-center gap-1.5">
-                    <span className="text-blue-500/70 text-[9px] font-black uppercase tracking-wider">Queued</span>
-                    <span className="text-lg font-black text-blue-400 leading-none">{orders.filter(o => o.status === 'PENDING').length}</span>
-                </div>
-                <div className="w-px h-5 bg-white/8" />
-                <div className="flex items-center gap-1.5">
-                    <span className="text-amber-500/70 text-[9px] font-black uppercase tracking-wider">Proses</span>
-                    <span className="text-lg font-black text-amber-400 leading-none">{orders.filter(o => o.status === 'COOKING').length}</span>
-                </div>
-                <div className="w-px h-5 bg-white/8" />
-                <div className="flex items-center gap-1.5">
-                    <span className="text-emerald-500/70 text-[9px] font-black uppercase tracking-wider">Ready</span>
-                    <span className="text-lg font-black text-emerald-400 leading-none">{orders.filter(o => o.status === 'READY').length}</span>
-                </div>
+            {/* ── BOTTOM TAB BAR (iOS style) ───────────────────────── */}
+            <div className="fixed bottom-0 left-0 right-0 z-[180] flex items-center justify-around px-6 transition-all duration-300"
+                style={{ paddingLeft: isSummaryOpen ? 200 + 24 : 24, paddingRight: 24, paddingTop: 8, paddingBottom: 10, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', borderTop: `1px solid ${ios.sep}` }}>
+                {[
+                    { label: 'Total', value: orders.length, color: ios.label },
+                    { label: 'Antri', value: orders.filter(o => o.status === 'PENDING').length, color: ios.blue },
+                    { label: 'Proses', value: orders.filter(o => o.status === 'COOKING').length, color: ios.orange },
+                    { label: 'Ready', value: orders.filter(o => o.status === 'READY').length, color: ios.green },
+                ].map((stat, i, arr) => (
+                    <React.Fragment key={stat.label}>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[22px] font-bold leading-none tabular-nums" style={{ color: stat.color }}>{stat.value}</span>
+                            <span className="text-[10px] font-medium mt-0.5" style={{ color: ios.label3 }}>{stat.label}</span>
+                        </div>
+                        {i < arr.length - 1 && <div className="w-px h-6" style={{ background: ios.sep }} />}
+                    </React.Fragment>
+                ))}
             </div>
         </div>
     );
