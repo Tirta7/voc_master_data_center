@@ -836,7 +836,21 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             <span className="mt-1.5 text-[9px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block">Stok: {itemStock}</span>
                                         )}
                                         {isOutOfStock && (
-                                            <span className="mt-1.5 text-[9px] font-medium text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full inline-block">Habis</span>
+                                            <div className="mt-1.5 flex flex-col gap-1 items-start">
+                                                <span className="text-[9px] font-medium text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full inline-block">Habis</span>
+                                                {item.recipes?.length > 0 && (
+                                                    <span className="text-[8px] text-rose-500 leading-tight">
+                                                        {(() => {
+                                                            const empty = item.recipes.filter((re: any) => {
+                                                                const ing = ingredients.find(i => i.id === re.ingredientId);
+                                                                const currentStock = ing ? Number(ing.stockQuantity) : 0;
+                                                                return currentStock < Number(re.quantity);
+                                                            }).map((re: any) => re.ingredient?.name || 'Bahan');
+                                                            return empty.length > 0 ? `Kosong: ${empty.join(', ')}` : '';
+                                                        })()}
+                                                    </span>
+                                                )}
+                                            </div>
                                         )}
 
                                         {/* Recipe toggle */}

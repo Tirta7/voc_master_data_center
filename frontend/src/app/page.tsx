@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderTableId, setOrderTableId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'number' | 'time'>('number');
   const [isWaitingListOpen, setIsWaitingListOpen] = useState(false);
   const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
   const [itemToCancel, setItemToCancel] = useState<any>(null);
@@ -201,9 +202,38 @@ export default function Dashboard() {
   }, [isRestrictedRole, activeShift, user]);
 
   const filteredTables = React.useMemo(() => {
-    const sortedTables = [...tables].sort((a, b) => 
-        a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
-    );
+    let sortedTables = [...tables];
+
+    if (sortBy === 'number') {
+        sortedTables.sort((a, b) => 
+            a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+        );
+    } else {
+        sortedTables.sort((a, b) => {
+            const getPriority = (t: any) => {
+                const isActive = t.status === 'in_use' || t.status === 'warning' || t.status === 'waiting_payment';
+                if (!isActive) return 999999999; 
+
+                if (typeof t.remainingMinutes === 'number' && t.activeTransaction?.packageId) {
+                    // DURATION (Paket)
+                    return t.remainingMinutes;
+                } else if (isActive) {
+                    // PLAY TIME (Loss)
+                    const playedMinutes = t.activeTransaction?.startTime 
+                        ? (Date.now() - new Date(t.activeTransaction.startTime).getTime()) / 60000 
+                        : 0;
+                    return 100000 - playedMinutes;
+                }
+                return 999999999;
+            };
+
+            const pA = getPriority(a);
+            const pB = getPriority(b);
+            
+            if (pA !== pB) return pA - pB;
+            return a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }
 
     return sortedTables.filter(table => {
       if (isRestrictedRole) {
@@ -230,7 +260,7 @@ export default function Dashboard() {
       if (filterStatus === 'ISSUE') return table.status === TableStatus.MAINTENANCE || table.isOffline;
       return true;
     });
-  }, [tables, isRestrictedRole, waiterAssignments, filterStatus, searchQuery]);
+  }, [tables, isRestrictedRole, waiterAssignments, filterStatus, searchQuery, sortBy]);
 
   // ── Scroll Restoration Logic ─────────────────────────────────────────────
   useEffect(() => {
@@ -615,29 +645,45 @@ export default function Dashboard() {
 
         <AIBroadcastOverlay />
 
-        {/* COMPACT FILTER BAR */}
-        <div className="mb-6 bg-white p-2.5 md:p-3 rounded-2xl shadow-sm border border-slate-100/60 flex flex-wrap gap-2 md:gap-3 items-center w-full max-w-fit">
-          {[
-            { id: 'ALL', label: t('common.all'), icon: <LayoutGrid className="w-4 h-4" />, color: 'bg-indigo-600 text-white', activeRing: 'ring-indigo-500/50' },
-            { id: 'ACTIVE', label: t('billiard.occupied'), icon: <Flame className="w-4 h-4" />, color: 'bg-orange-500 text-white', activeRing: 'ring-orange-500/50' },
-            { id: 'AVAILABLE', label: t('billiard.available'), icon: <Sparkles className="w-4 h-4" />, color: 'bg-emerald-500 text-white', activeRing: 'ring-emerald-500/50' },
-            { id: 'ISSUE', label: 'Offline', icon: <Wrench className="w-4 h-4" />, color: 'bg-slate-600 text-white', activeRing: 'ring-slate-500/50' }
-          ].map(filter => (
-            <button
-              key={filter.id}
-              onClick={() => setFilterStatus(filter.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all active:scale-95 flex-1 md:flex-none justify-center
-                ${filterStatus === filter.id 
-                  ? filter.color + ' shadow-md ring-2 ring-offset-2 ' + filter.activeRing 
-                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200/60'}
-              `}
-            >
-              {filter.icon}
-              <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider ${filterStatus === filter.id ? 'text-white' : ''}`}>
-                {filter.label}
-              </span>
-            </button>
-          ))}
+        {/* COMPACT FILTER & SORT BAR */}
+        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white p-2.5 md:p-3 rounded-2xl shadow-sm border border-slate-100/60 flex flex-wrap gap-2 md:gap-3 items-center w-full md:max-w-fit">
+            {[
+              { id: 'ALL', label: t('common.all'), icon: <LayoutGrid className="w-4 h-4" />, color: 'bg-indigo-600 text-white', activeRing: 'ring-indigo-500/50' },
+              { id: 'ACTIVE', label: t('billiard.occupied'), icon: <Flame className="w-4 h-4" />, color: 'bg-orange-500 text-white', activeRing: 'ring-orange-500/50' },
+              { id: 'AVAILABLE', label: t('billiard.available'), icon: <Sparkles className="w-4 h-4" />, color: 'bg-emerald-500 text-white', activeRing: 'ring-emerald-500/50' },
+              { id: 'ISSUE', label: 'Offline', icon: <Wrench className="w-4 h-4" />, color: 'bg-slate-600 text-white', activeRing: 'ring-slate-500/50' }
+            ].map(filter => (
+              <button
+                key={filter.id}
+                onClick={() => setFilterStatus(filter.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all active:scale-95 flex-1 md:flex-none justify-center
+                  ${filterStatus === filter.id 
+                    ? filter.color + ' shadow-md ring-2 ring-offset-2 ' + filter.activeRing 
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200/60'}
+                `}
+              >
+                {filter.icon}
+                <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider ${filterStatus === filter.id ? 'text-white' : ''}`}>
+                  {filter.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white p-2 md:p-2.5 rounded-2xl shadow-sm border border-slate-100/60 flex items-center gap-3 w-full md:max-w-fit shrink-0">
+            <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-xl w-full">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Sort:</span>
+                <select 
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer uppercase tracking-wider w-full py-1.5"
+                >
+                    <option value="number">Nomor Meja</option>
+                    <option value="time">Prioritas / Waktu Kritis</option>
+                </select>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">

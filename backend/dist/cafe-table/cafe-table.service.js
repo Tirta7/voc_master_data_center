@@ -256,12 +256,36 @@ let CafeTableService = class CafeTableService {
             });
             // Trigger AI Upselling Prompt
             this.aiService.broadcastUpsellPrompt(id, table.tableName);
+            // Notifikasi: tampilkan nama KASIR yang sedang shift aktif, bukan user yang buka meja
             let cashierName = 'Admin';
-            if (activeShift?.user?.name) cashierName = activeShift.user.name;
+            try {
+                const activeCashierShift = await this.shiftService.findActiveCashierShift();
+                if (activeCashierShift?.user?.name) {
+                    cashierName = activeCashierShift.user.name;
+                } else if (userId) {
+                    // Fallback: nama user pembuka meja (misal waiter)
+                    const userRepo = this.dataSource.getRepository('User');
+                    const userRecord = await userRepo.findOne({
+                        where: {
+                            id: userId
+                        },
+                        select: [
+                            'name',
+                            'fullName'
+                        ]
+                    });
+                    cashierName = userRecord?.name || userRecord?.fullName || activeShift?.user?.name || 'Admin';
+                } else if (activeShift?.user?.name) {
+                    cashierName = activeShift.user.name;
+                }
+            } catch (e) {
+                cashierName = activeShift?.user?.name || 'Admin';
+            }
             this.eventEmitter.emit('session.started', {
                 tableName: table.tableName,
                 customerName: customerName ?? 'Tamu',
                 tableType: 'Cafe',
+                cashierName: cashierName,
                 userName: cashierName
             });
             return {

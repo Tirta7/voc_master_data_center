@@ -9,12 +9,13 @@ import { ReceiveStockModal } from './ReceiveStockModal';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 
-export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onDelete }: {
+export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onDelete, sortByEmpty }: {
     data: Ingredient[],
     menuItems: MenuItem[],
     onUpdateStock: (id: number, quantity: number, type: 'add' | 'subtract', reason: string) => void,
     onEdit: (ing: Ingredient) => void,
-    onDelete: (id: number) => void
+    onDelete: (id: number) => void,
+    sortByEmpty?: boolean
 }) {
     const { hasPermission } = useAuth();
     const { data: suppliers } = useSWR<any[]>('/inventory/suppliers', fetcher);
@@ -61,7 +62,18 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
         'CASHIER': <Package className="w-4 h-4 text-emerald-500" />
     };
 
-    if (data.length === 0) {
+    let visibleData = data;
+    if (sortByEmpty) {
+        visibleData = [...visibleData].sort((a, b) => {
+            const aCrit = Number(a.stockQuantity) <= Number(a.minStockLevel || 0);
+            const bCrit = Number(b.stockQuantity) <= Number(b.minStockLevel || 0);
+            if (aCrit && !bCrit) return -1;
+            if (!aCrit && bCrit) return 1;
+            return 0;
+        });
+    }
+
+    if (visibleData.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-20 text-center">
                 <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-6 border border-slate-100 shadow-inner">
@@ -89,7 +101,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                        {data.map((item) => (
+                        {visibleData.map((item) => (
                             <tr key={item.id} className="group hover:bg-slate-50/80 transition-all duration-300">
                                                 <td className="px-8 py-5">
                                                     <div className="flex items-center gap-4">
@@ -252,7 +264,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
 
             {/* Mobile View - Cards Layout (Compact & Proportional) */}
             <div className="lg:hidden grid grid-cols-2 gap-3 p-3">
-                {data.map((item) => (
+                {visibleData.map((item) => (
                     <div key={item.id} className="bg-white rounded-2xl border border-slate-100 p-3 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col group transition-all">
                         <div className="flex flex-col gap-2 mb-3">
                             <div className="flex items-start justify-between gap-2">

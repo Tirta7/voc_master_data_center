@@ -1,5 +1,6 @@
-import React from 'react';
-import { ChefHat, Edit2, Trash2, ArrowRight, Power, Zap, Package, Utensils, Cookie, Wind, Filter, Database, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChefHat, Edit2, Trash2, ArrowRight, Power, Zap, Package, Utensils, Cookie, Wind, Filter, Database, AlertTriangle, Plus, Minus, Save, Info, X } from 'lucide-react';
+import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { MenuItem, Ingredient } from '../types';
 import { getConversionFactor } from '@/utils/inventoryUtils';
@@ -14,7 +15,9 @@ export function RecipesView({
     onDelete, 
     onToggleActive, 
     showInactive,
-    togglingIds
+    sortByEmpty,
+    togglingIds,
+    onUpdateStock
 }: {
     data: MenuItem[],
     ingredients: Ingredient[],
@@ -24,12 +27,59 @@ export function RecipesView({
     onDelete: (id: number) => void,
     onToggleActive: (menu: MenuItem) => void,
     showInactive?: boolean,
-    togglingIds?: Set<number>
+    sortByEmpty?: boolean,
+    togglingIds?: Set<number>,
+    onUpdateStock?: (id: number, quantity: number, type: 'add' | 'subtract', reason: string) => void
 }) {
     const { hasPermission } = useAuth();
     
+    const [showAdjModal, setShowAdjModal] = useState(false);
+    const [selectedIng, setSelectedIng] = useState<Ingredient | null>(null);
+    const [adjQty, setAdjQty] = useState('');
+    const [adjReason, setAdjReason] = useState('');
+
+    const openRestock = (ing: Ingredient) => {
+        setSelectedIng(ing);
+        setAdjQty('');
+        setAdjReason('');
+        setShowAdjModal(true);
+    };
+
+    const handleConfirmAdjustment = () => {
+        if (!selectedIng || !adjQty || !adjReason || !onUpdateStock) return;
+        onUpdateStock(selectedIng.id, Number(adjQty), 'add', adjReason);
+        setShowAdjModal(false);
+    };
+    
     // Filter data if showInactive is false
-    const visibleData = showInactive ? data : data.filter(m => m.isActive !== false);
+    let visibleData = showInactive ? data : data.filter(m => m.isActive !== false);
+
+    if (sortByEmpty) {
+        visibleData = [...visibleData].sort((a, b) => {
+            const getIsCritical = (menu: MenuItem) => {
+                if ((availability[menu.id] || 0) <= (menu.minStockLevel || 0) && (menu.recipes?.length || 0) > 0) {
+                    const criticalIngs = (menu.recipes || []).filter((re: any) => {
+                        const ing = ingredients.find(i => i.id === re.ingredientId);
+                        const currentStock = ing ? Number(ing.stockQuantity) : 0;
+                        if (currentStock < Number(re.quantity)) return true; // Empty
+                        if (ing && currentStock <= Number(ing.minStockLevel)) return true; // Critical
+                        const maxPortions = Math.floor(currentStock / Number(re.quantity));
+                        if (maxPortions <= (menu.minStockLevel || 0) && maxPortions === (availability[menu.id] || 0)) return true; // Bottleneck
+                        return false;
+                    });
+                    if (criticalIngs.length > 0) return true;
+                }
+                return false;
+            };
+
+            const aCrit = getIsCritical(a);
+            const bCrit = getIsCritical(b);
+
+            if (aCrit && !bCrit) return -1;
+            if (!aCrit && bCrit) return 1;
+            return 0;
+        });
+    }
 
     const getCategoryIcon = (name: string) => {
         const n = name?.toLowerCase() || '';
@@ -162,10 +212,51 @@ export function RecipesView({
                                                 </div>
                                                 
                                                 {menu.isActive !== false && (
-                                                    <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
-                                                        (availability[menu.id] || 0) <= (menu.minStockLevel || 0) ? 'bg-rose-600 text-white border-rose-700 animate-pulse' : 'bg-slate-900 text-white border-slate-800 shadow-sm'
-                                                    }`}>
-                                                        STK: {availability[menu.id] || 0}
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
+                                                            (availability[menu.id] || 0) <= (menu.minStockLevel || 0) ? 'bg-rose-600 text-white border-rose-700 animate-pulse' : 'bg-slate-900 text-white border-slate-800 shadow-sm'
+                                                        }`}>
+                                                            STK: {availability[menu.id] || 0}
+                                                        </div>
+                                                        {((availability[menu.id] || 0) <= (menu.minStockLevel || 0) && (menu.recipes?.length || 0) > 0) && (
+                                                            <div className="text-[8px] text-rose-500 font-bold max-w-[120px] leading-tight flex flex-col gap-0.5 mt-1">
+                                                                {(() => {
+                                                                    const criticalIngs = (menu.recipes || []).filter((re: any) => {
+                                                                        const ing = ingredients.find(i => i.id === re.ingredientId);
+                                                                        const currentStock = ing ? Number(ing.stockQuantity) : 0;
+                                                                        if (currentStock < Number(re.quantity)) return true;
+                                                                        if (ing && currentStock <= Number(ing.minStockLevel)) return true;
+                                                                        const maxPortions = Math.floor(currentStock / Number(re.quantity));
+                                                                        if (maxPortions <= (menu.minStockLevel || 0) && maxPortions === (availability[menu.id] || 0)) return true;
+                                                                        return false;
+                                                                    });
+                                                                    
+                                                                    if (criticalIngs.length === 0) return null;
+                                                                    
+                                                                    return (
+                                                                        <>
+                                                                            <span className="opacity-80">{(availability[menu.id] || 0) <= 0 ? 'Kosong:' : 'Kritis:'}</span>
+                                                                            {criticalIngs.map((re: any, idx: number) => {
+                                                                                const ing = ingredients.find(i => i.id === re.ingredientId);
+                                                                                return (
+                                                                                    <button 
+                                                                                        key={idx}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            if (ing) openRestock(ing);
+                                                                                        }}
+                                                                                        className="text-left text-rose-600 hover:text-rose-800 hover:underline hover:bg-rose-50 px-1 py-0.5 rounded transition-colors whitespace-normal break-words"
+                                                                                        title={`Restock ${ing?.name || 'Bahan'}`}
+                                                                                    >
+                                                                                        - {ing?.name || 'Bahan'}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -311,6 +402,78 @@ export function RecipesView({
                     );
                 })}
             </div>
+
+            {/* Restock Modal inline */}
+            {showAdjModal && selectedIng && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 sm:p-6 pb-24">
+                    <div className="absolute inset-0 bg-slate-900/60 animate-in fade-in" onClick={() => setShowAdjModal(false)} />
+                    <div className="relative bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom-12 duration-500">
+                        <div className="p-10 pb-6 text-center">
+                            <div className="w-24 h-24 mx-auto mb-8 rounded-[2rem] flex items-center justify-center shadow-2xl bg-emerald-50 text-emerald-600 shadow-emerald-100">
+                                <Plus className="w-10 h-10" />
+                            </div>
+                            
+                            <h3 className="text-3xl font-black text-slate-900 uppercase leading-none mb-3 tracking-tighter">Penyesuaian Stok</h3>
+                            <div className="flex items-center justify-center gap-2 mb-10">
+                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Produk:</span>
+                                <span className="text-sm font-black text-slate-600 uppercase tracking-tight">{selectedIng.name}</span>
+                            </div>
+
+                            <div className="space-y-6 text-left capitalize">
+                                <InputField
+                                    label={`Jumlah Tambahan (${selectedIng.unit})`}
+                                    type="number"
+                                    value={adjQty}
+                                    onChange={setAdjQty}
+                                    placeholder="Masukkan kuantitas..."
+                                    required
+                                    autoFocus
+                                    step="any"
+                                    className="premium-input-xl"
+                                />
+
+                                <InputField
+                                    label="Alasan Perubahan"
+                                    type="textarea"
+                                    value={adjReason}
+                                    onChange={setAdjReason}
+                                    placeholder="Berikan alasan perubahan stok (misal: Barang baru masuk)"
+                                    required
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div className="mt-8 bg-indigo-50/50 p-5 rounded-[1.5rem] flex items-start gap-4 border border-indigo-100/50">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-100">
+                                    <Info className="w-4 h-4" />
+                                </div>
+                                <p className="text-[10px] leading-relaxed text-indigo-700 font-bold uppercase tracking-tight text-left">
+                                    Catatan: Setiap perubahan stok akan direkam secara permanen dalam audit log sistem.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-10 pt-4 flex gap-4">
+                            <button
+                                onClick={() => setShowAdjModal(false)}
+                                className="flex-1 py-5 rounded-[1.5rem] font-black text-slate-400 bg-slate-50 hover:bg-slate-100 transition-all active:scale-95 uppercase tracking-[0.2em] text-xs"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleConfirmAdjustment}
+                                disabled={!adjQty || !adjReason}
+                                className="flex-[2] py-5 rounded-[1.5rem] font-black text-white shadow-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-[0.2em] text-xs bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
+                            >
+                                <div className="flex items-center justify-center gap-3">
+                                    <Save className="w-4 h-4" />
+                                    KONFIRMASI
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

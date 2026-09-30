@@ -279,55 +279,71 @@ export default function WaitingListPage() {
                             </div>
 
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {tables
-                                    .sort((a, b) => a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' }))
-                                    .map((table) => {
-                                        const isAvailable = table.status === 'available';
-                                        const isWaitingPayment = table.status === 'waiting_payment';
-                                        const isWarning = table.status === 'warning';
-                                        const isVip = table.category?.toUpperCase().includes('VIP');
-                                        const isCafe = table.category?.toUpperCase() === 'CAFE';
+                                {(() => {
+                                    const activeTables = tables.filter(t => t.status !== 'available' && typeof t.remainingMinutes === 'number' && t.remainingMinutes > 0);
+                                    const soonestTable = activeTables.length > 0 
+                                        ? activeTables.reduce((prev, curr) => (curr.remainingMinutes < prev.remainingMinutes ? curr : prev)) 
+                                        : null;
 
-                                        return (
-                                            <div
-                                                key={table.id}
-                                                className={`p-4 rounded-xl border transition-all hover:bg-slate-50 hover:shadow-md ${isAvailable
-                                                    ? isVip ? 'bg-amber-50/20 border-amber-100 shadow-sm' : isCafe ? 'bg-rose-50/20 border-rose-100 shadow-sm' : 'bg-white border-slate-200 shadow-sm'
-                                                    : 'bg-slate-50 border-slate-200 opacity-80'
-                                                    }`}
-                                            >
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div className={`p-2 rounded-lg ${isAvailable ? 'bg-emerald-50 text-emerald-500' : 'bg-slate-100 text-slate-400'}`}>
-                                                        {table.category === 'VIP' ? <Star className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
-                                                    </div>
-                                                    {isAvailable ? (
-                                                        <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 tracking-wider">READY</span>
-                                                    ) : (
-                                                        <span className="text-[10px] font-bold text-slate-500 tabular-nums">{table.remainingMinutes || 0}m</span>
-                                                    )}
-                                                </div>
+                                    return tables
+                                        .sort((a, b) => a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' }))
+                                        .map((table) => {
+                                            const isAvailable = table.status === 'available';
+                                            const isWaitingPayment = table.status === 'waiting_payment';
+                                            const isWarning = table.status === 'warning';
+                                            const isVip = table.category?.toUpperCase().includes('VIP');
+                                            const isCafe = table.category?.toUpperCase() === 'CAFE';
+                                            const isSoonest = soonestTable && table.id === soonestTable.id;
 
-                                                <div className="space-y-0.5">
-                                                    <h4 className="text-sm font-bold text-slate-900 truncate">{table.tableName}</h4>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{table.category}</p>
-                                                </div>
-
-                                                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                                                    <p className="text-[10px] font-medium text-slate-500 truncate max-w-[100px]">
-                                                        {isAvailable ? 'Available' : (table.activeTransaction?.customerName || 'In Use')}
-                                                    </p>
-                                                    {!isAvailable && (
-                                                        <div className="w-8 h-1 bg-slate-200 rounded-full overflow-hidden">
-                                                            <div
-                                                                className={`h-full bg-slate-900 opacity-20`}
-                                                                style={{ width: `${Math.max(10, 100 - (table.remainingMinutes || 0))}%` }}
-                                                            />
+                                            return (
+                                                <div
+                                                    key={table.id}
+                                                    className={`relative p-4 rounded-xl border transition-all hover:bg-slate-50 hover:shadow-md ${isAvailable
+                                                        ? isVip ? 'bg-amber-50/20 border-amber-100 shadow-sm' : isCafe ? 'bg-rose-50/20 border-rose-100 shadow-sm' : 'bg-white border-slate-200 shadow-sm'
+                                                        : isSoonest ? 'bg-indigo-50/10 border-indigo-400 shadow-md shadow-indigo-100 ring-1 ring-indigo-400/20' : 'bg-slate-50 border-slate-200 opacity-80'
+                                                        }`}
+                                                >
+                                                    {isSoonest && (
+                                                        <div className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-lg shadow-indigo-200 animate-pulse flex items-center gap-1 z-10">
+                                                            <Clock className="w-2 h-2" /> Next
                                                         </div>
                                                     )}
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className={`p-2 rounded-lg ${isAvailable ? 'bg-emerald-50 text-emerald-500' : isSoonest ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                            {table.category === 'VIP' ? <Star className="w-3.5 h-3.5" /> : <Monitor className="w-3.5 h-3.5" />}
+                                                        </div>
+                                                        {isAvailable ? (
+                                                            <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 tracking-wider">READY</span>
+                                                        ) : (
+                                                            <div className="flex flex-col items-end gap-0.5">
+                                                                <span className={`text-[10px] font-black tabular-nums ${isSoonest ? 'text-indigo-600' : 'text-slate-500'}`}>{table.remainingMinutes || 0}m</span>
+                                                                {isSoonest && <span className="text-[6px] font-bold text-indigo-400 uppercase tracking-widest leading-none">Segera</span>}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="space-y-0.5">
+                                                        <h4 className={`text-sm font-black truncate ${isSoonest ? 'text-indigo-950' : 'text-slate-900'}`}>{table.tableName}</h4>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{table.category}</p>
+                                                    </div>
+
+                                                    <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                                                        <p className="text-[10px] font-medium text-slate-500 truncate max-w-[100px]">
+                                                            {isAvailable ? 'Available' : (table.activeTransaction?.customerName || 'In Use')}
+                                                        </p>
+                                                        {!isAvailable && (
+                                                            <div className="w-8 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className={`h-full opacity-20 ${isSoonest ? 'bg-indigo-600 opacity-100 animate-pulse' : 'bg-slate-900'}`}
+                                                                    style={{ width: `${Math.max(10, 100 - (table.remainingMinutes || 0))}%` }}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        });
+                                })()}
                             </div>
                         </div>
                     ) : (

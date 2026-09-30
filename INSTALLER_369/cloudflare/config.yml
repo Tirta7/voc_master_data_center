@@ -1,0 +1,11 @@
+tunnel: 95882425-6835-4d1f-9cbc-429342b3ede0
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: 369.vocbilliard.online
+    service: http://voc_frontend:3000
+  - hostname: api-369.vocbilliard.online
+    service: http://voc_backend:4000
+  - hostname: mqtt-369.vocbilliard.online
+    service: http://voc_mosquitto:8083
+  - service: http_status:404

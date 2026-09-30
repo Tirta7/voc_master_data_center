@@ -112,6 +112,7 @@ function InventoryContent() {
     const isLoading = loadingIngredients || loadingMenu;
     const [searchTerm, setSearchTerm] = useState('');
     const [showInactive, setShowInactive] = useState(false);
+    const [sortByEmpty, setSortByEmpty] = useState(false);
     const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
     const [categoryTogglingIds, setCategoryTogglingIds] = useState<Set<number>>(new Set());
     const [filterMandatoryOnly, setFilterMandatoryOnly] = useState(false);
@@ -730,7 +731,7 @@ function InventoryContent() {
                     }).join(', ');
                     return [
                         m.name, m.sku, catName, Number(m.price), m.department || 'KITCHEN',
-                        m.isMandatoryReporting ? 'Y' : 'N', m.isHighValue ? 'Y' : 'N', Number(m.yieldPercentage || 100),
+                        m.isMandatoryReporting ? 'Y' : 'N', m.isHighValue ? 'Y' : 'N', Number((m as any).yieldPercentage || 100),
                         recipeStr
                     ];
                 })
@@ -1143,6 +1144,20 @@ function InventoryContent() {
                                          </button>
                                      </div>
                                  )}
+
+                                 {/* Sort Kritis Toggle for Recipes and Stock */}
+                                 {(activeTab === 'recipes' || activeTab === 'stock') && (
+                                     <div className="flex items-center gap-2 bg-rose-50/60 px-3 py-2 rounded-xl border border-rose-100/60">
+                                         <AlertTriangle className={`w-3 h-3 ${sortByEmpty ? 'text-rose-500 animate-pulse' : 'text-slate-300'}`} />
+                                         <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${sortByEmpty ? 'text-rose-600' : 'text-slate-500'}`}>Sort Kritis</span>
+                                         <button 
+                                             onClick={() => setSortByEmpty(!sortByEmpty)}
+                                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-all focus:outline-none ${sortByEmpty ? 'bg-rose-500' : 'bg-slate-200'}`}
+                                         >
+                                             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${sortByEmpty ? 'translate-x-4' : 'translate-x-1'}`} />
+                                         </button>
+                                     </div>
+                                 )}
                              </div>
                          )}
                      </div>
@@ -1177,6 +1192,7 @@ function InventoryContent() {
                                         onUpdateStock={updateStock}
                                         onEdit={openEditModal}
                                         onDelete={handleDeleteIngredient}
+                                        sortByEmpty={sortByEmpty}
                                     />
                                 ) : activeTab === 'recipes' ? (
                                     <RecipesView
@@ -1188,7 +1204,9 @@ function InventoryContent() {
                                         onDelete={handleDeleteMenu}
                                         onToggleActive={handleToggleMenuItemActive}
                                         showInactive={showInactive}
+                                        sortByEmpty={sortByEmpty}
                                         togglingIds={togglingIds}
+                                        onUpdateStock={updateStock}
                                     />
                                 ) : activeTab === 'categories' ? (
                                     <CategoriesView

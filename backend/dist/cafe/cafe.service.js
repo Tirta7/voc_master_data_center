@@ -1079,6 +1079,12 @@ let CafeService = class CafeService {
             }
             // Determine station (use persisted station first, fallback to calculation)
             const station = item.station || this.getStation(item.menuItem);
+            // 🛡️ CRITICAL FIX: Skip CANCELLED items entirely — they should NOT appear on KDS.
+            // Items with DONE status are kept for cross-station visibility (kitchen can see what's been served),
+            // but CANCELLED items (deleted orders) must never be shown to kitchen staff.
+            if (item.status === _orderitementity.OrderItemStatus.CANCELLED) {
+                return acc;
+            }
             acc[key].items.push({
                 id: item.id,
                 name: item.menuItem?.name || item.customName || 'Unknown Item',
@@ -1091,7 +1097,17 @@ let CafeService = class CafeService {
             return acc;
         }, {});
         // Process into KDS/BDS ready format
-        const orders = Object.values(grouped).map((order)=>{
+        const orders = Object.values(grouped).filter((order)=>{
+            // 🛡️ Guard: Jangan tampilkan order yang tidak punya items aktif untuk KDS/BDS.
+            // Ini terjadi ketika semua items di-CANCELLED setelah filter di atas.
+            return (order.items || []).some((i)=>[
+                    'KDS',
+                    'BDS'
+                ].includes(i.station?.toUpperCase()) && ![
+                    'DONE',
+                    'CANCELLED'
+                ].includes(i.status?.toUpperCase() || ''));
+        }).map((order)=>{
             // determine aggregate status
             const hasCooking = order.items.some((i)=>i.status === _orderitementity.OrderItemStatus.PROCESSING || i.status === _orderitementity.OrderItemStatus.CANCEL_REQUESTED || i.status === _orderitementity.OrderItemStatus.CANCEL_REJECTED);
             order.status = hasCooking ? 'COOKING' : 'PENDING';
@@ -1409,8 +1425,6 @@ let CafeService = class CafeService {
             await this.transactionService.updateTotals(item.transactionId);
             await this.broadcastTableUpdateByTransactionId(item.transactionId);
         }
-        // Log the request
-        await this.reportService.logAction('CANCEL_REQUEST', user, `${item.menuItem?.name || 'Unknown'} x${item.quantity} — Reason: ${reason}`, item.transaction?.tableId ?? undefined);
     }
     /**
    * Confirm a cancellation from the kitchen/bar
