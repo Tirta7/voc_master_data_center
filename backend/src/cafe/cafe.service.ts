@@ -1710,15 +1710,8 @@ export class CafeService {
       await this.transactionService.updateTotals(item.transactionId);
       await this.broadcastTableUpdateByTransactionId(item.transactionId);
     }
-
-    // Log the request
-    await this.reportService.logAction(
-      'CANCEL_REQUEST',
-      user,
-      `${item.menuItem?.name || 'Unknown'} x${item.quantity} — Reason: ${reason}`,
-      item.transaction?.tableId ?? undefined,
-    );
   }
+
 
   /**
    * Confirm a cancellation from the kitchen/bar
