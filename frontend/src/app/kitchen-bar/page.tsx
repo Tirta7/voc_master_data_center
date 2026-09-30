@@ -3,20 +3,23 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { kdsSocket } from '@/lib/socket';
+import { kdsSocket, socket } from '@/lib/socket';
+import ChatWindow from '@/components/ChatWindow';
 import {
     Terminal, Clock, ChefHat, Bell, CheckCircle, RotateCcw, X, Volume2, Box, Menu,
-    ChevronLeft, ChevronRight, LayoutGrid, Search, RotateCw, Ban, AlertCircle, ClipboardCheck
+    ChevronLeft, ChevronRight, LayoutGrid, Search, RotateCw, Ban, AlertCircle, ClipboardCheck, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useLanguage } from '@/context/LanguageContext';
+import { useToast } from '@/components/ui/ToastProvider';
 
 export default function KitchenBarUnifiedPage() {
     const { user } = useAuth();
     const router = useRouter();
     const { showConfirm, showAlert } = useAlert();
+    const { showToast } = useToast();
     const { t } = useLanguage();
     const [orders, setOrders] = useState<any[]>([]);
     const ordersRef = useRef<any[]>([]);
@@ -61,6 +64,32 @@ export default function KitchenBarUnifiedPage() {
     const seenItemIdsRef = useRef<Set<number>>(new Set());
     // Periodic sync interval ref
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Chat State
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+    // Chat Event Listener
+    useEffect(() => {
+        const handleChat = (msg: any) => {
+            if (!isChatOpen && msg.senderId !== user?.id) {
+                setUnreadChatCount(prev => prev + 1);
+                showToast('Pesan Chat Baru', `Pesan dari ${msg.senderName || 'Admin'}`, 'info');
+                if (audioEnabledRef.current) {
+                    const text = `Ada pesan chat masuk dari ${msg.senderName || 'Admin'}`;
+                    if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.speakText === 'function') {
+                        (window as any).AndroidBridge.speakText(text, false);
+                    } else if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = 'id-ID';
+                        window.speechSynthesis.speak(utterance);
+                    }
+                }
+            }
+        };
+        socket.on('receive_chat', handleChat);
+        return () => { socket.off('receive_chat', handleChat); };
+    }, [isChatOpen, user?.id, showToast]);
 
     // Clock Interval
     useEffect(() => {
@@ -940,6 +969,14 @@ export default function KitchenBarUnifiedPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Chat btn */}
+                    <button onClick={() => { setIsChatOpen(!isChatOpen); setUnreadChatCount(0); }}
+                        className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-90"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: ios.label2 }}>
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Chat
+                        {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-slate-900 animate-pulse" />}
+                    </button>
                     {/* Audio btn */}
                     <button onClick={() => playVocalAlert("Tes Audio Kitchen", false)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-90"
@@ -1298,6 +1335,17 @@ export default function KitchenBarUnifiedPage() {
                     </React.Fragment>
                 ))}
             </div>
+
+            {isChatOpen && (
+                <div className="fixed bottom-16 right-4 z-[200]">
+                    <ChatWindow 
+                        receiverId={0}
+                        receiverName="Group Chat Management"
+                        onClose={() => setIsChatOpen(false)}
+                        socket={socket}
+                    />
+                </div>
+            )}
         </div>
     );
 }
