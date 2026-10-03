@@ -1290,6 +1290,41 @@ let ShiftService = class ShiftService {
         });
     }
     /**
+   * Daftar penggunaan paket untuk SATU transaksi (dipakai laporan 'Popular Packages' & performa waiter).
+   * - Sesi OPEN TABLE dihitung 1x per transaksi (bukan per segmen tarif jam).
+   * - Sesi prepaid dihitung per baris billingDetails (perpanjangan ikut terhitung).
+   */ getPackageUsage(tx) {
+        const billiard = Number(tx.billiardTotal || 0);
+        if (tx.sessionType === 'open') {
+            return billiard > 0 ? [
+                {
+                    name: tx.fareName || 'Open Table',
+                    count: 1,
+                    revenue: billiard
+                }
+            ] : [];
+        }
+        const out = [];
+        if (Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0) {
+            for (const d of tx.billingDetails){
+                if (Number(d?.subtotal || 0) > 0) {
+                    out.push({
+                        name: d.fareName || tx.fareName || 'Package',
+                        count: 1,
+                        revenue: Number(d.subtotal)
+                    });
+                }
+            }
+        } else if (tx.fareName) {
+            out.push({
+                name: tx.fareName,
+                count: 1,
+                revenue: billiard
+            });
+        }
+        return out;
+    }
+    /**
    * Mendapatkan rekapitulasi untuk Business Day tertentu
    */ async getBusinessDayReport(businessDayId) {
         // ── CACHE: Business Day Report (TTL 30s) ───────────────────────
@@ -1515,69 +1550,19 @@ let ShiftService = class ShiftService {
                         };
                     }
                     const w = sWaiterPerformance[waiterId];
-                    if (tx.status === 'PAID' || Number(tx.paidAmount) >= Number(tx.grandTotal)) {
-                        // Package performance from billingDetails (handles extensions)
-                        if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
-                            tx.billingDetails.forEach((d)=>{
-                                if (d.title && !d.title.includes('Open Table') && !d.title.includes('Base Session')) {
-                                    const pName = d.title;
-                                    if (!sPackageCounts[pName]) {
-                                        sPackageCounts[pName] = {
-                                            name: pName,
-                                            count: 0,
-                                            revenue: 0
-                                        };
-                                    }
-                                    sPackageCounts[pName].count++;
-                                    sPackageCounts[pName].revenue += Number(d.subtotal || 0);
-                                    if (!w.packageCounts[pName]) {
-                                        w.packageCounts[pName] = {
-                                            name: pName,
-                                            count: 0
-                                        };
-                                    }
-                                    w.packageCounts[pName].count++;
-                                }
-                            });
-                        }
-                        // Table Performance tracking (Billiard/PS)
-                        if (tx.tableId && tx.table) {
-                            const tName = tx.table.tableName;
-                            if (!sTablePerformance[tName]) {
-                                sTablePerformance[tName] = {
-                                    name: tName,
-                                    sessions: 0,
-                                    revenue: 0
-                                };
-                            }
-                            sTablePerformance[tName].sessions++;
-                            sTablePerformance[tName].revenue += Number(tx.billiardTotal || 0);
-                        }
-                    }
-                    ;
+                    // NOTE: Popular Packages & Table Performance dihitung SATU kali di bagian bawah
+                    // (setelah blok pembayaran). Dulu dihitung juga di sini sehingga setiap sesi dobel.
                     w.billiardRevenue += Number(tx.billiardTotal || 0);
                     w.cafeRevenue += Number(tx.cafeTotal || 0);
                     w.revenue += Number(tx.billiardTotal || 0) + Number(tx.cafeTotal || 0);
-                    // Package performance from billingDetails (handles extensions)
-                    if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
-                        tx.billingDetails.forEach((detail)=>{
-                            if (detail.subtotal > 0) {
-                                const pkg = detail.fareName || tx.fareName || 'Unknown Package';
-                                if (!w.packageCounts[pkg]) w.packageCounts[pkg] = {
-                                    name: pkg,
-                                    count: 0
-                                };
-                                w.packageCounts[pkg].count++;
-                            }
-                        });
-                    } else if (tx.fareName) {
-                        const pkg = tx.fareName;
-                        if (!w.packageCounts[pkg]) w.packageCounts[pkg] = {
-                            name: pkg,
+                    // Package performance (Open Table = 1x per transaksi; prepaid per baris incl. perpanjangan)
+                    this.getPackageUsage(tx).forEach((u)=>{
+                        if (!w.packageCounts[u.name]) w.packageCounts[u.name] = {
+                            name: u.name,
                             count: 0
                         };
-                        w.packageCounts[pkg].count++;
-                    }
+                        w.packageCounts[u.name].count += u.count;
+                    });
                     if (tx.orderItems && Array.isArray(tx.orderItems)) {
                         tx.orderItems.forEach((oi)=>{
                             if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
@@ -1643,47 +1628,34 @@ let ShiftService = class ShiftService {
                     }
                     sCafeSales += Number(tx.cafeTotal || 0);
                     sRounding += Number(tx.roundingAmount || 0);
-                    // Table performance (using joined table or cafeTable)
-                    const tbl = tx.table || tx.cafeTable;
-                    if (tbl) {
-                        const tId = tbl.id.toString();
-                        if (!sTablePerformance[tId]) {
-                            sTablePerformance[tId] = {
-                                name: tbl.tableName,
+                    // Table performance: HANYA meja billiard/PS (bukan meja cafe), dikunci per ID meja,
+                    // dan hanya transaksi yang sudah terbayar/hutang/parsial.
+                    const isCountedTx = tx.status === _transactionentity.TransactionStatus.PAID || tx.status === _transactionentity.TransactionStatus.DEBT || tx.status === _transactionentity.TransactionStatus.PARTIAL;
+                    if (isCountedTx && tx.table) {
+                        const tKey = `table-${tx.table.id}`;
+                        if (!sTablePerformance[tKey]) {
+                            sTablePerformance[tKey] = {
+                                name: tx.table.tableName,
                                 sessions: 0,
                                 revenue: 0
                             };
                         }
-                        sTablePerformance[tId].sessions += 1;
-                        sTablePerformance[tId].revenue += Number(tx.billiardTotal || 0);
+                        sTablePerformance[tKey].sessions += 1;
+                        sTablePerformance[tKey].revenue += Number(tx.billiardTotal || 0);
                     }
-                    // Package performance (using billingDetails to catch extensions)
-                    if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
-                        tx.billingDetails.forEach((detail)=>{
-                            if (detail.subtotal > 0) {
-                                const pkgName = detail.fareName || tx.fareName || 'Package';
-                                if (!sPackageCounts[pkgName]) {
-                                    sPackageCounts[pkgName] = {
-                                        name: pkgName,
-                                        count: 0,
-                                        revenue: 0
-                                    };
-                                }
-                                sPackageCounts[pkgName].count += 1;
-                                sPackageCounts[pkgName].revenue += Number(detail.subtotal || 0);
+                    // Package performance (Open Table = 1x per transaksi; prepaid per baris incl. perpanjangan)
+                    if (isCountedTx) {
+                        this.getPackageUsage(tx).forEach((u)=>{
+                            if (!sPackageCounts[u.name]) {
+                                sPackageCounts[u.name] = {
+                                    name: u.name,
+                                    count: 0,
+                                    revenue: 0
+                                };
                             }
+                            sPackageCounts[u.name].count += u.count;
+                            sPackageCounts[u.name].revenue += u.revenue;
                         });
-                    } else if (tx.fareName) {
-                        const pkgName = tx.fareName;
-                        if (!sPackageCounts[pkgName]) {
-                            sPackageCounts[pkgName] = {
-                                name: pkgName,
-                                count: 0,
-                                revenue: 0
-                            };
-                        }
-                        sPackageCounts[pkgName].count += 1;
-                        sPackageCounts[pkgName].revenue += Number(tx.billiardTotal || 0);
                     }
                 }
                 if (tx.orderItems && Array.isArray(tx.orderItems)) {
