@@ -135,6 +135,22 @@ let BilliardService = class BilliardService {
         return days[day];
     }
     /**
+   * 🛡️ Validasi server-side bahwa paket boleh dipakai SAAT INI.
+   * Frontend sudah memfilter, tapi backend wajib menolak request langsung
+   * (atau cache UI yang basi) agar tidak terjadi salah tarif.
+   */ assertPackageUsableToday(pkg, currentDayCode) {
+        if (!pkg) {
+            throw new _common.NotFoundException('Paket tidak ditemukan atau sudah dihapus. Silakan muat ulang halaman.');
+        }
+        if (pkg.isActive === false) {
+            throw new _common.BadRequestException(`Paket "${pkg.name}" sedang tidak aktif.`);
+        }
+        const days = Array.isArray(pkg.validDays) ? pkg.validDays.map((d)=>String(d).trim().toUpperCase()).filter(Boolean) : [];
+        if (days.length > 0 && !days.includes(currentDayCode)) {
+            throw new _common.BadRequestException(`Paket "${pkg.name}" tidak berlaku untuk hari ini (${currentDayCode}). Berlaku: ${days.join(', ')}.`);
+        }
+    }
+    /**
    * Normalizes MAC address by removing colons, dashes and converting to uppercase.
    */ normalizeMac(mac) {
         if (!mac) return '';
@@ -1492,6 +1508,10 @@ let BilliardService = class BilliardService {
                         id: packageId
                     }
                 });
+                {
+                    const settingsForPkg = await this.settingsService.getSettings();
+                    this.assertPackageUsableToday(selectedPackage, this.getBusinessDayCode(settingsForPkg?.businessDayOffset));
+                }
                 if (selectedPackage) {
                     if (selectedPackage.type === _billiardpackageentity.PackageType.FIXED || selectedPackage.type === _billiardpackageentity.PackageType.DURATION || selectedPackage.type === _billiardpackageentity.PackageType.PLAYTIME) {
                         durationMinutes = Number(selectedPackage.durationMinutes);
@@ -1547,7 +1567,9 @@ let BilliardService = class BilliardService {
                 sessionPrice = Number(selectedPromo.ruleJson.fixedPrice) || 0;
             } else if (selectedPackage) {
                 fareName = selectedPackage.name;
-                const activeRate = this.transactionService.calculateCurrentPackagePrice(selectedPackage);
+                const globalSettings = await this.settingsService.getSettings();
+                const currentDayCode = this.getBusinessDayCode(globalSettings?.businessDayOffset);
+                const activeRate = this.transactionService.calculateCurrentPackagePrice(selectedPackage, currentDayCode);
                 sessionPrice = selectedPackage.type === _billiardpackageentity.PackageType.FIXED ? activeRate : durationMinutes / 60 * activeRate;
             } else if (type === 'prepaid' && durationMinutes) {
                 const globalSettings = await this.settingsService.getSettings();
@@ -1932,7 +1954,8 @@ let BilliardService = class BilliardService {
                             minutePrice: 50000 / 60
                         };
                     }
-                    const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, new Date(), pkg);
+                    const offsetSettings = await this.settingsService.getSettings();
+                    const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, new Date(), pkg, offsetSettings?.businessDayOffset || '04:00');
                     billiardCost = pricing.total;
                     billingDetails = pricing.details;
                 } else if (table.sessionType === 'prepaid') {
@@ -2782,9 +2805,12 @@ let BilliardService = class BilliardService {
                         id: packageId
                     }
                 });
+                const globalSettings = await this.settingsService.getSettings();
+                const currentDayCode = this.getBusinessDayCode(globalSettings?.businessDayOffset);
+                this.assertPackageUsableToday(pkg, currentDayCode);
                 if (pkg) {
-                    extensionMinutes = pkg.durationMinutes;
-                    extensionPrice = this.transactionService.calculateCurrentPackagePrice(pkg);
+                    extensionMinutes = Number(pkg.durationMinutes) || 0;
+                    extensionPrice = this.transactionService.calculateCurrentPackagePrice(pkg, currentDayCode);
                     table.packageId = packageId;
                 }
             } else if (durationMinutes) {

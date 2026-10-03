@@ -359,7 +359,13 @@ let CafeTableService = class CafeTableService {
             await queryRunner.manager.save(cafeTable);
             // 4. Update source tx status
             await queryRunner.manager.update(_transactionentity.Transaction, cafeTxId, {
-                status: _transactionentity.TransactionStatus.CANCELLED
+                status: _transactionentity.TransactionStatus.CANCELLED,
+                remarks: 'MOVED CAFE TO BILLIARD TABLE',
+                cafeTotal: 0,
+                serviceChargeAmount: 0,
+                vatAmount: 0,
+                roundingAmount: 0,
+                grandTotal: 0
             });
             await queryRunner.commitTransaction();
             // 5. Success broadcast (outside tx)

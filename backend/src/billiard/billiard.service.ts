@@ -144,6 +144,31 @@ export class BilliardService implements OnModuleInit {
   }
 
   /**
+   * 🛡️ Validasi server-side bahwa paket boleh dipakai SAAT INI.
+   * Frontend sudah memfilter, tapi backend wajib menolak request langsung
+   * (atau cache UI yang basi) agar tidak terjadi salah tarif.
+   */
+  private assertPackageUsableToday(
+    pkg: BilliardPackage | null,
+    currentDayCode: string,
+  ): asserts pkg is BilliardPackage {
+    if (!pkg) {
+      throw new NotFoundException('Paket tidak ditemukan atau sudah dihapus. Silakan muat ulang halaman.');
+    }
+    if (pkg.isActive === false) {
+      throw new BadRequestException(`Paket "${pkg.name}" sedang tidak aktif.`);
+    }
+    const days = Array.isArray(pkg.validDays)
+      ? pkg.validDays.map((d) => String(d).trim().toUpperCase()).filter(Boolean)
+      : [];
+    if (days.length > 0 && !days.includes(currentDayCode)) {
+      throw new BadRequestException(
+        `Paket "${pkg.name}" tidak berlaku untuk hari ini (${currentDayCode}). Berlaku: ${days.join(', ')}.`,
+      );
+    }
+  }
+
+  /**
    * Normalizes MAC address by removing colons, dashes and converting to uppercase.
    */
   private normalizeMac(mac: string | null | undefined): string {
@@ -1657,6 +1682,13 @@ export class BilliardService implements OnModuleInit {
         selectedPackage = await this.packageRepository.findOne({
           where: { id: packageId },
         });
+        {
+          const settingsForPkg = await this.settingsService.getSettings();
+          this.assertPackageUsableToday(
+            selectedPackage,
+            this.getBusinessDayCode(settingsForPkg?.businessDayOffset),
+          );
+        }
         if (selectedPackage) {
           if (
             selectedPackage.type === PackageType.FIXED ||
@@ -1737,8 +1769,10 @@ export class BilliardService implements OnModuleInit {
         sessionPrice = Number(selectedPromo.ruleJson.fixedPrice) || 0;
       } else if (selectedPackage) {
         fareName = selectedPackage.name;
+        const globalSettings = await this.settingsService.getSettings();
+        const currentDayCode = this.getBusinessDayCode(globalSettings?.businessDayOffset);
         const activeRate =
-          this.transactionService.calculateCurrentPackagePrice(selectedPackage);
+          this.transactionService.calculateCurrentPackagePrice(selectedPackage, currentDayCode);
         sessionPrice =
           selectedPackage.type === PackageType.FIXED
             ? activeRate
@@ -2250,10 +2284,12 @@ export class BilliardService implements OnModuleInit {
             if (!pkg) pkg = { minutePrice: 50000 / 60 };
           }
 
+          const offsetSettings = await this.settingsService.getSettings();
           const pricing = this.transactionService.calculateTimeBasedPrice(
             table.startTime,
             new Date(),
             pkg,
+            offsetSettings?.businessDayOffset || '04:00',
           );
           billiardCost = pricing.total;
           billingDetails = pricing.details;
@@ -3411,10 +3447,13 @@ export class BilliardService implements OnModuleInit {
         const pkg = await this.packageRepository.findOne({
           where: { id: packageId },
         });
+        const globalSettings = await this.settingsService.getSettings();
+        const currentDayCode = this.getBusinessDayCode(globalSettings?.businessDayOffset);
+        this.assertPackageUsableToday(pkg, currentDayCode);
         if (pkg) {
-          extensionMinutes = pkg.durationMinutes;
+          extensionMinutes = Number(pkg.durationMinutes) || 0;
           extensionPrice =
-            this.transactionService.calculateCurrentPackagePrice(pkg);
+            this.transactionService.calculateCurrentPackagePrice(pkg, currentDayCode);
           table.packageId = packageId;
         }
       } else if (durationMinutes) {

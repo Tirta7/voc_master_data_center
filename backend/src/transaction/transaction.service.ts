@@ -295,7 +295,7 @@ export class TransactionService {
 
     await Promise.all(
       activeTransactions.map(async (transaction) => {
-        await this.calculateBilliardTransient(transaction, packageMap);
+        await this.calculateBilliardTransient(transaction, packageMap, settings?.businessDayOffset);
         await this.calculateTransientTotals(
           transaction,
           settings,
@@ -1029,9 +1029,19 @@ export class TransactionService {
     }
   }
 
-  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string): number {
+  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string, businessDayOffset: string = '04:00'): number {
+    if (!pkg) return 0;
     const now = new Date();
     const timeVal = now.getHours() * 60 + now.getMinutes();
+
+    // 🛡️ SAFETY NET: Jangan pernah mengabaikan hari. Jika caller lupa mengirim
+    // currentDayCode, hitung sendiri berdasarkan business day offset.
+    // (Bug lama: tanpa day code, slot weekday 50k bisa terpakai di weekend 60k)
+    if (!currentDayCode) {
+      const [oh, om] = (businessDayOffset || '04:00').split(':').map(Number);
+      const shifted = new Date(now.getTime() - ((oh || 0) * 60 + (om || 0)) * 60000);
+      currentDayCode = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][shifted.getDay()];
+    }
 
     let activePrice = Number(pkg.price || 0);
     const slots = Array.isArray(pkg.timeSlots) ? pkg.timeSlots : [];
@@ -1042,7 +1052,7 @@ export class TransactionService {
         if (!slot?.start || !slot?.end) continue;
         
         // Cek validDays jika tersedia
-        if (currentDayCode && Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+        if (Array.isArray(slot.validDays) && slot.validDays.length > 0) {
           if (!slot.validDays.includes(currentDayCode)) continue;
         }
         const [sH, sM] = slot.start.split(':').map(Number);
@@ -1070,11 +1080,14 @@ export class TransactionService {
         }
       }
 
-      // Fallback: If no match and activePrice is 0, use first slot price or a default
+      // Fallback: If no match and activePrice is 0, use first slot VALID FOR TODAY (or first slot)
       if (!matchedAny && activePrice === 0) {
-        activePrice = Number(pkg.timeSlots[0]?.price || 0);
-        const discPct = Number(pkg.timeSlots[0]?.discountPercentage || 0);
-        const discNom = Number(pkg.timeSlots[0]?.discountNominal || 0);
+        const fallbackSlot =
+          slots.find((s: any) => !Array.isArray(s?.validDays) || s.validDays.length === 0 || s.validDays.includes(currentDayCode)) ||
+          slots[0];
+        activePrice = Number(fallbackSlot?.price || 0);
+        const discPct = Number(fallbackSlot?.discountPercentage || 0);
+        const discNom = Number(fallbackSlot?.discountNominal || 0);
         if (discPct > 0) activePrice -= (activePrice * discPct / 100);
         else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
       }
@@ -1109,9 +1122,11 @@ export class TransactionService {
     const end = new Date(endTime);
     let total = 0;
     const details: any[] = [];
+    if (!pkg) pkg = { minutePrice: 50000 / 60 };
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return { total: 0, details: [] };
 
     // 1. Handle packages with no slots (Simple Flat Rate)
-    if (!pkg.timeSlots || pkg.timeSlots.length === 0) {
+    if (!Array.isArray(pkg.timeSlots) || pkg.timeSlots.length === 0) {
       const actualSecs = Math.floor((end.getTime() - start.getTime()) / 1000);
       const billedSecs = Math.max(3600, actualSecs);
       let ratePerHour = Number(pkg.minutePrice || 0) * 60;
@@ -1186,25 +1201,27 @@ export class TransactionService {
       const shiftedCurrent = new Date(current.getTime() - (offsetHours * 60 * 60 * 1000) - ((offsetMinutes || 0) * 60 * 1000));
       const currentDay = DAYS_MAP[shiftedCurrent.getDay()];
 
-      let matchedSlot = null;
-      for (const slot of parsedSlots) {
-        // Jika slot ini punya spesifik hari, pastikan hari ini termasuk
-        if (slot.validDays && Array.isArray(slot.validDays) && slot.validDays.length > 0) {
-          if (!slot.validDays.includes(currentDay)) continue;
-        }
-
+      // 🛡️ Dua tahap pencocokan slot:
+      //  1) EKSKLUSIF di batas akhir (start <= t < end) → menit 17:00 masuk slot 17:00-02:00,
+      //     bukan slot 10:00-17:00 (mencegah tarif slot sebelumnya "bocor" 1 menit).
+      //  2) Jika tidak ada, INKLUSIF (start <= t <= end) → tetap menjaga fix lama agar
+      //     jam tepat di batas akhir (mis. 02:00) tidak jatuh ke Default Rate.
+      const daySlots = parsedSlots.filter(
+        (slot: any) =>
+          !Array.isArray(slot.validDays) ||
+          slot.validDays.length === 0 ||
+          slot.validDays.includes(currentDay),
+      );
+      const inSlot = (slot: any, inclusiveEnd: boolean) => {
         if (slot.endMin < slot.startMin) {
-        // 🛡️ FIX: Gunakan <= bukan < agar jam tepat di batas (e.g., 02:00 untuk slot 17:00-02:00)
-        // tetap ter-match dalam slot. Sebelumnya jam 02:00 tepat (timeVal=120) tidak memenuhi
-        // kondisi `120 < 120` sehingga jatuh ke Default Rate.
-        if (timeVal >= slot.startMin || timeVal <= slot.endMin)
-          matchedSlot = slot;
-      } else {
-        if (timeVal >= slot.startMin && timeVal <= slot.endMin)
-          matchedSlot = slot;
-      }
-        if (matchedSlot) break;
-      }
+          return timeVal >= slot.startMin || (inclusiveEnd ? timeVal <= slot.endMin : timeVal < slot.endMin);
+        }
+        return timeVal >= slot.startMin && (inclusiveEnd ? timeVal <= slot.endMin : timeVal < slot.endMin);
+      };
+      let matchedSlot: any =
+        daySlots.find((s: any) => inSlot(s, false)) ||
+        daySlots.find((s: any) => inSlot(s, true)) ||
+        null;
 
       const slotName = matchedSlot
         ? `${matchedSlot.start}-${matchedSlot.end}`
@@ -1879,7 +1896,7 @@ export class TransactionService {
       txForVitals.table.startTime &&
       txForVitals.table.status !== TableStatus.AVAILABLE
     ) {
-      await this.calculateBilliardTransient(txForVitals);
+      await this.calculateBilliardTransient(txForVitals, undefined, settings?.businessDayOffset);
     }
 
     const { session, remaining } = this.calculateVitals(txForVitals, settings);

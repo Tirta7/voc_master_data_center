@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { NumericParamPipe } from './common/pipes/numeric-param.pipe';
 import { RedisIoAdapter } from './redis/redis-io.adapter';
 import compression from 'compression';
 import helmet from 'helmet';
@@ -46,6 +47,8 @@ async function bootstrap() {
   app.useWebSocketAdapter(redisIoAdapter);
 
   app.useGlobalFilters(new AllExceptionsFilter());
+  // 🛡️ Konversi @Param/@Query bertipe number dari string → number (tanpa validasi DTO)
+  app.useGlobalPipes(new NumericParamPipe());
   app.enableCors({
     origin: process.env.FRONTEND_URL || true, // Use env var in production
     credentials: true,

@@ -6,6 +6,7 @@ const _core = require("@nestjs/core");
 const _appmodule = require("./app.module");
 const _path = require("path");
 const _allexceptionsfilter = require("./common/filters/all-exceptions.filter");
+const _numericparampipe = require("./common/pipes/numeric-param.pipe");
 const _redisioadapter = require("./redis/redis-io.adapter");
 const _compression = /*#__PURE__*/ _interop_require_default(require("compression"));
 const _helmet = /*#__PURE__*/ _interop_require_default(require("helmet"));
@@ -54,6 +55,8 @@ async function bootstrap() {
     await redisIoAdapter.connectToRedis();
     app.useWebSocketAdapter(redisIoAdapter);
     app.useGlobalFilters(new _allexceptionsfilter.AllExceptionsFilter());
+    // 🛡️ Konversi @Param/@Query bertipe number dari string → number (tanpa validasi DTO)
+    app.useGlobalPipes(new _numericparampipe.NumericParamPipe());
     app.enableCors({
         origin: process.env.FRONTEND_URL || true,
         credentials: true

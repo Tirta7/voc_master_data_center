@@ -186,7 +186,7 @@ export class VoucherService implements OnModuleInit {
       let currentDay = referenceTime.getDay();
       if (currentDay === 0) currentDay = 7; 
       
-      if (!voucher.validDays.includes(currentDay)) {
+      if (!voucher.validDays.map(Number).includes(currentDay)) {
         const dayNames = ['-', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
         const allowed = voucher.validDays.map(d => dayNames[d]).join(', ');
         throw new BadRequestException(`Voucher tidak berlaku hari ini. Hanya dapat digunakan pada hari: ${allowed}.`);

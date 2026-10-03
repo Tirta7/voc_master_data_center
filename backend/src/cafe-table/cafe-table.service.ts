@@ -428,6 +428,12 @@ export class CafeTableService {
       // 4. Update source tx status
       await queryRunner.manager.update(Transaction, cafeTxId, {
         status: TransactionStatus.CANCELLED,
+        remarks: 'MOVED CAFE TO BILLIARD TABLE',
+        cafeTotal: 0,
+        serviceChargeAmount: 0,
+        vatAmount: 0,
+        roundingAmount: 0,
+        grandTotal: 0,
       });
 
       await queryRunner.commitTransaction();

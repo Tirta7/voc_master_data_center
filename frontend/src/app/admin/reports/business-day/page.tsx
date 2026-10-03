@@ -1192,7 +1192,7 @@ export default function BusinessDayDashboard() {
                                                 <td className="px-6 py-5 align-top text-right">
                                                     <p className="text-sm font-black text-slate-900 leading-none">Rp {Number(tx.grandTotal).toLocaleString()}</p>
                                                     <span className={`inline-block mt-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                        {tx.status}
+                                                        {tx.status === 'CANCELLED' && tx.remarks ? tx.remarks : tx.status}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-5 align-top text-right">
@@ -1322,7 +1322,7 @@ export default function BusinessDayDashboard() {
                                                     })}
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'text-emerald-500' : tx.status === 'CANCELLED' ? 'text-rose-500' : 'text-amber-500'}`}>{tx.status}</p>
+                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'text-emerald-500' : tx.status === 'CANCELLED' ? 'text-rose-500' : 'text-amber-500'}`}>{tx.status === 'CANCELLED' && tx.remarks ? tx.remarks : tx.status}</p>
                                                     {Number(tx.changeAmount) > 0 && <p className="text-[7px] font-bold text-slate-400">Kembali {fmtK(tx.changeAmount)}</p>}
                                                 </div>
                                             </div>
