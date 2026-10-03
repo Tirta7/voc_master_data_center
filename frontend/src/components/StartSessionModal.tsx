@@ -9,6 +9,7 @@ import { useMqtt } from '@/context/MqttContext';
 import { useMemo } from 'react';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { getBusinessDayCode } from '@/utils/dateUtils';
+import { formatSlotDays, fmtSlotTime, getActiveSlot, isSlotUsedNow as slotUsedNow, describeActiveSlot } from '@/utils/slotUtils';
 
 interface StartSessionModalProps {
     isOpen: boolean;
@@ -165,41 +166,19 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     };
 
     const getActiveSlotInfo = (pkg: any) => {
-        const now = new Date();
-        const timeVal = now.getHours() * 60 + now.getMinutes();
-        const currentDayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
-        
-        let targetSlot = null;
-
-        if (pkg.timeSlots && pkg.timeSlots.length > 0) {
-            for (const slot of pkg.timeSlots) {
-                if (Array.isArray(slot.validDays) && slot.validDays.length > 0) {
-                    if (!slot.validDays.includes(currentDayCode)) continue;
-                }
-                const [sH, sM] = slot.start.split(':').map(Number);
-                const [eH, eM] = slot.end.split(':').map(Number);
-                const startVal = sH * 60 + sM;
-                const endVal = eH * 60 + eM;
-                let isMatch = false;
-                if (endVal < startVal) {
-                    if (timeVal >= startVal || timeVal < endVal) isMatch = true;
-                } else {
-                    if (timeVal >= startVal && timeVal < endVal) isMatch = true;
-                }
-                if (isMatch) {
-                    targetSlot = slot;
-                    break;
-                }
-            }
-            if (!targetSlot) targetSlot = pkg.timeSlots[0];
-        }
+        // Slot yang dipakai = sama persis dengan backend (hari bisnis + jam, fallback slot valid hari ini)
+        const targetSlot = getActiveSlot(pkg.timeSlots, globalSettings?.businessDayOffset);
 
         const price = targetSlot ? Number(targetSlot.price) : Number(pkg.price);
         const discountPercentage = targetSlot ? Number(targetSlot.discountPercentage || 0) : Number(pkg.discountPercentage || 0);
         const discountNominal = targetSlot ? Number(targetSlot.discountNominal || 0) : Number(pkg.discountNominal || 0);
+        const slotLabel = targetSlot ? describeActiveSlot(targetSlot, globalSettings?.businessDayOffset) : '';
 
-        return { price, discountPercentage, discountNominal };
+        return { price, discountPercentage, discountNominal, slotLabel };
     };
+
+    // Slot yang SEDANG dipakai untuk menghitung harga (hari bisnis + jam sekarang)
+    const isSlotUsedNow = (slot: any) => slotUsedNow(slot, globalSettings?.businessDayOffset);
 
     const isPlaytime = activeTab === 'playtime';
     const isPromo = activeTab === 'promo';
@@ -1067,13 +1046,21 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                             Rp {finalPrice.toLocaleString()}
                                                             <span className="text-[10px] text-indigo-400 font-medium"> / Jam</span>
                                                         </p>
+                                                        {info.slotLabel && (
+                                                            <p className="mt-0.5 text-[9px] font-black text-emerald-600 flex items-center gap-1">
+                                                                <Check className="w-2.5 h-2.5" /> Berlaku sekarang: {info.slotLabel}
+                                                            </p>
+                                                        )}
                                                         {pkg.timeSlots && pkg.timeSlots.length > 0 && (
                                                             <div className="mt-1.5 pt-1.5 border-t border-indigo-100/50 flex flex-wrap gap-1">
-                                                                {pkg.timeSlots.map((slot: any, i: number) => (
-                                                                    <span key={i} className="text-[8px] bg-white border border-indigo-100 text-indigo-500 px-1 py-0.5 rounded">
-                                                                        {slot.start}–{slot.end}
-                                                                    </span>
-                                                                ))}
+                                                                {pkg.timeSlots.map((slot: any, i: number) => {
+                                                                    const usedNow = isSlotUsedNow(slot);
+                                                                    return (
+                                                                        <span key={i} className={`text-[8px] px-1 py-0.5 rounded border ${usedNow ? 'bg-emerald-100 border-emerald-300 text-emerald-700 font-black' : 'bg-white border-slate-100 text-slate-400'}`}>
+                                                                            {fmtSlotTime(slot.start)}–{fmtSlotTime(slot.end)} ({formatSlotDays(slot.validDays)})
+                                                                        </span>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1089,17 +1076,25 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                             )}
                                                             Rp {finalPrice.toLocaleString()}
                                                         </p>
+                                                        {info.slotLabel && (
+                                                            <p className="mt-0.5 text-[9px] font-black text-emerald-600 flex items-center gap-1">
+                                                                <Check className="w-2.5 h-2.5" /> Berlaku sekarang: {info.slotLabel}
+                                                            </p>
+                                                        )}
                                                         {pkg.timeSlots && pkg.timeSlots.length > 0 && (
                                                             <div className="mt-1.5 pt-1.5 border-t border-amber-100/50 space-y-0.5">
                                                                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                                                    <Info className="w-2.5 h-2.5" /> Tarif Waktu
+                                                                    <Info className="w-2.5 h-2.5" /> Daftar Tarif
                                                                 </p>
-                                                                {pkg.timeSlots.map((slot: any, i: number) => (
-                                                                    <div key={i} className="flex justify-between text-[9px] text-slate-500">
-                                                                        <span>{slot.start}–{slot.end}</span>
-                                                                        <span className="font-bold text-slate-700">Rp {Number(slot.price).toLocaleString()}</span>
-                                                                    </div>
-                                                                ))}
+                                                                {pkg.timeSlots.map((slot: any, i: number) => {
+                                                                    const usedNow = isSlotUsedNow(slot);
+                                                                    return (
+                                                                        <div key={i} className={`flex justify-between items-center gap-1 text-[9px] rounded px-1 ${usedNow ? 'bg-emerald-100 text-emerald-800 font-black' : 'text-slate-400 opacity-70'}`}>
+                                                                            <span>{fmtSlotTime(slot.start)}–{fmtSlotTime(slot.end)} <span className="opacity-80">({formatSlotDays(slot.validDays)})</span></span>
+                                                                            <span className={usedNow ? 'font-black' : 'font-bold text-slate-500'}>Rp {Number(slot.price).toLocaleString()}</span>
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         )}
                                                     </div>

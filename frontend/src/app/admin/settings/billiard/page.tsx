@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff, CalendarDays, CheckCircle2, Calendar, FileSpreadsheet } from 'lucide-react';
+import { getBusinessDayCode } from '@/utils/dateUtils';
+import { formatSlotDays, fmtSlotTime, isSlotValidToday } from '@/utils/slotUtils';
 import InputField from '@/components/ui/InputField';
 import { ImportTarifModal } from './ImportTarifModal';
 
@@ -56,8 +58,14 @@ export default function BilliardPricingPage() {
         return () => clearInterval(timer);
     }, []);
 
-    const isSlotActive = (startStr: string, endStr: string) => {
+    const isSlotActive = (startStr: string, endStr: string, slotDays?: string[] | null, pkgDays?: string[] | null) => {
         if (!startStr || !endStr) return false;
+
+        // Cek hari berlaku (business day) — slot & paket. Kosong/null = setiap hari.
+        const todayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
+        if (Array.isArray(pkgDays) && pkgDays.length > 0 && !pkgDays.includes(todayCode)) return false;
+        if (Array.isArray(slotDays) && slotDays.length > 0 && !slotDays.includes(todayCode)) return false;
+
         const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
         const [startH, startM] = startStr.split(':').map(Number);
         const [endH, endM] = endStr.split(':').map(Number);
@@ -473,7 +481,7 @@ export default function BilliardPricingPage() {
                                                 {/* Slot Cards */}
                                                 <div className="space-y-4">
                                                     {(config?.timeSlots || []).map((slot: any, idx: number) => {
-                                                        const isActive = isSlotActive(slot.start, slot.end);
+                                                        const isActive = isSlotActive(slot.start, slot.end, slot.validDays);
                                                         const hasNoDays = !slot.validDays || slot.validDays.length === 0;
                                                         return (
                                                             <div key={idx} className={`relative rounded-3xl border-2 overflow-hidden transition-all ${
@@ -1225,17 +1233,21 @@ export default function BilliardPricingPage() {
                                         {(pkg.timeSlots && pkg.timeSlots.length > 0) ? (
                                             <div className="flex flex-col gap-1.5">
                                                 {pkg.timeSlots.map((slot: any, sIdx: number) => {
-                                                    const isActiveSlot = isSlotActive(slot.start, slot.end);
+                                                    const isActiveSlot = isSlotActive(slot.start, slot.end, slot.validDays, pkg.validDays);
+                                                    const validToday = isSlotValidToday(slot, globalSettings?.businessDayOffset);
                                                     return (
                                                         <div key={sIdx} className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border shadow-sm transition-all ${
                                                             isActiveSlot 
                                                                 ? 'bg-emerald-50 border-emerald-200 shadow-emerald-100 ring-1 ring-emerald-400' 
-                                                                : 'bg-white border-slate-100'
+                                                                : validToday ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-100 opacity-60'
                                                         }`}>
-                                                            <span className={`text-[10px] font-bold flex items-center gap-1 ${isActiveSlot ? 'text-emerald-700' : 'text-slate-500'}`}>
-                                                                <Clock className={`w-3 h-3 ${isActiveSlot ? 'text-emerald-500' : 'text-slate-400'}`}/> 
-                                                                {slot.start}-{slot.end}
-                                                                {isActiveSlot && <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse whitespace-nowrap">Berlaku</span>}
+                                                            <span className={`text-[10px] font-bold flex flex-col gap-0.5 ${isActiveSlot ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                                <span className="flex items-center gap-1">
+                                                                    <Clock className={`w-3 h-3 ${isActiveSlot ? 'text-emerald-500' : 'text-slate-400'}`}/> 
+                                                                    {fmtSlotTime(slot.start)}-{fmtSlotTime(slot.end)}
+                                                                    {isActiveSlot && <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse whitespace-nowrap">Berlaku</span>}
+                                                                </span>
+                                                                <span className="text-[8px] font-semibold text-slate-400 pl-4">{formatSlotDays(slot.validDays)}</span>
                                                             </span>
                                                             <span className={`text-[10px] font-black whitespace-nowrap ${
                                                                 isActiveSlot ? 'text-emerald-700' : (isHourly ? 'text-indigo-600' : 'text-amber-600')

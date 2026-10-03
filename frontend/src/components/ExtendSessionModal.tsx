@@ -7,6 +7,7 @@ import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { getBusinessDayCode } from '@/utils/dateUtils';
+import { getActiveSlot, describeActiveSlot } from '@/utils/slotUtils';
 
 interface ExtendSessionModalProps {
     isOpen: boolean;
@@ -87,29 +88,13 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
     };
 
     const getCurrentPrice = (pkg: any) => {
-        const now = new Date();
-        const timeVal = now.getHours() * 60 + now.getMinutes();
-
-        if (pkg.timeSlots && pkg.timeSlots.length > 0) {
-            for (const slot of pkg.timeSlots) {
-                const [sH, sM] = slot.start.split(':').map(Number);
-                const [eH, eM] = slot.end.split(':').map(Number);
-                const startVal = sH * 60 + sM;
-                const endVal = eH * 60 + eM;
-
-                let isMatch = false;
-                if (endVal < startVal) { // Crossover
-                    if (timeVal >= startVal || timeVal < endVal) isMatch = true;
-                } else {
-                    if (timeVal >= startVal && timeVal < endVal) isMatch = true;
-                }
-
-                if (isMatch) return Number(slot.price);
-            }
-            return Number(pkg.timeSlots[0].price);
-        }
-        return Number(pkg.price);
+        // Sama persis dengan backend: hari bisnis + jam, fallback slot pertama yang valid hari ini
+        const slot = getActiveSlot(pkg.timeSlots, globalSettings?.businessDayOffset);
+        return slot ? Number(slot.price) : Number(pkg.price);
     };
+
+    const getActiveSlotLabel = (pkg: any) =>
+        describeActiveSlot(getActiveSlot(pkg.timeSlots, globalSettings?.businessDayOffset), globalSettings?.businessDayOffset);
 
     // Calculate active rate from customDurationPricing based on current time & table category
     const getCustomActiveRate = (): { rate: number; slotLabel: string | null; hasConfig: boolean } => {
@@ -322,6 +307,11 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
                                                 <span className={`text-xs sm:text-sm font-bold ${!isAffordable ? 'text-slate-500' : 'text-rose-600'}`}>{pkg.durationMinutes} Menit</span>
                                                 <span className="text-xs sm:text-sm font-black text-slate-700">Rp {pkgPrice.toLocaleString()}</span>
                                             </div>
+                                            {getActiveSlotLabel(pkg) && (
+                                                <div className="mt-1 text-[10px] font-black text-emerald-600 flex items-center gap-1">
+                                                    <Check className="w-3 h-3" /> Berlaku sekarang: {getActiveSlotLabel(pkg)}
+                                                </div>
+                                            )}
                                             {!isAffordable && (
                                                 <div className="mt-2 text-[9px] sm:text-[10px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-1">
                                                     <AlertCircle className="w-3 h-3" /> Saldo Tidak Cukup
