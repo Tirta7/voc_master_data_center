@@ -59,6 +59,9 @@ export class BilliardPackage {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ default: false })
+  useNormalPriceForExtension: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -3453,7 +3453,7 @@ export class BilliardService implements OnModuleInit {
         if (pkg) {
           extensionMinutes = Number(pkg.durationMinutes) || 0;
           extensionPrice =
-            this.transactionService.calculateCurrentPackagePrice(pkg, currentDayCode);
+            this.transactionService.calculateCurrentPackagePrice(pkg, currentDayCode, undefined, true);
           table.packageId = packageId;
         }
       } else if (durationMinutes) {

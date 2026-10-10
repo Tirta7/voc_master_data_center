@@ -31,6 +31,7 @@ export default function BilliardPricingPage() {
         tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
         durationMinutes: number;
         price: number;
+        useNormalPriceForExtension?: boolean;
         timeSlots?: { start: string; end: string; price: number; discountPercentage?: number; discountNominal?: number; validDays?: string[] }[];
     }>({
         name: '',
@@ -38,6 +39,7 @@ export default function BilliardPricingPage() {
         tableCategory: 'REGULAR',
         durationMinutes: 120,
         price: 0,
+        useNormalPriceForExtension: false,
         timeSlots: [],
     });
 
@@ -164,6 +166,7 @@ export default function BilliardPricingPage() {
             tableCategory: 'REGULAR',
             durationMinutes: 120,
             price: 0,
+            useNormalPriceForExtension: false,
             timeSlots: []
         });
     };
@@ -191,6 +194,7 @@ export default function BilliardPricingPage() {
             tableCategory: catName,
             durationMinutes: pkg.durationMinutes || 120,
             price: Number(pkg.price),
+            useNormalPriceForExtension: !!pkg.useNormalPriceForExtension,
             timeSlots,
         };
         setFormData(mappedData);
@@ -782,6 +786,43 @@ export default function BilliardPricingPage() {
                                                     )
                                                 })}
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-4">
+                                    <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Tarif Ekstensi (Tambah Waktu)</label>
+                                        <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Jika pelanggan Tambah Waktu (Extend) pakai paket ini, apakah diskon paket (jika ada) masih berlaku?</p>
+                                        <div className="flex flex-col gap-2 mt-2">
+                                            <label className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all cursor-pointer ${!formData.useNormalPriceForExtension ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${!formData.useNormalPriceForExtension ? 'border-indigo-500 bg-white' : 'border-slate-300 bg-white'}`}>
+                                                    {!formData.useNormalPriceForExtension && <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />}
+                                                </div>
+                                                <div>
+                                                    <div className={`text-xs font-black ${!formData.useNormalPriceForExtension ? 'text-indigo-700' : 'text-slate-600'}`}>Ikut Harga Paket (Termasuk Diskon)</div>
+                                                </div>
+                                                <input 
+                                                    type="radio" 
+                                                    className="hidden" 
+                                                    checked={!formData.useNormalPriceForExtension}
+                                                    onChange={() => setFormData({ ...formData, useNormalPriceForExtension: false })}
+                                                />
+                                            </label>
+                                            <label className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all cursor-pointer ${formData.useNormalPriceForExtension ? 'border-rose-500 bg-rose-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${formData.useNormalPriceForExtension ? 'border-rose-500 bg-white' : 'border-slate-300 bg-white'}`}>
+                                                    {formData.useNormalPriceForExtension && <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />}
+                                                </div>
+                                                <div>
+                                                    <div className={`text-xs font-black ${formData.useNormalPriceForExtension ? 'text-rose-700' : 'text-slate-600'}`}>Harga Normal (Harga Dasar Tanpa Diskon)</div>
+                                                </div>
+                                                <input 
+                                                    type="radio" 
+                                                    className="hidden" 
+                                                    checked={!!formData.useNormalPriceForExtension}
+                                                    onChange={() => setFormData({ ...formData, useNormalPriceForExtension: true })}
+                                                />
+                                            </label>
                                         </div>
                                     </div>
                                 </div>

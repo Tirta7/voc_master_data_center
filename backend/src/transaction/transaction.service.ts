@@ -1029,7 +1029,7 @@ export class TransactionService {
     }
   }
 
-  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string, businessDayOffset: string = '04:00'): number {
+  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string, businessDayOffset: string = '04:00', isExtension: boolean = false): number {
     if (!pkg) return 0;
     const now = new Date();
     const timeVal = now.getHours() * 60 + now.getMinutes();
@@ -1042,6 +1042,9 @@ export class TransactionService {
       const shifted = new Date(now.getTime() - ((oh || 0) * 60 + (om || 0)) * 60000);
       currentDayCode = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][shifted.getDay()];
     }
+
+    // Ignore discounts if this is an extension and the package is configured to use normal price for extensions
+    const ignoreDiscount = isExtension && !!pkg.useNormalPriceForExtension;
 
     let activePrice = Number(pkg.price || 0);
     const slots = Array.isArray(pkg.timeSlots) ? pkg.timeSlots : [];
@@ -1070,10 +1073,12 @@ export class TransactionService {
 
         if (isMatch) {
           activePrice = Number(slot.price);
-          const discPct = Number(slot.discountPercentage || 0);
-          const discNom = Number(slot.discountNominal || 0);
-          if (discPct > 0) activePrice -= (activePrice * discPct / 100);
-          else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
+          if (!ignoreDiscount) {
+            const discPct = Number(slot.discountPercentage || 0);
+            const discNom = Number(slot.discountNominal || 0);
+            if (discPct > 0) activePrice -= (activePrice * discPct / 100);
+            else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
+          }
           
           matchedAny = true;
           break;
@@ -1086,16 +1091,20 @@ export class TransactionService {
           slots.find((s: any) => !Array.isArray(s?.validDays) || s.validDays.length === 0 || s.validDays.includes(currentDayCode)) ||
           slots[0];
         activePrice = Number(fallbackSlot?.price || 0);
-        const discPct = Number(fallbackSlot?.discountPercentage || 0);
-        const discNom = Number(fallbackSlot?.discountNominal || 0);
-        if (discPct > 0) activePrice -= (activePrice * discPct / 100);
-        else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
+        if (!ignoreDiscount) {
+          const discPct = Number(fallbackSlot?.discountPercentage || 0);
+          const discNom = Number(fallbackSlot?.discountNominal || 0);
+          if (discPct > 0) activePrice -= (activePrice * discPct / 100);
+          else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
+        }
       }
     } else {
+      if (!ignoreDiscount) {
         const discPct = Number(pkg.discountPercentage || 0);
         const discNom = Number(pkg.discountNominal || 0);
         if (discPct > 0) activePrice -= (activePrice * discPct / 100);
         else if (discNom > 0) activePrice = Math.max(0, activePrice - discNom);
+      }
     }
 
     // Absolute fallback to prevent Rp 0 if needed, but per user request we follow settings

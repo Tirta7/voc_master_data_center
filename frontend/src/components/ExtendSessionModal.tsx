@@ -92,13 +92,15 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         const slot = getActiveSlot(pkg.timeSlots, globalSettings?.businessDayOffset);
         let price = slot ? Number(slot.price) : Number(pkg.price);
         
-        const discPct = Number(slot ? slot.discountPercentage : pkg.discountPercentage) || 0;
-        const discNom = Number(slot ? slot.discountNominal : pkg.discountNominal) || 0;
-        
-        if (discPct > 0) {
-            price -= (price * discPct / 100);
-        } else if (discNom > 0) {
-            price = Math.max(0, price - discNom);
+        if (!pkg.useNormalPriceForExtension) {
+            const discPct = Number(slot ? slot.discountPercentage : pkg.discountPercentage) || 0;
+            const discNom = Number(slot ? slot.discountNominal : pkg.discountNominal) || 0;
+            
+            if (discPct > 0) {
+                price -= (price * discPct / 100);
+            } else if (discNom > 0) {
+                price = Math.max(0, price - discNom);
+            }
         }
         
         return Math.max(0, price);

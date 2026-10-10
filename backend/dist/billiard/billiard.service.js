@@ -2808,7 +2808,7 @@ let BilliardService = class BilliardService {
                 this.assertPackageUsableToday(pkg, currentDayCode);
                 if (pkg) {
                     extensionMinutes = Number(pkg.durationMinutes) || 0;
-                    extensionPrice = this.transactionService.calculateCurrentPackagePrice(pkg, currentDayCode);
+                    extensionPrice = this.transactionService.calculateCurrentPackagePrice(pkg, currentDayCode, undefined, true);
                     table.packageId = packageId;
                 }
             } else if (durationMinutes) {
