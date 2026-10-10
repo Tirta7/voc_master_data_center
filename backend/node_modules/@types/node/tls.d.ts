@@ -15,31 +15,31 @@ declare module "tls" {
     import * as stream from "stream";
     const CLIENT_RENEG_LIMIT: number;
     const CLIENT_RENEG_WINDOW: number;
-    interface Certificate {
+    interface Certificate extends NodeJS.Dict<string | string[]> {
         /**
          * Country code.
          */
-        C: string;
+        C?: string | string[];
         /**
          * Street.
          */
-        ST: string;
+        ST?: string | string[];
         /**
          * Locality.
          */
-        L: string;
+        L?: string | string[];
         /**
          * Organization.
          */
-        O: string;
+        O?: string | string[];
         /**
          * Organizational unit.
          */
-        OU: string;
+        OU?: string | string[];
         /**
          * Common name.
          */
-        CN: string;
+        CN?: string | string[];
     }
     interface PeerCertificate {
         /**
@@ -1301,7 +1301,7 @@ declare module "tls" {
      * It can be assigned any of the supported OpenSSL ciphers.
      * Defaults to the content of `crypto.constants.defaultCoreCipherList`, unless
      * changed using CLI options using `--tls-default-ciphers`.
-     * @since v19.8.0
+     * @since v0.11.3
      */
     let DEFAULT_CIPHERS: string;
     /**

@@ -8,6 +8,7 @@ exports.createHistogramSummary = createHistogramSummary;
 exports.toHistogramIntegerNano = toHistogramIntegerNano;
 exports.maybeFileURLToPath = maybeFileURLToPath;
 exports.getAvailableParallelism = getAvailableParallelism;
+exports.withNullPrototype = withNullPrototype;
 const node_url_1 = require("node:url");
 const node_os_1 = require("node:os");
 const symbols_1 = require("./symbols");
@@ -95,5 +96,10 @@ function getAvailableParallelism() {
     catch {
         return 1;
     }
+}
+// Copy own properties onto a prototype-less object, so that options are never
+// resolved through a polluted prototype chain.
+function withNullPrototype(source, overrides) {
+    return Object.assign(Object.create(null), source, overrides);
 }
 //# sourceMappingURL=common.js.map

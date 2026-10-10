@@ -28,3 +28,4 @@ export declare function createHistogramSummary(histogram: Histogram): HistogramS
 export declare function toHistogramIntegerNano(milliseconds: number): number;
 export declare function maybeFileURLToPath(filename: string): string;
 export declare function getAvailableParallelism(): number;
+export declare function withNullPrototype<T extends object>(source: T, overrides?: Partial<T>): T;

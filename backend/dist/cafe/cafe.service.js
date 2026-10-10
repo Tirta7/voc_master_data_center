@@ -1229,24 +1229,9 @@ let CafeService = class CafeService {
                     item.completedAt = new Date();
                     const station = item.station || this.getStation(item.menuItem);
                     // ── Verifikasi Kepemilikan Komisi (Production Commission) ────────────
-                    // commissionUserId hanya di-assign jika role user SESUAI dengan station item.
-                    // Ini mencegah komisi salah akun ketika menggunakan Kitchen & Bar (Unified).
-                    //
-                    // Mapping:
-                    //   KITCHEN   → berhak komisi item di station KDS
-                    //   BARTENDER → berhak komisi item di station BDS
-                    //   ADMIN/SUPERADMIN/OWNER → berhak komisi semua station
-                    //
-                    // Jika item.commissionUserId sudah diset sebelumnya (misal oleh waiter saat order)
-                    // maka TIDAK di-overwrite — komisi sales tetap milik yang input order.
-                    if (userId && !item.commissionUserId) {
-                        if (this.canEarnProductionCommission(userRole, station)) {
-                            item.commissionUserId = userId;
-                            this.logger.log(`[Commission] Item ${id} (${station}) → commissionUserId=${userId} (role: ${userRole})`);
-                        } else {
-                            this.logger.debug(`[Commission] Item ${id} (${station}) → role ${userRole} tidak eligible, komisi tidak di-assign.`);
-                        }
-                    }
+                    // Production Commission is already tracked via completedByUserId above.
+                    // DO NOT overwrite commissionUserId here, as it is strictly used for Sales Commission (Waiter).
+                    // Overwriting it would steal the Waiter's sales commission.
                     await manager.save(_orderitementity.OrderItem, item);
                     await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
                 }
