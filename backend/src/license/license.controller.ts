@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Res, Sse, Query } from '@nestjs/common';
-import { Observable, map, filter, merge, interval } from 'rxjs';
+import { Observable, map, filter, merge, interval, defer, of } from 'rxjs';
 import { LicenseService } from './license.service';
 
 @Controller('api/license')
@@ -20,16 +20,30 @@ export class LicenseController {
   }
 
   /**
+   * Daftar pesan broadcast aktif dari VOCML (snapshot).
+   * GET /api/license/messages?refresh=true
+   */
+  @Get('messages')
+  async getMessages(@Query('refresh') refresh?: string) {
+    if (refresh === 'true') await this.licenseService.fetchMessages();
+    return this.licenseService.getMessages();
+  }
+
+  /**
    * SSE endpoint — Frontend subscribe ke sini untuk menerima broadcast real-time
    * GET /api/license/stream
+   * Selalu mengirim daftar LENGKAP pesan aktif (list kosong = semua pesan dihapus/nonaktif).
    */
   @Sse('stream')
   stream(): Observable<any> {
     const keepAlive$ = interval(30000).pipe(map(() => ({ data: '', type: 'ping' })));
+    const initial$ = defer(() => of(this.licenseService.getMessages())).pipe(
+      map((broadcasts) => ({ data: JSON.stringify(broadcasts) }))
+    );
     const data$ = this.licenseService.broadcast$.pipe(
       map((broadcasts) => ({ data: JSON.stringify(broadcasts) }))
     );
-    return merge(data$, keepAlive$);
+    return merge(initial$, data$, keepAlive$);
   }
 
   /**

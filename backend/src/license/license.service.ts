@@ -22,9 +22,16 @@ export interface LicenseState {
 
 export interface BroadcastMessage {
   id: string | number;
-  target: string;
+  target?: string;
+  judul?: string;
   pesan: string;
   tipe: 'INFO' | 'WARNING' | 'DANGER' | 'SUCCESS';
+  /** Tampil ulang tiap N menit. 0 = tampil sekali saja (sampai ditutup). */
+  intervalMenit: number;
+  /** Lama tampil sebelum otomatis disembunyikan (detik). 0 = tetap tampil sampai ditutup. */
+  durasiDetik: number;
+  /** Dipakai frontend untuk mendeteksi pesan yang diedit agar muncul lagi. */
+  versi: string;
 }
 
 @Injectable()
@@ -44,6 +51,11 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   readonly statusChange$ = new BehaviorSubject<{ status: string; daysLeft: number; expiredAt: string | null } | null>(null);
   
   private lastEmittedStatus: string = '';
+
+  // Pesan broadcast dari VOCML dashboard
+  private messages: BroadcastMessage[] = [];
+  private lastMessagesJson = '[]';
+  private messagesFetching = false;
 
   constructor(
     private readonly configService: ConfigService,
@@ -96,12 +108,86 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     this.logger.log(`LicenseService init. Machine ID: ${this.machineId}`);
     setTimeout(async () => {
       await this.checkLicense();
+      await this.fetchMessages();
     }, 5000);
   }
 
   @Cron('*/10 * * * * *')
   async checkLicenseRegularly() {
     await this.checkLicense();
+  }
+
+  /** Ambil pesan broadcast dari VOCML tiap 1 menit. */
+  @Cron('0 * * * * *')
+  async fetchMessagesRegularly() {
+    await this.fetchMessages();
+  }
+
+  private normalizeType(t: any): BroadcastMessage['tipe'] {
+    const v = String(t || 'info').toUpperCase();
+    if (v === 'WARNING' || v === 'DANGER' || v === 'SUCCESS') return v;
+    if (v === 'ERROR') return 'DANGER';
+    return 'INFO';
+  }
+
+  /**
+   * GET {VOCML}/api/v1/messages?machine_id=...&product=billiard
+   * Response: { messages: [{ id, title?, message, type, interval_minutes, display_seconds, updated_at }] }
+   * VOCML hanya mengirim pesan yang AKTIF & dalam rentang tanggal tayang.
+   * Pesan yang dinonaktifkan/dihapus di VOCML otomatis hilang dari aplikasi pada sinkron berikutnya.
+   */
+  async fetchMessages(): Promise<BroadcastMessage[]> {
+    if (this.messagesFetching) return this.messages;
+    this.messagesFetching = true;
+    try {
+      const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+      const qs = new URLSearchParams({ machine_id: this.machineId, product: 'billiard' });
+      const res = await fetch(`${this.vocmlServerUrl}/api/v1/messages?${qs}`, {
+        headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.status === 404) {
+        // Endpoint belum tersedia di VOCML / client belum terdaftar → kosongkan
+        this.applyMessages([]);
+        return this.messages;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body: any = await res.json();
+      const list: any[] = Array.isArray(body) ? body : Array.isArray(body?.messages) ? body.messages : [];
+
+      const mapped: BroadcastMessage[] = list
+        .filter((m) => m && m.id !== undefined && (m.message || m.pesan) && m.is_active !== false)
+        .map((m) => ({
+          id: m.id,
+          judul: m.title || m.judul || undefined,
+          pesan: String(m.message ?? m.pesan),
+          tipe: this.normalizeType(m.type ?? m.tipe),
+          intervalMenit: Math.max(0, Number(m.interval_minutes ?? m.intervalMenit ?? 0) || 0),
+          durasiDetik: Math.max(0, Number(m.display_seconds ?? m.durasiDetik ?? 15) || 0),
+          versi: String(m.updated_at ?? m.versi ?? ''),
+        }));
+
+      this.applyMessages(mapped);
+    } catch (err: any) {
+      // Offline: pertahankan pesan terakhir, jangan spam log
+      this.logger.debug(`Gagal ambil pesan VOCML: ${err?.message || err}`);
+    } finally {
+      this.messagesFetching = false;
+    }
+    return this.messages;
+  }
+
+  private applyMessages(list: BroadcastMessage[]) {
+    const json = JSON.stringify(list);
+    if (json === this.lastMessagesJson) return;
+    this.lastMessagesJson = json;
+    this.messages = list;
+    this.logger.log(`Pesan VOCML diperbarui: ${list.length} pesan aktif`);
+    this.broadcast$.next(list); // push real-time ke semua browser via SSE
+  }
+
+  getMessages(): BroadcastMessage[] {
+    return this.messages;
   }
 
   private calculateDaysLeft(expiresAt: string | undefined): number {
