@@ -1233,10 +1233,11 @@ export class BilliardService implements OnModuleInit {
   }
 
   // --- Package Management ---
-  async getPackages(): Promise<BilliardPackage[]> {
+  async getPackages(includeInactive = false): Promise<BilliardPackage[]> {
     // ⚡ Always fetch from DB — no in-memory cache to prevent stale data after CRUD
+    const where = includeInactive ? {} : { isActive: true };
     const packages = await this.packageRepository.find({
-      where: { isActive: true },
+      where,
       order: { createdAt: 'DESC' },
     });
     return packages;

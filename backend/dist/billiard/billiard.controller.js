@@ -111,9 +111,9 @@ let BilliardController = class BilliardController {
     async getTable(id) {
         return this.billiardService.getTableById(id);
     }
-    async getPackages() {
+    async getPackages(all) {
         // ⚡ No HTTP cache — packages must always return fresh data after CRUD operations
-        return this.billiardService.getPackages();
+        return this.billiardService.getPackages(all === 'true');
     }
     async createPackage(data) {
         return this.billiardService.createPackage(data);
@@ -327,8 +327,11 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Get)('packages'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Query)('all')),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "getPackages", null);
 _ts_decorate([

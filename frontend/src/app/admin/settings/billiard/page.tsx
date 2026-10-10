@@ -32,6 +32,7 @@ export default function BilliardPricingPage() {
         durationMinutes: number;
         price: number;
         useNormalPriceForExtension?: boolean;
+        isActive?: boolean;
         timeSlots?: { start: string; end: string; price: number; discountPercentage?: number; discountNominal?: number; validDays?: string[] }[];
     }>({
         name: '',
@@ -40,6 +41,7 @@ export default function BilliardPricingPage() {
         durationMinutes: 120,
         price: 0,
         useNormalPriceForExtension: false,
+        isActive: true,
         timeSlots: [],
     });
 
@@ -108,7 +110,7 @@ export default function BilliardPricingPage() {
     const fetchPackages = async () => {
         try {
             // Cache-buster: tambahkan timestamp agar browser tidak pakai response lama
-            const res = await axios.get(`/billiard/packages?_t=${Date.now()}`);
+            const res = await axios.get(`/billiard/packages?all=true&_t=${Date.now()}`);
             setPackages(res.data);
         } catch (err) {
             console.error('Fetch packages failed:', err);
@@ -167,6 +169,7 @@ export default function BilliardPricingPage() {
             durationMinutes: 120,
             price: 0,
             useNormalPriceForExtension: false,
+            isActive: true,
             timeSlots: []
         });
     };
@@ -195,6 +198,7 @@ export default function BilliardPricingPage() {
             durationMinutes: pkg.durationMinutes || 120,
             price: Number(pkg.price),
             useNormalPriceForExtension: !!pkg.useNormalPriceForExtension,
+            isActive: pkg.isActive ?? true,
             timeSlots,
         };
         setFormData(mappedData);
@@ -792,6 +796,40 @@ export default function BilliardPricingPage() {
 
                                 <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-4">
                                     <div className="space-y-3">
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Paket</label>
+                                        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                                            <label className={`flex-1 flex items-center gap-3 p-3 rounded-2xl border-2 transition-all cursor-pointer ${formData.isActive !== false ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${formData.isActive !== false ? 'border-emerald-500 bg-white' : 'border-slate-300 bg-white'}`}>
+                                                    {formData.isActive !== false && <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />}
+                                                </div>
+                                                <div>
+                                                    <div className={`text-xs font-black ${formData.isActive !== false ? 'text-emerald-700' : 'text-slate-600'}`}>Aktif (Tersedia)</div>
+                                                </div>
+                                                <input 
+                                                    type="radio" 
+                                                    className="hidden" 
+                                                    checked={formData.isActive !== false}
+                                                    onChange={() => setFormData({ ...formData, isActive: true })}
+                                                />
+                                            </label>
+                                            <label className={`flex-1 flex items-center gap-3 p-3 rounded-2xl border-2 transition-all cursor-pointer ${formData.isActive === false ? 'border-rose-500 bg-rose-50' : 'border-slate-100 bg-white hover:bg-slate-50'}`}>
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${formData.isActive === false ? 'border-rose-500 bg-white' : 'border-slate-300 bg-white'}`}>
+                                                    {formData.isActive === false && <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />}
+                                                </div>
+                                                <div>
+                                                    <div className={`text-xs font-black ${formData.isActive === false ? 'text-rose-700' : 'text-slate-600'}`}>Nonaktif (Disembunyikan)</div>
+                                                </div>
+                                                <input 
+                                                    type="radio" 
+                                                    className="hidden" 
+                                                    checked={formData.isActive === false}
+                                                    onChange={() => setFormData({ ...formData, isActive: false })}
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3 pt-2 border-t border-slate-200/60 mt-4">
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Tarif Ekstensi (Tambah Waktu)</label>
                                         <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Jika pelanggan Tambah Waktu (Extend) pakai paket ini, apakah diskon paket (jika ada) masih berlaku?</p>
                                         <div className="flex flex-col gap-2 mt-2">
@@ -1198,7 +1236,7 @@ export default function BilliardPricingPage() {
                                     key={pkg.id}
                                     className={`group bg-white rounded-3xl border transition-all p-5 hover:shadow-xl hover:-translate-y-1 flex flex-col gap-4 relative ${
                                         editingPackageId === pkg.id ? 'border-indigo-500 shadow-lg shadow-indigo-100 ring-2 ring-indigo-500/20' : 'border-slate-100'
-                                    }`}
+                                    } ${pkg.isActive === false ? 'opacity-60 grayscale' : ''}`}
                                 >
                                     {/* Actions Overlay Top Right */}
                                     <div className="absolute top-4 right-4 flex items-center gap-1 opacity-100 xl:opacity-0 xl:group-hover:opacity-100 transition-opacity bg-white/90 p-1 rounded-xl shadow-sm border border-slate-100 z-10">
@@ -1233,6 +1271,11 @@ export default function BilliardPricingPage() {
                                                 }`}>
                                                     STATION {catName.replace('_', ' ')}
                                                 </span>
+                                                {pkg.isActive === false && (
+                                                    <span className="px-2.5 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase border bg-rose-50 text-rose-700 border-rose-200">
+                                                        NONAKTIF
+                                                    </span>
+                                                )}
                                             </div>
                                             <h3 className="text-lg font-black text-slate-800 uppercase pr-16 leading-tight">{pkg.name}</h3>
 

@@ -102,9 +102,9 @@ export class BilliardController {
 
   @Get('packages')
   @UseGuards(AuthGuard('jwt'))
-  async getPackages() {
+  async getPackages(@Query('all') all?: string) {
     // ⚡ No HTTP cache — packages must always return fresh data after CRUD operations
-    return this.billiardService.getPackages();
+    return this.billiardService.getPackages(all === 'true');
   }
 
   @Post('packages')
