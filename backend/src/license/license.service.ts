@@ -7,6 +7,7 @@ import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { checkLicense } from './vocml-client';
+import { QrisUtil } from './qris.util';
 
 export type LicenseStatus = 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
 
@@ -275,8 +276,51 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     return { success: false, message: 'Lisensi tidak sedang dalam masa peringatan.' };
   }
 
-  async getRenewalInfo(): Promise<{ success: boolean; message?: string; qrisString?: string; nominal?: number }> {
-     return { success: false, message: 'Silakan lakukan pembayaran sesuai petunjuk admin.' };
+  private renewalCache: { at: number; data: any } | null = null;
+
+  /**
+   * Info pembayaran perpanjangan dari VOCML.
+   * GET {VOCML}/api/v1/payment-info?machine_id=...&product=billiard
+   * Response VOCML: { qris_string, amount, merchant_name?, admin_whatsapp?, note?, period_label? }
+   * Billiard mengubah QRIS statis → QRIS dinamis (nominal tertanam), jadi saat discan nominal terisi otomatis.
+   */
+  async getRenewalInfo(force = false): Promise<{
+    success: boolean; message?: string; qrisString?: string; nominal?: number;
+    merchantName?: string | null; adminWhatsapp?: string | null; note?: string | null; periodLabel?: string | null;
+  }> {
+    if (!force && this.renewalCache && Date.now() - this.renewalCache.at < 60_000) return this.renewalCache.data;
+    try {
+      const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+      const qs = new URLSearchParams({ machine_id: this.machineId, product: 'billiard' });
+      const res = await fetch(`${this.vocmlServerUrl}/api/v1/payment-info?${qs}`, {
+        headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error(res.status === 404 ? 'Info pembayaran belum diatur di VOCML' : `HTTP ${res.status}`);
+      const b: any = await res.json();
+
+      const amount = Math.round(Number(b.amount ?? b.nominal ?? 0));
+      const staticQris = String(b.qris_string ?? b.qris ?? '').trim();
+      let qrisString: string | undefined = b.qris_dynamic ? String(b.qris_dynamic) : undefined;
+      if (!qrisString && staticQris) {
+        qrisString = amount > 0 ? QrisUtil.generateDynamicQris(staticQris, amount) : staticQris;
+      }
+
+      const data = {
+        success: !!qrisString,
+        message: qrisString ? undefined : 'QRIS belum diatur di VOCML',
+        qrisString,
+        nominal: amount > 0 ? amount : undefined,
+        merchantName: b.merchant_name || (staticQris ? QrisUtil.getMerchantName(staticQris) : null),
+        adminWhatsapp: b.admin_whatsapp || null,
+        note: b.note || null,
+        periodLabel: b.period_label || null,
+      };
+      this.renewalCache = { at: Date.now(), data };
+      return data;
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Gagal memuat info pembayaran' };
+    }
   }
 
   async activateLicense(licenseKey: string): Promise<{ success: boolean; message: string; state: LicenseState }> {
