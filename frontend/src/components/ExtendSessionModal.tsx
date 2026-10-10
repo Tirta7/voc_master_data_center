@@ -90,7 +90,18 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
     const getCurrentPrice = (pkg: any) => {
         // Sama persis dengan backend: hari bisnis + jam, fallback slot pertama yang valid hari ini
         const slot = getActiveSlot(pkg.timeSlots, globalSettings?.businessDayOffset);
-        return slot ? Number(slot.price) : Number(pkg.price);
+        let price = slot ? Number(slot.price) : Number(pkg.price);
+        
+        const discPct = Number(slot ? slot.discountPercentage : pkg.discountPercentage) || 0;
+        const discNom = Number(slot ? slot.discountNominal : pkg.discountNominal) || 0;
+        
+        if (discPct > 0) {
+            price -= (price * discPct / 100);
+        } else if (discNom > 0) {
+            price = Math.max(0, price - discNom);
+        }
+        
+        return Math.max(0, price);
     };
 
     const getActiveSlotLabel = (pkg: any) =>
@@ -112,7 +123,13 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         }
 
         if (!activeConfig || !activeConfig.timeSlots || activeConfig.timeSlots.length === 0) {
-            return { rate: Number(activeConfig?.basePrice || 0), slotLabel: null, hasConfig: !!activeConfig };
+            let basePrice = Number(activeConfig?.basePrice || 0);
+            const discPct = Number(activeConfig?.discountPercentage || 0);
+            const discNom = Number(activeConfig?.discountNominal || 0);
+            if (discPct > 0) basePrice -= (basePrice * discPct / 100);
+            else if (discNom > 0) basePrice = Math.max(0, basePrice - discNom);
+            
+            return { rate: basePrice, slotLabel: null, hasConfig: !!activeConfig };
         }
 
         const now = new Date();
@@ -138,14 +155,27 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
             }
 
             if (isMatch) {
+                let slotPrice = Number(slot.price);
+                const discPct = Number(slot.discountPercentage || 0);
+                const discNom = Number(slot.discountNominal || 0);
+                if (discPct > 0) slotPrice -= (slotPrice * discPct / 100);
+                else if (discNom > 0) slotPrice = Math.max(0, slotPrice - discNom);
+                
                 return {
-                    rate: Number(slot.price),
+                    rate: slotPrice,
                     slotLabel: `${slot.start} – ${slot.end}`,
                     hasConfig: true
                 };
             }
         }
-        return { rate: Number(activeConfig.basePrice || 0), slotLabel: 'Harga Dasar', hasConfig: true };
+        
+        let fallbackBasePrice = Number(activeConfig.basePrice || 0);
+        const fbDiscPct = Number(activeConfig.discountPercentage || 0);
+        const fbDiscNom = Number(activeConfig.discountNominal || 0);
+        if (fbDiscPct > 0) fallbackBasePrice -= (fallbackBasePrice * fbDiscPct / 100);
+        else if (fbDiscNom > 0) fallbackBasePrice = Math.max(0, fallbackBasePrice - fbDiscNom);
+        
+        return { rate: fallbackBasePrice, slotLabel: 'Harga Dasar', hasConfig: true };
     };
 
     const handleReRoute = async (waitingId: number, newTableId: number, newTableName: string) => {
