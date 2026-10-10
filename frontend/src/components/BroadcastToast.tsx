@@ -20,7 +20,7 @@ const TOAST_CONFIG = {
   DANGER:  { bg: '#450a0a', border: '#ef4444', color: '#fca5a5', icon: AlertOctagon,  autoClose: 30000 },
 };
 
-import { getApiUrl } from '@/utils/urlUtils';
+import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 
 export function BroadcastToast() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -29,8 +29,8 @@ export function BroadcastToast() {
 
   // SSE listener dari backend
   useEffect(() => {
-    const API_BASE = getApiUrl();
-    const evtSource = new EventSource(`${API_BASE}/api/license/stream`);
+    const SOCKET_BASE = getSocketUrl();
+    const evtSource = new EventSource(`${SOCKET_BASE}/api/license/stream`);
 
     evtSource.onmessage = (event) => {
       try {

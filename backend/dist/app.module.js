@@ -44,7 +44,6 @@ const _aimodule = require("./ai/ai.module");
 const _chatmodule = require("./chat/chat.module");
 const _attendancemodule = require("./attendance/attendance.module");
 const _approvalmodule = require("./common/approval/approval.module");
-const _externalsyncmodule = require("./external-sync/external-sync.module");
 const _licensemodule = require("./license/license.module");
 const _licenseguard = require("./license/license.guard");
 const _vouchermodule = require("./voucher/voucher.module");
@@ -52,8 +51,15 @@ const _categorymodule = require("./category/category.module");
 const _pushnotificationmodule = require("./push-notification/push-notification.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for(var i = decorators.length - 1; i >= 0; i--)if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
+        r = Reflect.decorate(decorators, target, key, desc);
+    } else {
+        for(var i = decorators.length - 1; i >= 0; i--){
+            if (d = decorators[i]) {
+                r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+            }
+        }
+    }
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 }
 let AppModule = class AppModule {
@@ -146,7 +152,6 @@ AppModule = _ts_decorate([
             _chatmodule.ChatModule,
             _attendancemodule.AttendanceModule,
             _approvalmodule.ApprovalModule,
-            _externalsyncmodule.ExternalSyncModule,
             _licensemodule.LicenseModule,
             _vouchermodule.VoucherModule,
             _categorymodule.CategoryModule,

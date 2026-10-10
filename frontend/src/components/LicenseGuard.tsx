@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { getApiUrl } from '@/utils/urlUtils';
+import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 
 const LOCKED_STATUSES = ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED'];
 
@@ -15,6 +15,7 @@ export function LicenseGuard() {
     if (isOnActivatePage) return;
 
     const API_BASE = getApiUrl();
+    const SOCKET_BASE = getSocketUrl();
 
     // ── SSE: terima status change INSTAN dari backend ──────────────────
     let evtSource: EventSource | null = null;
@@ -27,7 +28,7 @@ export function LicenseGuard() {
     };
 
     const startSSE = () => {
-      evtSource = new EventSource(`${API_BASE}/api/license/status-stream`);
+      evtSource = new EventSource(`${SOCKET_BASE}/api/license/status-stream`);
 
       evtSource.onmessage = (event) => {
         try {

@@ -1667,7 +1667,7 @@ export class ReportService {
 
     try {
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.setContent(html, { waitUntil: 'load' });
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -1889,7 +1889,7 @@ export class ReportService {
             `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`,
         },
       });
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.setContent(html, { waitUntil: 'load' });
 
       const pdfBuffer = await page.pdf({
         format: 'A4',
@@ -2152,7 +2152,7 @@ export class ReportService {
             `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`,
         },
       });
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.setContent(html, { waitUntil: 'load' });
 
       const pdfBuffer = await page.pdf({
         format: 'A4',

@@ -34,7 +34,7 @@ import { AIModule } from './ai/ai.module';
 import { ChatModule } from './chat/chat.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ApprovalModule } from './common/approval/approval.module';
-import { ExternalSyncModule } from './external-sync/external-sync.module';
+
 import { LicenseModule } from './license/license.module';
 import { LicenseGuard } from './license/license.guard';
 import { VoucherModule } from './voucher/voucher.module';
@@ -117,7 +117,6 @@ import { PushNotificationModule } from './push-notification/push-notification.mo
     ChatModule,
     AttendanceModule,
     ApprovalModule,
-    ExternalSyncModule,
     LicenseModule,
     VoucherModule,
     CategoryModule,
