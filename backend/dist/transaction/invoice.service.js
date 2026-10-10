@@ -192,7 +192,7 @@ let InvoiceService = class InvoiceService {
             `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
             `Total Poin Anda : ${transaction.member?.points || 0}`,
             separator
-        ] : [], `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, ...transaction.generatedBounceBackCode ? (()=>{
+        ] : [], `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.commissionUser?.name || transaction.openedBy?.name || transaction.createdBy?.name || 'System'}`, ...transaction.generatedBounceBackCode ? (()=>{
             let bCode = transaction.generatedBounceBackCode;
             let bMinTx = 0;
             let bExpiry = 'H+14';

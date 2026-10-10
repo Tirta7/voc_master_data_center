@@ -53,14 +53,19 @@ export function BroadcastToast() {
   const syncVisible = () => setVisibleKeys(Array.from(visibleRef.current));
 
   const hide = useCallback((key: string) => {
-    visibleRef.current.delete(key);
+    const wasVisible = visibleRef.current.delete(key);
     if (hideTimersRef.current[key]) {
       clearTimeout(hideTimersRef.current[key]);
       delete hideTimersRef.current[key];
     }
-    // Jadwal interval dihitung sejak pesan disembunyikan
-    lastShownRef.current[key] = Date.now();
-    saveLastShown(lastShownRef.current);
+    // Interval dihitung sejak pesan MUNCUL (lihat show()), sehingga "tiap 1 menit"
+    // benar-benar muncul tiap 60 detik. Pengecualian: pesan dengan lama tampil 0
+    // (tampil sampai ditutup) → interval dihitung sejak ditutup, agar tidak langsung muncul lagi.
+    const m = messagesRef.current.find(x => msgKey(x) === key);
+    if (wasVisible && m && Number(m.durasiDetik ?? 15) <= 0) {
+      lastShownRef.current[key] = Date.now();
+      saveLastShown(lastShownRef.current);
+    }
     syncVisible();
   }, []);
 
@@ -128,7 +133,7 @@ export function BroadcastToast() {
     };
     connect();
 
-    const tick = setInterval(evaluate, 5000);
+    const tick = setInterval(evaluate, 1000);
     return () => {
       evtSource?.close();
       if (retry) clearTimeout(retry);
@@ -146,7 +151,7 @@ export function BroadcastToast() {
       top: 'max(12px, calc(env(safe-area-inset-top) + 8px))',
       left: '50%',
       transform: 'translateX(-50%)',
-      zIndex: 99999,
+      zIndex: 1000000, // di atas layar terkunci (/activate memakai 999999)
       display: 'flex',
       flexDirection: 'column',
       gap: '8px',

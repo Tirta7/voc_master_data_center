@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Res, Sse, Query } from '@nestjs/common';
+import type { Response } from 'express';
 import { Observable, map, filter, merge, interval, defer, of } from 'rxjs';
 import { LicenseService } from './license.service';
 
@@ -33,6 +34,8 @@ export class LicenseController {
    * SSE endpoint — Frontend subscribe ke sini untuk menerima broadcast real-time
    * GET /api/license/stream
    * Selalu mengirim daftar LENGKAP pesan aktif (list kosong = semua pesan dihapus/nonaktif).
+   * Juga mengirim event bernama `license` berisi snapshot status lisensi + `billing`
+   * (event bernama tidak masuk ke `onmessage`, jadi listener broadcast lama tidak terganggu).
    */
   @Sse('stream')
   stream(): Observable<any> {
@@ -43,7 +46,40 @@ export class LicenseController {
     const data$ = this.licenseService.broadcast$.pipe(
       map((broadcasts) => ({ data: JSON.stringify(broadcasts) }))
     );
-    return merge(initial$, data$, keepAlive$);
+    const licenseInitial$ = defer(() => of(this.licenseService.getState())).pipe(
+      map((state) => ({ type: 'license', data: JSON.stringify(state) }))
+    );
+    const license$ = this.licenseService.license$.pipe(
+      filter((v) => v !== null),
+      map((state) => ({ type: 'license', data: JSON.stringify(state) }))
+    );
+    return merge(initial$, licenseInitial$, data$, license$, keepAlive$);
+  }
+
+  /**
+   * Tagihan QRIS terakhir (snapshot). GET /api/license/billing
+   */
+  @Get('billing')
+  getBilling() {
+    const s = this.licenseService.getState();
+    return { status: s.status, billing: this.licenseService.getBilling() };
+  }
+
+  /**
+   * Proxy gambar QRIS tagihan agar browser kasir tidak perlu akses langsung ke VOCML.
+   * GET /api/license/billing/qris.png?size=512&t=<amount>
+   */
+  @Get('billing/qris.png')
+  async getBillingQris(@Res() res: Response, @Query('size') size?: string) {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const png = await this.licenseService.getBillingQrisPng(Number(size) || 512);
+      if (!png) return res.status(404).json({ error: 'no_billing' });
+      res.setHeader('Content-Type', 'image/png');
+      return res.end(png);
+    } catch {
+      return res.status(502).json({ error: 'qris_unavailable' });
+    }
   }
 
   /**

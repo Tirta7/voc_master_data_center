@@ -94,7 +94,7 @@ export function LicenseBanner() {
               fontFamily: 'system-ui, -apple-system, sans-serif',
               whiteSpace: 'nowrap',
             }}>
-              Lisensi berakhir! Waktu tenggang: <strong style={{ color: '#fca5a5' }}>{state.graceDaysLeft} hari</strong>
+              Lisensi berakhir! Waktu tenggang: <strong style={{ color: '#fca5a5' }}>{Math.max(0, state.daysLeft ?? 0)} hari</strong>
             </p>
           </div>
           <button

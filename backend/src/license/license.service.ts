@@ -8,6 +8,21 @@ import { randomBytes } from 'crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { checkLicense } from './vocml-client';
 import { QrisUtil } from './qris.util';
+import * as QRCode from 'qrcode';
+
+/** Tagihan QRIS dari VOCML (field `billing` di /api/v1/check). */
+export interface LicenseBilling {
+  reason: 'locked' | 'expired';
+  amount: number;
+  amount_text: string;
+  currency: string;
+  merchant_name: string;
+  merchant_city: string;
+  qris: string;
+  qris_image_url: string;
+  note: string;
+  contact: string;
+}
 
 export type LicenseStatus = 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
 
@@ -23,6 +38,9 @@ export interface LicenseState {
   serverOnline?: boolean;
   serverUrl?: string;
   rawStatus?: string;
+  lockReason?: string;
+  /** Tagihan QRIS — hanya terisi saat EXPIRED / BLOCKED dan admin mengatur QRIS. */
+  billing?: LicenseBilling | null;
 }
 
 export interface BroadcastMessage {
@@ -53,7 +71,9 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   private state: LicenseState;
   
   readonly broadcast$ = new Subject<BroadcastMessage[]>();
-  readonly statusChange$ = new BehaviorSubject<{ status: string; daysLeft: number; expiredAt: string | null } | null>(null);
+  readonly statusChange$ = new BehaviorSubject<{ status: string; daysLeft: number; expiredAt: string | null; billing?: LicenseBilling | null; message?: string } | null>(null);
+  /** Snapshot status lisensi lengkap (incl. billing) untuk SSE /api/license/stream. */
+  readonly license$ = new BehaviorSubject<LicenseState | null>(null);
   
   private lastEmittedStatus: string = '';
 
@@ -214,6 +234,7 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         machineId: this.machineId,
         publicKeyPem: this.vocmlPublicKey,
         cacheFile: cacheFile,
+        apiKey: this.configService.get<string>('VOCML_API_KEY') || '',
         storeName: storeName,
         appVersion: '2.0.0',
         timeoutMs: 8000
@@ -231,31 +252,50 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         mappedStatus = 'GRACE';
       }
 
-      const daysLeft = this.calculateDaysLeft(lic.expiresAt);
+      // Saat online, days_left dari server dipakai apa adanya (sumber kebenaran)
+      const daysLeft = !lic.offline && typeof lic.daysLeft === 'number'
+        ? lic.daysLeft
+        : this.calculateDaysLeft(lic.expiresAt);
 
+      // Billing hanya relevan saat EXPIRED / BLOCKED (jangan tampilkan QRIS saat aktif)
+      const billing: LicenseBilling | null =
+        (mappedStatus === 'EXPIRED' || mappedStatus === 'BLOCKED') ? (lic.billing || null) : null;
+
+      // License key & expiry SELALU mengikuti hasil terakhir (server / snapshot), tanpa
+      // mempertahankan key lama — agar koreksi pengurangan masa aktif langsung berlaku.
       this.state = {
         status: mappedStatus,
         expiredAt: lic.expiresAt || null,
         daysLeft: daysLeft,
+        // Sama persis dengan "Sisa Waktu" di Pengaturan (days_left dari VOCML)
+        graceDaysLeft: mappedStatus === 'GRACE' ? Math.max(0, daysLeft) : undefined,
         message: lic.reason,
         machineId: this.machineId,
         lastChecked: new Date().toISOString(),
-        licenseKey: lic.licenseKey || this.state?.licenseKey || null,
+        licenseKey: lic.licenseKey ?? null,
         serverOnline: !lic.offline,
         serverUrl: this.vocmlServerUrl,
         rawStatus: lic.status,
+        lockReason: lic.lockReason || '',
+        billing,
       };
 
-      this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}`);
+      this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}${billing ? ` | Tagihan: ${billing.amount_text}` : ''}`);
 
-      const emitKey = `${this.state.status}|${this.state.expiredAt || ''}`;
+      const emitKey = JSON.stringify([
+        this.state.status, this.state.expiredAt || '', this.state.licenseKey || '',
+        this.state.message || '', billing ? [billing.amount, billing.qris, billing.note, billing.contact, billing.reason] : null,
+      ]);
       if (emitKey !== this.lastEmittedStatus) {
         this.lastEmittedStatus = emitKey;
         this.statusChange$.next({
           status: this.state.status,
           daysLeft: this.state.daysLeft,
           expiredAt: this.state.expiredAt,
+          message: this.state.message,
+          billing,
         });
+        this.license$.next(this.state);
       }
     } catch (err) {
       this.logger.error('Error checking VOCML license', err);
@@ -329,6 +369,50 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
   getState(): LicenseState {
     return this.state;
+  }
+
+  getBilling(): LicenseBilling | null {
+    return this.state.billing || null;
+  }
+
+  /**
+   * PNG QRIS tagihan untuk proxy GET /api/license/billing/qris.png.
+   * 1) Ambil billing.qris_image_url dari VOCML (dengan X-VOCML-Key bila ada).
+   * 2) Fallback: render sendiri dari billing.qris (qrcode, ECC "M", margin 2).
+   * Mengembalikan null bila tidak ada tagihan.
+   */
+  async getBillingQrisPng(size = 512): Promise<Buffer | null> {
+    const billing = this.getBilling();
+    if (!billing) return null;
+    const px = Math.min(1024, Math.max(240, Math.round(size) || 512));
+
+    if (billing.qris_image_url) {
+      try {
+        const url = new URL(billing.qris_image_url);
+        if (!url.searchParams.has('size')) url.searchParams.set('size', String(px));
+        const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+        const res = await fetch(url.toString(), {
+          headers: apiKey ? { 'X-VOCML-Key': apiKey } : {},
+          signal: AbortSignal.timeout(8000),
+        });
+        const type = res.headers.get('content-type') || '';
+        if (res.ok && type.includes('image/png')) {
+          return Buffer.from(await res.arrayBuffer());
+        }
+        this.logger.warn(`Gagal ambil QRIS VOCML: HTTP ${res.status} ${type}`);
+      } catch (err: any) {
+        this.logger.warn(`Gagal ambil QRIS VOCML: ${err?.message || err}`);
+      }
+    }
+
+    if (!billing.qris) return null;
+    return QRCode.toBuffer(billing.qris, {
+      type: 'png',
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: px,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
   }
 
   isLocked(): boolean {

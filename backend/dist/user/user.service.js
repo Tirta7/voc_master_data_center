@@ -767,17 +767,30 @@ let UserService = class UserService {
             }
         }
         // 1. Service Commission (Table Starts)
+        // Top-up member (TransactionType.TOPUP) bukan sesi meja -> tidak boleh dihitung komisi service.
         const tableStarts = await this.transactionRepository.count({
             where: [
                 {
                     commissionUserId: userId,
+                    type: (0, _typeorm1.Not)(_transactionentity.TransactionType.TOPUP),
+                    createdAt: (0, _typeorm1.Between)(startDate, endDate),
+                    status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED),
+                    payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
+                },
+                {
+                    // Fallback transaksi lama tanpa commissionUserId: akun yang MEMBUKA transaksi
+                    commissionUserId: (0, _typeorm1.IsNull)(),
+                    openedByUserId: userId,
+                    type: (0, _typeorm1.Not)(_transactionentity.TransactionType.TOPUP),
                     createdAt: (0, _typeorm1.Between)(startDate, endDate),
                     status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED),
                     payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
                 },
                 {
                     commissionUserId: (0, _typeorm1.IsNull)(),
+                    openedByUserId: (0, _typeorm1.IsNull)(),
                     createdByUserId: userId,
+                    type: (0, _typeorm1.Not)(_transactionentity.TransactionType.TOPUP),
                     createdAt: (0, _typeorm1.Between)(startDate, endDate),
                     status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED),
                     payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
@@ -965,11 +978,20 @@ let UserService = class UserService {
             where: [
                 {
                     commissionUserId: userId,
+                    type: (0, _typeorm1.Not)(_transactionentity.TransactionType.TOPUP),
                     createdAt: (0, _typeorm1.Between)(startDate, endDate)
                 },
                 {
                     commissionUserId: (0, _typeorm1.IsNull)(),
+                    openedByUserId: userId,
+                    type: (0, _typeorm1.Not)(_transactionentity.TransactionType.TOPUP),
+                    createdAt: (0, _typeorm1.Between)(startDate, endDate)
+                },
+                {
+                    commissionUserId: (0, _typeorm1.IsNull)(),
+                    openedByUserId: (0, _typeorm1.IsNull)(),
                     createdByUserId: userId,
+                    type: (0, _typeorm1.Not)(_transactionentity.TransactionType.TOPUP),
                     createdAt: (0, _typeorm1.Between)(startDate, endDate)
                 }
             ]
@@ -1079,7 +1101,7 @@ let UserService = class UserService {
             // Transactions (Billiard/Service share)
             await manager.createQueryBuilder().update(_transactionentity.Transaction).set({
                 payrollReleaseId: savedRelease.id
-            }).where('payrollReleaseId IS NULL').andWhere('(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))', {
+            }).where('payrollReleaseId IS NULL').andWhere('(commissionUserId = :userId OR (commissionUserId IS NULL AND COALESCE(openedByUserId, createdByUserId) = :userId))', {
                 userId
             }).execute();
             // 4. Violations (Deductions reset)

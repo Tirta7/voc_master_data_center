@@ -774,6 +774,8 @@ export class CafeService {
               status: TransactionStatus.UNPAID,
               openedByUserId: userId ?? null,
               createdByUserId: userId ?? null,
+              commissionUserId:
+                (await this.shiftService.findAssignedWaiterForTable('BILLIARD', tableId)) ?? userId ?? null,
               startTime: inheritedStartTime || new Date(), // Gunakan startTime billiard jika ada
               memberId: inheritedMemberId ?? null,
               businessDayId: activeDay.id,
@@ -794,6 +796,7 @@ export class CafeService {
           type: TransactionType.CAFE,
           openedByUserId: userId ?? null,
           createdByUserId: userId ?? null,
+          commissionUserId: userId ?? null,
           startTime: new Date(),
           businessDayId: activeDay.id,
           shiftId: activeShift?.id ?? null,

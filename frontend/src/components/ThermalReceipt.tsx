@@ -220,6 +220,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     // Determine cashier: Priority to prop (active shift), then transaction data, then settings
     const displayCashier = (cashierName || tx.createdBy?.name || settings.posWaitName || 'ADMIN').toUpperCase();
+    // Waiter = akun yang melayani / pemilik komisi. Urutan sama dengan layar display:
+    // pemilik komisi → akun pembuka transaksi → pembuat transaksi. 'SYSTEM' hanya bila semuanya kosong.
+    const displayWaiter = (tx.commissionUser?.name || tx.openedBy?.name || tx.createdBy?.name || 'SYSTEM').toUpperCase();
 
     // Billiard Session Times
     const startTime = tx.startTime || tx.table?.startTime || tx.createdAt;
@@ -410,7 +413,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     <span>Kasir:</span>
                     <span className="font-bold text-right truncate">{displayCashier}</span>
                     <span className="pl-3">Waiters:</span>
-                    <span className="font-bold text-right truncate">{(tx.openedBy?.name || 'SYSTEM').toUpperCase()}</span>
+                    <span className="font-bold text-right truncate">{displayWaiter}</span>
                 </div>
                 {tx.member && (
                     <div className="grid grid-cols-[auto_1fr] gap-x-2 items-baseline px-1 text-[10px]">
@@ -825,7 +828,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                 `📅 TGL  : ${tDate} ${tTime}\n` +
                                 `🎱 MEJA : ${(tx.table?.tableName || tx.cafeTable?.tableName || '-').toUpperCase()}\n` +
                                 `👤 CUST : ${(tx.customerName || '-').toUpperCase()}\n` +
-                                `🤵 WAITERS : ${(tx.openedBy?.name || 'SYSTEM').toUpperCase()}\n` +
+                                `🤵 WAITERS : ${displayWaiter}\n` +
                                 `---------------------------\n` +
                                 `⏱ START : ${formatTime(startTime)}\n` +
                                 `⏱ END   : ${formatTime(endTime)}\n` +
@@ -844,7 +847,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                 `📅 TGL  : ${tDate} ${tTime}\n` +
                                 `🎱 MEJA : ${(tx.table?.tableName || tx.cafeTable?.tableName || '-').toUpperCase()}\n` +
                                 `👤 CUST : ${(tx.customerName || '-').toUpperCase()}\n` +
-                                `🤵 WAITERS : ${(tx.openedBy?.name || 'SYSTEM').toUpperCase()}\n` +
+                                `🤵 WAITERS : ${displayWaiter}\n` +
                                 `---------------------------\n` +
                                 `⏱ START : ${formatTime(startTime)}\n` +
                                 `⏱ END   : ${formatTime(endTime)}\n` +

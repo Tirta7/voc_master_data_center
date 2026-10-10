@@ -260,7 +260,7 @@ export class InvoiceService {
           ]
         : []),
       `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`,
-      `Waiter : ${transaction.openedBy?.name || 'System'}`,
+      `Waiter : ${transaction.commissionUser?.name || transaction.openedBy?.name || transaction.createdBy?.name || 'System'}`,
         ...(transaction.generatedBounceBackCode
         ? (() => {
             let bCode = transaction.generatedBounceBackCode;

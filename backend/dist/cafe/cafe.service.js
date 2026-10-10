@@ -663,6 +663,7 @@ let CafeService = class CafeService {
                             status: _transactionentity.TransactionStatus.UNPAID,
                             openedByUserId: userId ?? null,
                             createdByUserId: userId ?? null,
+                            commissionUserId: await this.shiftService.findAssignedWaiterForTable('BILLIARD', tableId) ?? userId ?? null,
                             startTime: inheritedStartTime || new Date(),
                             memberId: inheritedMemberId ?? null,
                             businessDayId: activeDay.id,
@@ -682,6 +683,7 @@ let CafeService = class CafeService {
                     type: _transactionentity.TransactionType.CAFE,
                     openedByUserId: userId ?? null,
                     createdByUserId: userId ?? null,
+                    commissionUserId: userId ?? null,
                     startTime: new Date(),
                     businessDayId: activeDay.id,
                     shiftId: activeShift?.id ?? null

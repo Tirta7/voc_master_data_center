@@ -11,6 +11,9 @@ import helmet from 'helmet';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
+    // SSE (/api/license/stream dll.) adalah koneksi permanen: tanpa ini app.close()
+    // menunggu selamanya dan restart/watch macet (port 4000 lepas, proses tidak keluar).
+    forceCloseConnections: true,
   });
 
   // --- Security & Performance Middleware ---
@@ -66,18 +69,16 @@ async function bootstrap() {
 
   // --- Graceful Shutdown ---
   // Allows existing connections to finish before the server closes
-  process.on('SIGTERM', async () => {
-    console.log('[SIGTERM] Graceful shutdown initiated...');
-    await app.close();
-    console.log('[SIGTERM] Server closed cleanly.');
+  const shutdown = async (signal: string) => {
+    console.log(`[${signal}] Graceful shutdown initiated...`);
+    // Pengaman: paksa keluar bila penutupan macet
+    setTimeout(() => process.exit(0), 5000).unref();
+    try { await app.close(); } catch {}
+    console.log(`[${signal}] Server closed cleanly.`);
     process.exit(0);
-  });
-
-  process.on('SIGINT', async () => {
-    console.log('[SIGINT] Shutting down...');
-    await app.close();
-    process.exit(0);
-  });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   console.log(`🚀 Server running on port ${process.env.PORT ?? 4000}`);
 }

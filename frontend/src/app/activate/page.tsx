@@ -1,10 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Lock, Copy, CheckCircle, RefreshCw, QrCode } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { getApiUrl } from '@/utils/urlUtils';
+import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff } from 'lucide-react';
+import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import WaitingCat from '@/components/WaitingCat';
+
+/** Tagihan QRIS dari VOCML (field `billing`). */
+interface LicenseBilling {
+  reason: 'locked' | 'expired';
+  amount: number;
+  amount_text: string;
+  currency: string;
+  merchant_name: string;
+  merchant_city: string;
+  qris: string;
+  qris_image_url: string;
+  note: string;
+  contact: string;
+}
+
+const toWaNumber = (contact: string) => {
+  const d = contact.replace(/\D/g, '');
+  return d.startsWith('0') ? `62${d.slice(1)}` : d;
+};
 
 export default function ActivatePage() {
   const [copied, setCopied] = useState(false);
@@ -12,31 +30,36 @@ export default function ActivatePage() {
   const [licenseState, setLicenseState] = useState<any>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [backendReady, setBackendReady] = useState(false);
-  const [renewalInfo, setRenewalInfo] = useState<{
-    nominal?: number; qrisString?: string; merchantName?: string | null;
-    adminWhatsapp?: string | null; note?: string | null; periodLabel?: string | null; message?: string;
-  } | null>(null);
-  const [qrisLoading, setQrisLoading] = useState(false);
-  const [qrisError, setQrisError] = useState<string | null>(null);
+  const [qrFailed, setQrFailed] = useState(false);
+  const [qrLoaded, setQrLoaded] = useState(false);
 
-  const loadRenewalInfo = (refresh = false) => {
-    const API_BASE = getApiUrl();
-    setQrisLoading(prev => prev || !renewalInfo);
-    fetch(`${API_BASE}/api/license/renewal-info${refresh ? '?refresh=true' : ''}`)
-      .then(r => r.json())
-      .then(res => {
-        if (res.success) { setRenewalInfo(res); setQrisError(null); }
-        else setQrisError(res.message || 'QRIS belum diatur di pusat.');
-      })
-      .catch(() => setQrisError('Tidak dapat memuat QRIS.'))
-      .finally(() => setQrisLoading(false));
-  };
+  const isLockedStatus = licenseState?.status === 'EXPIRED' || licenseState?.status === 'BLOCKED';
+  // QRIS hanya ditampilkan saat EXPIRED / BLOCKED
+  const billing: LicenseBilling | null = isLockedStatus ? (licenseState?.billing || null) : null;
+
+  // Reset status gambar saat nominal / QR berubah
+  useEffect(() => { setQrFailed(false); setQrLoaded(false); }, [billing?.amount, billing?.qris]);
 
   useEffect(() => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout>;
     let attempt = 0;
     const MAX_RETRIES = 20; // 20x × 5 detik = 100 detik tunggu backend warm-up
+    let notified = false;
+
+    const applyState = (data: any) => {
+      if (cancelled || !data) return;
+      setMachineId(data.machineId || 'TIDAK DIKETAHUI');
+      setLicenseState(data);
+      // Sudah aktif kembali (diperpanjang / dibuka kuncinya) → tutup layar terkunci otomatis
+      if (data.status === 'ACTIVE' || data.status === 'GRACE') {
+        window.location.href = '/';
+      } else if (!notified && (data.status === 'EXPIRED' || data.status === 'BLOCKED')) {
+        notified = true;
+        // Trigger push notification ke HP owner
+        fetch(`${getApiUrl()}/api/license/notify-warning`, { method: 'POST' }).catch(() => {});
+      }
+    };
 
     const fetchStatus = async () => {
       try {
@@ -52,19 +75,7 @@ export default function ActivatePage() {
 
         if (cancelled) return;
         setBackendReady(true);
-        setMachineId(data.machineId || 'TIDAK DIKETAHUI');
-        setLicenseState(data);
-
-        // Jika sudah aktif kembali, redirect ke halaman utama
-        if (data.status === 'ACTIVE' || data.status === 'GRACE') {
-          window.location.href = '/';
-        } else {
-          if (data.status === 'EXPIRED' || data.status === 'BLOCKED') {
-            // Trigger push notification ke HP owner
-            fetch(`${API_BASE}/api/license/notify-warning`, { method: 'POST' }).catch(() => {});
-          }
-          loadRenewalInfo();
-        }
+        applyState(data);
       } catch (err: any) {
         if (cancelled) return;
         attempt++;
@@ -82,28 +93,28 @@ export default function ActivatePage() {
 
     fetchStatus();
 
-    // Polling setiap 5 detik
+    // Polling setiap 5 detik (cadangan bila SSE terputus)
     const interval = setInterval(async () => {
       try {
-        const API_BASE = getApiUrl();
-        const res = await fetch(`${API_BASE}/api/license/status`);
-        const data = await res.json();
-        setMachineId(data.machineId || 'TIDAK DIKETAHUI');
-        setLicenseState(data);
-        if (data.status === 'ACTIVE' || data.status === 'GRACE') {
-          window.location.href = '/';
-        }
+        const res = await fetch(`${getApiUrl()}/api/license/status`);
+        applyState(await res.json());
       } catch { /* abaikan polling error */ }
     }, 5000);
 
-    // Refresh nominal/QRIS tiap 60 detik (jika admin mengubah tagihan di VOCML)
-    const qrisInterval = setInterval(() => loadRenewalInfo(), 60000);
+    // SSE: status lisensi + billing real-time (event bernama `license`)
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(`${getSocketUrl()}/api/license/stream`);
+      es.addEventListener('license', (ev) => {
+        try { applyState(JSON.parse((ev as MessageEvent).data)); } catch {}
+      });
+    } catch { /* polling tetap berjalan */ }
 
     return () => {
       cancelled = true;
       clearTimeout(retryTimer);
       clearInterval(interval);
-      clearInterval(qrisInterval);
+      es?.close();
     };
   }, []);
 
@@ -202,9 +213,9 @@ export default function ActivatePage() {
           alignItems: 'stretch', justifyContent: 'center'
         }}>
           
-        {/* Card Kiri: QRIS dinamis dari VOCML */}
-        {(
-          <div style={{
+        {/* Card Kiri: Tagihan QRIS dari VOCML (hanya bila billing != null) */}
+        {billing && (
+          <section id="billing-panel" aria-label="Tagihan QRIS" style={{
             flex: '1 1 350px',
             background: 'rgba(15, 23, 42, 0.4)',
             backdropFilter: 'blur(32px)',
@@ -221,109 +232,113 @@ export default function ActivatePage() {
               padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700',
               marginBottom: '16px', display: 'inline-flex', alignItems: 'center', gap: '6px'
             }}>
-              <QrCode size={14} /> Scan & Otomatis Buka Kunci
+              <QrCode size={14} /> Tagihan Perpanjangan
             </div>
-            
-            <h2 style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: '0 0 8px' }}>
-              Pembayaran via QRIS
-            </h2>
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 24px', lineHeight: '1.5' }}>
-              Scan QR di bawah &amp; bayar sesuai nominal. Aplikasi otomatis terbuka setelah pembayaran sukses.
-            </p>
 
-            {qrisLoading ? (
-              <div style={{ padding: '40px', color: '#64748b' }}>
-                <RefreshCw size={24} style={{ animation: 'spin 1.5s linear infinite', margin: '0 auto 12px' }} />
-                <div style={{ fontSize: '13px' }}>Memuat QRIS...</div>
-              </div>
-            ) : renewalInfo?.qrisString ? (
-              /* ══ QRIS TEMPLATE + QR OVERLAY ══ */
+            <h2 style={{ color: 'white', fontSize: '20px', fontWeight: '800', margin: '0 0 6px' }}>
+              {billing.reason === 'expired' ? 'Lisensi telah berakhir' : 'Aplikasi dikunci'}
+            </h2>
+            {licenseState?.lockReason && (
+              <p style={{ color: '#fca5a5', fontSize: '13px', fontWeight: 600, margin: '0 0 20px', lineHeight: 1.5 }}>
+                {licenseState.lockReason}
+              </p>
+            )}
+
+            {/* QR: dari proxy backend, latar putih, tanpa blur/stretch */}
+            {!qrFailed ? (
               <div style={{
-                position: 'relative',
-                width: '100%',
-                maxWidth: '310px',
-                margin: '0 auto 12px',
-                // Tidak ada border-radius (ujung lancip)
-                overflow: 'hidden',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-                minHeight: '200px',
+                background: '#ffffff', padding: '12px', borderRadius: '12px',
+                width: '288px', height: '288px', boxSizing: 'border-box',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto', position: 'relative',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
               }}>
-                {/* Template background image */}
+                {!qrLoaded && (
+                  <RefreshCw size={24} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
+                )}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/tempQR.png"
-                  alt="QRIS Certificate Template"
-                  style={{ width: '100%', display: 'block' }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.border = '4px solid red';
-                    (e.target as HTMLImageElement).alt = 'GAGAL LOAD: /tempQR.png';
+                  id="billing-qris-image"
+                  src={`${getApiUrl()}/api/license/billing/qris.png?t=${billing.amount}`}
+                  alt={`QRIS ${billing.merchant_name} ${billing.amount_text}`}
+                  width={264}
+                  height={264}
+                  onLoad={() => setQrLoaded(true)}
+                  onError={() => setQrFailed(true)}
+                  style={{
+                    width: '264px', height: '264px', display: 'block',
+                    objectFit: 'contain', imageRendering: 'pixelated',
+                    background: '#ffffff', opacity: qrLoaded ? 1 : 0,
                   }}
-                  onLoad={() => console.log('✅ tempQR.png berhasil dimuat')}
                 />
-
-
-
-                {/* QR Code overlay — tepat di tengah area kosong QR pada template */}
-                <div style={{
-                  position: 'absolute',
-                  top: '34%',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '56%',
-                  background: 'white',
-                  padding: '4px',
-                  // Hilangkan border-radius (lancip) dan box-shadow (blur)
-                }}>
-                  <QRCodeSVG
-                    value={renewalInfo.qrisString}
-                    size={256}
-                    level="M"
-                    includeMargin={false}
-                    bgColor="#ffffff"
-                    fgColor="#000000"
-                    style={{ width: '100%', height: 'auto', display: 'block' }}
-                  />
-                </div>
               </div>
             ) : (
-              <div style={{ padding: '40px', color: '#ef4444', background: 'rgba(239,68,68,0.1)', borderRadius: '16px' }}>
-                <div style={{ fontSize: '13px', fontWeight: '600' }}>QRIS belum tersedia.</div>
-                <div style={{ fontSize: '11px', marginTop: '4px' }}>{qrisError || 'Tagihan belum di-set di pusat.'}</div>
+              <div id="billing-qris-offline" style={{
+                width: '288px', minHeight: '160px', boxSizing: 'border-box', margin: '0 auto',
+                padding: '24px', borderRadius: '16px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px',
+              }}>
+                <WifiOff size={28} />
+                <div style={{ fontSize: '13px', fontWeight: 600 }}>Hubungkan internet untuk menampilkan QRIS</div>
                 <button
-                  onClick={() => loadRenewalInfo(true)}
-                  style={{ marginTop: '12px', background: 'rgba(255,255,255,0.08)', color: '#fca5a5', border: 'none', borderRadius: '10px', padding: '6px 12px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                  id="billing-qris-retry"
+                  onClick={() => { setQrFailed(false); setQrLoaded(false); }}
+                  style={{ background: 'rgba(255,255,255,0.08)', color: '#fca5a5', border: 'none', borderRadius: '10px', padding: '6px 12px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                 >
-                  Muat ulang
+                  Coba lagi
                 </button>
               </div>
             )}
 
-            {renewalInfo?.nominal && (
-              <>
-                <div style={{ color: '#64748b', fontSize: '12px', fontWeight: '600', marginBottom: '4px', marginTop: '16px' }}>
-                  Jumlah Nominal{renewalInfo.periodLabel ? ` • ${renewalInfo.periodLabel}` : ''}
-                </div>
-                <div style={{ color: '#fff', fontSize: '30px', fontWeight: '800', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>
-                  Rp {renewalInfo.nominal.toLocaleString('id-ID')}
-                </div>
-              </>
-            )}
-            {renewalInfo?.merchantName && (
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '6px' }}>
-                a.n. <strong style={{ color: '#e2e8f0' }}>{renewalInfo.merchantName}</strong>
+            <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600', marginTop: '20px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Total tagihan
+            </div>
+            <div id="billing-amount" style={{ color: '#fff', fontSize: '34px', fontWeight: '800', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+              {billing.amount_text}
+            </div>
+            <div style={{ color: '#cbd5e1', fontSize: '13px', marginTop: '6px', fontWeight: 600 }}>
+              QRIS · {billing.merchant_name}
+            </div>
+            {billing.note && (
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxWidth: '320px' }}>
+                {billing.note}
               </div>
             )}
-            {renewalInfo?.note && (
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '10px', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxWidth: '320px' }}>
-                {renewalInfo.note}
+
+            {billing.contact.trim() !== '' && (
+              <div style={{ marginTop: '18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                <div style={{ color: '#cbd5e1', fontSize: '13px' }}>
+                  Kontak admin: <strong style={{ color: '#fff' }}>{billing.contact}</strong>
+                </div>
+                <a
+                  id="billing-whatsapp"
+                  href={`https://wa.me/${toWaNumber(billing.contact)}?text=${encodeURIComponent(
+                    `Halo admin, saya ingin membayar perpanjangan lisensi Billiard.\nMachine ID: ${machineId}\nNominal: ${billing.amount_text}`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="billing-wa-btn"
+                  style={{
+                    padding: '10px 18px',
+                    background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                    borderRadius: '12px', color: 'white', textDecoration: 'none',
+                    fontSize: '14px', fontWeight: '700',
+                    boxShadow: '0 8px 24px rgba(34,197,94,0.3)',
+                    display: 'inline-flex', alignItems: 'center', gap: '8px',
+                    transition: 'transform 0.15s, box-shadow 0.15s',
+                  }}
+                >
+                  <MessageCircle size={16} /> Chat WhatsApp
+                </a>
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {/* Card Kanan: Form Manual */}
         <div style={{
           flex: '1 1 350px',
+          maxWidth: billing ? undefined : '480px',
           background: 'rgba(15, 23, 42, 0.4)',
           backdropFilter: 'blur(32px)',
           WebkitBackdropFilter: 'blur(32px)',
@@ -458,26 +473,6 @@ export default function ActivatePage() {
             </p>
           </div>
 
-          {renewalInfo?.adminWhatsapp && (
-            <a
-              href={`https://wa.me/${renewalInfo.adminWhatsapp.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(
-                `Halo admin, saya sudah melakukan pembayaran perpanjangan lisensi Billiard.\nMachine ID: ${machineId}${renewalInfo.nominal ? `\nNominal: Rp ${renewalInfo.nominal.toLocaleString('id-ID')}` : ''}`
-              )}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                width: '100%', padding: '14px', boxSizing: 'border-box',
-                background: 'linear-gradient(135deg, #16a34a, #22c55e)',
-                borderRadius: '14px', color: 'white', textDecoration: 'none',
-                fontSize: '14px', fontWeight: '700',
-                boxShadow: '0 8px 24px rgba(34,197,94,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              }}
-            >
-              Kirim Bukti Bayar via WhatsApp
-            </a>
-          )}
-          
           {/* Footer */}
           <p style={{
             textAlign: 'center', color: '#334155',
@@ -502,6 +497,10 @@ export default function ActivatePage() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .billing-wa-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 28px rgba(34,197,94,0.45) !important;
         }
       `}</style>
     </div>

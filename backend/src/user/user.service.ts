@@ -18,6 +18,7 @@ import { Attendance } from '../attendance/entities/attendance.entity';
 import {
   Transaction,
   TransactionStatus,
+  TransactionType,
 } from '../transaction/entities/transaction.entity';
 import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import * as bcrypt from 'bcrypt';
@@ -719,17 +720,30 @@ export class UserService {
     }
 
     // 1. Service Commission (Table Starts)
+    // Top-up member (TransactionType.TOPUP) bukan sesi meja -> tidak boleh dihitung komisi service.
     const tableStarts = await this.transactionRepository.count({
       where: [
         {
           commissionUserId: userId,
+          type: Not(TransactionType.TOPUP),
+          createdAt: Between(startDate, endDate),
+          status: Not(TransactionStatus.CANCELLED),
+          payrollReleaseId: includeReleased ? undefined : IsNull(),
+        },
+        {
+          // Fallback transaksi lama tanpa commissionUserId: akun yang MEMBUKA transaksi
+          commissionUserId: IsNull(),
+          openedByUserId: userId,
+          type: Not(TransactionType.TOPUP),
           createdAt: Between(startDate, endDate),
           status: Not(TransactionStatus.CANCELLED),
           payrollReleaseId: includeReleased ? undefined : IsNull(),
         },
         {
           commissionUserId: IsNull(),
+          openedByUserId: IsNull(),
           createdByUserId: userId,
+          type: Not(TransactionType.TOPUP),
           createdAt: Between(startDate, endDate),
           status: Not(TransactionStatus.CANCELLED),
           payrollReleaseId: includeReleased ? undefined : IsNull(),
@@ -984,10 +998,18 @@ export class UserService {
     // 4. Counts & Stats
     const sessions = await this.transactionRepository.count({
       where: [
-        { commissionUserId: userId, createdAt: Between(startDate, endDate) },
+        { commissionUserId: userId, type: Not(TransactionType.TOPUP), createdAt: Between(startDate, endDate) },
         {
           commissionUserId: IsNull(),
+          openedByUserId: userId,
+          type: Not(TransactionType.TOPUP),
+          createdAt: Between(startDate, endDate),
+        },
+        {
+          commissionUserId: IsNull(),
+          openedByUserId: IsNull(),
           createdByUserId: userId,
+          type: Not(TransactionType.TOPUP),
           createdAt: Between(startDate, endDate),
         },
       ],
@@ -1142,7 +1164,7 @@ export class UserService {
         .set({ payrollReleaseId: savedRelease.id })
         .where('payrollReleaseId IS NULL')
         .andWhere(
-          '(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))',
+          '(commissionUserId = :userId OR (commissionUserId IS NULL AND COALESCE(openedByUserId, createdByUserId) = :userId))',
           { userId },
         )
         .execute();

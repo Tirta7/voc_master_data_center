@@ -291,6 +291,11 @@ export class CafeTableService {
       const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
       const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
 
+      // Pemilik komisi: waiter yang ditugaskan di meja ini (jika ada), selain itu akun yang
+      // MEMBUKA meja. Diisi eksplisit agar saat pembayaran (createdByUserId ditimpa kasir)
+      // komisi tidak berpindah ke akun kasir.
+      const assignedWaiterId = await this.shiftService.findAssignedWaiterForTable('CAFE', id);
+
       const tx = queryRunner.manager.create(Transaction, {
         invoiceNumber: genInvoice(),
         customerName: customerName ?? undefined,
@@ -304,6 +309,7 @@ export class CafeTableService {
         startTime: new Date(),
         openedByUserId: userId ?? null,
         createdByUserId: userId ?? null,
+        commissionUserId: assignedWaiterId ?? userId ?? null,
         memberId: memberId ?? null,
         businessDayId: activeDay.id,
         shiftId: activeShift?.id ?? null,

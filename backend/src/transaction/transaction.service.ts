@@ -236,6 +236,7 @@ export class TransactionService {
             'table',
             'payments',
             'openedBy',
+            'commissionUser',
             'createdBy',
             'member',
             'member.tier',
@@ -305,6 +306,7 @@ export class TransactionService {
         // Strip circular relations after processing
         (transaction as any).table = undefined;
         (transaction as any).cafeTable = undefined;
+        this.stripStaffSecrets(transaction);
         if (transaction.orderItems) {
           transaction.orderItems.forEach((oi) => {
             (oi as any).transaction = undefined;
@@ -314,6 +316,25 @@ export class TransactionService {
     );
 
     return activeTransactions;
+  }
+
+  /**
+   * Buang field sensitif dari relasi staf (openedBy/createdBy/commissionUser/paidBy)
+   * agar tidak ikut terkirim ke browser / tersimpan di cache Redis.
+   */
+  private stripStaffSecrets<T extends Record<string, any>>(tx: T): T {
+    if (!tx) return tx;
+    for (const key of ['openedBy', 'createdBy', 'commissionUser', 'paidBy']) {
+      const u = (tx as any)[key];
+      if (u && typeof u === 'object') {
+        delete u.password;
+        delete u.pin;
+        delete u.fingerprintData;
+        delete u.rfid;
+        delete u.socketId;
+      }
+    }
+    return tx;
   }
 
   async getActiveTransactionByCafeTable(
@@ -336,11 +357,17 @@ export class TransactionService {
         'payments',
         'member',
         'member.tier',
+        // Staf: tanpa relasi ini nota sementara selalu tertulis "Waiters: SYSTEM"
+        'openedBy',
+        'commissionUser',
+        'createdBy',
+        'paidBy',
       ],
       order: { createdAt: 'DESC' },
     });
 
     if (!tx) return null;
+    this.stripStaffSecrets(tx);
 
     // Invalidate/Clean relations to avoid circularity in Redis/JSON
     const { table: _t, cafeTable: _ct, ...cleanTx } = tx;
@@ -1295,6 +1322,7 @@ export class TransactionService {
         'payments',
         'payments.createdBy',
         'openedBy',
+        'commissionUser',
         'createdBy',
         'paidBy',
         'member',
@@ -1302,6 +1330,7 @@ export class TransactionService {
       ],
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
+    this.stripStaffSecrets(transaction);
     return await this.calculateTransientTotals(transaction);
   }
 
@@ -1803,6 +1832,16 @@ export class TransactionService {
   ): Promise<Transaction> {
     const sourceTx = await this.getTransactionById(sourceTransactionId);
     const newTx = await this.createTransaction();
+    // Warisi atribusi dari transaksi asal agar komisi/nama waiter tidak hilang (sebelumnya NULL semua)
+    await this.transactionRepository.update(newTx.id, {
+      openedByUserId: sourceTx.openedByUserId ?? null,
+      createdByUserId: sourceTx.createdByUserId ?? null,
+      commissionUserId: sourceTx.commissionUserId ?? sourceTx.openedByUserId ?? null,
+      shiftId: sourceTx.shiftId ?? null,
+      businessDayId: sourceTx.businessDayId ?? null,
+      customerName: sourceTx.customerName ?? undefined,
+      type: sourceTx.type,
+    } as any);
 
     const itemsToMove = sourceTx.orderItems.filter((item) =>
       orderItemIds.includes(item.id),
@@ -2102,6 +2141,7 @@ export class TransactionService {
         'orderItems.menuItem.category',
         'payments',
         'openedBy',
+        'commissionUser',
         'createdBy',
         'member',
         'member.tier',
@@ -2111,6 +2151,7 @@ export class TransactionService {
       throw new NotFoundException(
         `Transaction ${transactionId} not found after update`,
       );
+    this.stripStaffSecrets(finalResult);
 
     // Broadcast for real-time payroll/ledger refresh
     if (!skipBroadcast) {

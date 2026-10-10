@@ -114,24 +114,80 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
     const payload = verifyToken(body.token, publicKeyPem);
     if (!payload || payload.machine_id !== machineId.toUpperCase()) throw new Error('Token server tidak valid');
 
-    writeCache(cacheFile, { token: body.token, checkedAt: Date.now() });
-    if (payload.status === 'locked') return result(false, 'locked', { reason: payload.lock_reason || 'Aplikasi dikunci', expiresAt: payload.expires_at });
-    if (payload.status === 'pending') return result(false, 'pending', { reason: 'Menunggu aktivasi lisensi' });
-    if (payload.status === 'expired') return result(false, 'expired', { reason: 'Masa lisensi telah berakhir', expiresAt: payload.expires_at });
-    return result(ALLOWED.has(payload.status), payload.status, { expiresAt: payload.expires_at, licenseKey: payload.license_key });
+    // Respons sukses server = SUMBER KEBENARAN. Snapshot lokal SELALU ditimpa,
+    // walaupun expires_at lebih awal dari sebelumnya (koreksi masa aktif oleh admin).
+    // Tidak ada logika "pilih key dengan tanggal paling lama".
+    const billing = normalizeBilling(body.billing);
+    const snap = {
+      status: payload.status,
+      expiresAt: payload.expires_at || null,
+      licenseKey: payload.license_key || null,
+      locked: payload.locked === true || payload.status === 'locked',
+      lockReason: payload.lock_reason || '',
+      daysLeft: typeof payload.days_left === 'number' ? payload.days_left : (typeof body.days_left === 'number' ? body.days_left : null),
+      graceDays: payload.grace_days || 0,
+      billing,
+    };
+    writeCache(cacheFile, {
+      token: body.token,
+      checkedAt: Date.now(),
+      license_key: snap.licenseKey,
+      expires_at: snap.expiresAt,
+      status: snap.status,
+      locked: snap.locked,
+      lock_reason: snap.lockReason,
+      days_left: snap.daysLeft,
+      grace_days: snap.graceDays,
+      billing, // null => tagihan lokal ikut terhapus
+    });
+
+    const common = { expiresAt: snap.expiresAt, licenseKey: snap.licenseKey, daysLeft: snap.daysLeft, lockReason: snap.lockReason, billing };
+    if (payload.status === 'locked') return result(false, 'locked', { ...common, reason: payload.lock_reason || 'Aplikasi dikunci' });
+    if (payload.status === 'pending') return result(false, 'pending', { ...common, reason: 'Menunggu aktivasi lisensi' });
+    if (payload.status === 'expired') return result(false, 'expired', { ...common, reason: 'Masa lisensi telah berakhir' });
+    return result(ALLOWED.has(payload.status), payload.status, common);
   } catch (err) {
-    // Offline: pakai cache terakhir selama masih dalam masa toleransi
+    // Offline: pakai snapshot terakhir selama masih dalam masa toleransi (grace_days)
     const cache = readCache(cacheFile);
     const payload = cache && verifyToken(cache.token, publicKeyPem);
     if (!payload || payload.machine_id !== machineId.toUpperCase()) {
       return result(false, 'offline', { reason: 'Tidak dapat terhubung ke server lisensi', offline: true });
     }
+    const billing = normalizeBilling(cache.billing);
+    // Snapshot terakhir dari server berstatus expired/locked → tetap terkunci,
+    // walaupun key lama masih "berlaku" secara offline.
+    if (payload.status === 'locked' || payload.status === 'expired') {
+      return result(false, payload.status, {
+        reason: payload.status === 'locked' ? (payload.lock_reason || 'Aplikasi dikunci') : 'Masa lisensi telah berakhir',
+        expiresAt: payload.expires_at || null, licenseKey: payload.license_key || null,
+        lockReason: payload.lock_reason || '', billing, offline: true,
+      });
+    }
     const graceMs = (payload.grace_days || 0) * 86400000;
     const withinGrace = Date.now() - cache.checkedAt <= graceMs && cache.checkedAt <= Date.now();
     const key = payload.license_key ? verifyLicenseKey(payload.license_key, machineId, product, publicKeyPem) : { valid: false };
     if (ALLOWED.has(payload.status) && withinGrace && key.valid && !key.expired) {
-      return result(true, payload.status, { expiresAt: key.expiresAt, offline: true });
+      return result(true, payload.status, { expiresAt: key.expiresAt, licenseKey: payload.license_key, offline: true });
     }
     return result(false, 'offline', { reason: 'Tidak terhubung ke server lisensi dan masa toleransi offline habis', offline: true });
   }
+}
+
+/** Normalisasi field `billing` dari VOCML. null bila tidak ada tagihan. */
+export function normalizeBilling(b) {
+  if (!b || typeof b !== 'object') return null;
+  const amount = Math.round(Number(b.amount) || 0);
+  if (amount <= 0 || !b.qris) return null;
+  return {
+    reason: b.reason === 'expired' ? 'expired' : 'locked',
+    amount,
+    amount_text: String(b.amount_text || `Rp${amount.toLocaleString('id-ID')}`),
+    currency: String(b.currency || 'IDR'),
+    merchant_name: String(b.merchant_name || ''),
+    merchant_city: String(b.merchant_city || ''),
+    qris: String(b.qris),
+    qris_image_url: String(b.qris_image_url || ''),
+    note: String(b.note || ''),
+    contact: String(b.contact || ''),
+  };
 }
