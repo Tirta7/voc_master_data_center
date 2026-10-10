@@ -18,6 +18,10 @@ export interface LicenseState {
   message?: string;
   machineId: string;
   lastChecked: string;
+  licenseKey?: string | null;
+  serverOnline?: boolean;
+  serverUrl?: string;
+  rawStatus?: string;
 }
 
 export interface BroadcastMessage {
@@ -235,12 +239,17 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         message: lic.reason,
         machineId: this.machineId,
         lastChecked: new Date().toISOString(),
+        licenseKey: lic.licenseKey || this.state?.licenseKey || null,
+        serverOnline: !lic.offline,
+        serverUrl: this.vocmlServerUrl,
+        rawStatus: lic.status,
       };
 
       this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}`);
 
-      if (this.state.status !== this.lastEmittedStatus) {
-        this.lastEmittedStatus = this.state.status;
+      const emitKey = `${this.state.status}|${this.state.expiredAt || ''}`;
+      if (emitKey !== this.lastEmittedStatus) {
+        this.lastEmittedStatus = emitKey;
         this.statusChange$.next({
           status: this.state.status,
           daysLeft: this.state.daysLeft,

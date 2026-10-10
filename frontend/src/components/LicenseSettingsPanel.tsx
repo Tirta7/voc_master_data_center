@@ -1,351 +1,274 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle, AlertTriangle, Clock, Monitor } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { getApiUrl } from '@/utils/urlUtils';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle,
+  Clock, Monitor, Server, Wifi, WifiOff, CalendarClock, Sparkles, Lock,
+} from 'lucide-react';
+import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 
 interface LicenseState {
   status: 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
   expiredAt: string | null;
   daysLeft: number;
-  graceDaysLeft?: number;
+  message?: string;
   machineId: string;
   lastChecked: string;
+  licenseKey?: string | null;
+  serverOnline?: boolean;
+  serverUrl?: string;
+  rawStatus?: string;
 }
 
 const STATUS_CONFIG = {
-  ACTIVE:         { color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.3)',   icon: ShieldCheck, label: 'Aktif' },
-  GRACE:          { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)',  icon: ShieldAlert, label: 'Masa Tenggang' },
-  EXPIRED:        { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.3)',   icon: ShieldOff,   label: 'Kadaluarsa' },
-  BLOCKED:        { color: '#dc2626', bg: 'rgba(220,38,38,0.1)',   border: 'rgba(220,38,38,0.3)',   icon: ShieldOff,   label: 'Diblokir' },
-  NOT_REGISTERED: { color: '#6366f1', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.3)', icon: Shield,      label: 'Belum Didaftarkan' },
-  OFFLINE:        { color: '#64748b', bg: 'rgba(100,116,139,0.1)', border: 'rgba(100,116,139,0.3)', icon: Shield,     label: 'Offline' },
+  ACTIVE:         { color: '#16a34a', soft: '#dcfce7', ring: '#bbf7d0', icon: ShieldCheck, label: 'Aktif',            desc: 'Lisensi aktif dan tersinkron dengan VOCML.' },
+  GRACE:          { color: '#d97706', soft: '#fef3c7', ring: '#fde68a', icon: ShieldAlert, label: 'Segera Berakhir',  desc: 'Masa lisensi hampir habis. Segera lakukan perpanjangan.' },
+  EXPIRED:        { color: '#dc2626', soft: '#fee2e2', ring: '#fecaca', icon: ShieldOff,   label: 'Kadaluarsa',       desc: 'Masa lisensi telah berakhir. Aplikasi terkunci sampai diperpanjang.' },
+  BLOCKED:        { color: '#b91c1c', soft: '#fee2e2', ring: '#fecaca', icon: Lock,        label: 'Dikunci',          desc: 'Aplikasi dikunci oleh admin dari VOCML.' },
+  NOT_REGISTERED: { color: '#4f46e5', soft: '#e0e7ff', ring: '#c7d2fe', icon: Shield,      label: 'Menunggu Aktivasi', desc: 'Machine ID sudah terdaftar di VOCML, menunggu admin klik Generate License Key.' },
+  OFFLINE:        { color: '#475569', soft: '#f1f5f9', ring: '#e2e8f0', icon: WifiOff,     label: 'Offline',          desc: 'Tidak dapat terhubung ke server lisensi VOCML.' },
+};
+
+const fmtDate = (s?: string | null) =>
+  s ? new Date(s).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+const fmtAgo = (s?: string) => {
+  if (!s) return '—';
+  const diff = Math.max(0, Math.round((Date.now() - new Date(s).getTime()) / 1000));
+  if (diff < 10) return 'Baru saja';
+  if (diff < 60) return `${diff} detik lalu`;
+  if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
+  return new Date(s).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 };
 
 export function LicenseSettingsPanel() {
-  const [licenseState, setLicenseState] = useState<LicenseState | null>(null);
+  const [state, setState] = useState<LicenseState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [renewKey, setRenewKey] = useState('');
-  const [renewLoading, setRenewLoading] = useState(false);
-  const [renewResult, setRenewResult] = useState<{ success?: boolean; message?: string } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [renewalInfo, setRenewalInfo] = useState<{ nominal?: number; qrisString?: string } | null>(null);
-  const [qrisLoading, setQrisLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState<'mid' | 'key' | null>(null);
+  const [, setNow] = useState(Date.now());
 
-  const fetchStatus = async (force = false) => {
+  const fetchStatus = useCallback(async (force = false) => {
+    if (force) setRefreshing(true);
     try {
-      const API_BASE = getApiUrl();
-      const url = force ? `${API_BASE}/api/license/status?force=true` : `${API_BASE}/api/license/status`;
-      const res = await fetch(url);
-      const data = await res.json();
-      setLicenseState(data);
-      
-      // Fetch renewal info as well
-      if (!renewalInfo && !qrisLoading) {
-        setQrisLoading(true);
-        fetch(`${API_BASE}/api/license/renewal-info`)
-          .then(r => r.json())
-          .then(resInfo => {
-            if (resInfo.success) setRenewalInfo(resInfo);
-          })
-          .catch(() => {})
-          .finally(() => setQrisLoading(false));
-      }
-    } catch {
-      // ignore
-    } finally {
+      const res = await fetch(`${getApiUrl()}/api/license/status${force ? '?force=true' : ''}`);
+      setState(await res.json());
+    } catch { /* ignore */ } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(() => fetchStatus(), 30000);
-    return () => clearInterval(interval);
-  }, []);
+    // Real-time: backend push saat status lisensi berubah (mis. admin klik Generate License Key di VOCML)
+    const es = new EventSource(`${getSocketUrl()}/api/license/status-stream`);
+    es.onmessage = (e) => { if (e.data) fetchStatus(); };
+    const fallback = setInterval(() => fetchStatus(), 60000);
+    const clock = setInterval(() => setNow(Date.now()), 15000); // update label "x detik lalu"
+    return () => { es.close(); clearInterval(fallback); clearInterval(clock); };
+  }, [fetchStatus]);
 
-  const copyMachineId = async () => {
-    if (!licenseState?.machineId) return;
-    await navigator.clipboard.writeText(licenseState.machineId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  const handleRenew = async () => {
-    if (!renewKey.trim()) return;
-    setRenewLoading(true);
-    setRenewResult(null);
-    try {
-      const API_BASE = getApiUrl();
-      const res = await fetch(`${API_BASE}/api/license/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ licenseKey: renewKey.trim() }),
-      });
-      const data = await res.json();
-      setRenewResult(data);
-      if (data.success) {
-        setRenewKey('');
-        fetchStatus();
-      }
-    } catch {
-      setRenewResult({ success: false, message: 'Tidak bisa menghubungi server lisensi.' });
-    } finally {
-      setRenewLoading(false);
-    }
+  const copy = async (text: string | null | undefined, which: 'mid' | 'key') => {
+    if (!text) return;
+    try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+    setCopied(which);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '32px', color: '#6366f1' }}>
-        <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite' }} />
-        <span style={{ fontWeight: '600' }}>Memuat status lisensi...</span>
-        <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+      <div className="flex items-center gap-3 p-8 text-indigo-600">
+        <RefreshCw size={20} className="animate-spin" />
+        <span className="font-semibold">Memuat status lisensi...</span>
       </div>
     );
   }
 
-  const status = licenseState?.status || 'OFFLINE';
+  const status = state?.status || 'OFFLINE';
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.OFFLINE;
   const Icon = cfg.icon;
-  const expiredDate = licenseState?.expiredAt
-    ? new Date(licenseState.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '—';
-
-  const needsRenewal = ['GRACE', 'EXPIRED', 'NOT_REGISTERED'].includes(status) ||
-    (status === 'ACTIVE' && (licenseState?.daysLeft || 0) <= 30);
+  const online = state?.serverOnline !== false && status !== 'OFFLINE';
+  const daysLeft = Math.max(0, state?.daysLeft ?? 0);
+  const hasExpiry = !!state?.expiredAt;
+  // Progress bar sisa masa aktif (skala 30 hari)
+  const pct = hasExpiry ? Math.min(100, Math.round((daysLeft / 30) * 100)) : 0;
+  const serverHost = (state?.serverUrl || 'https://vocml.vocpos.id').replace(/^https?:\/\//, '');
 
   return (
     <div className="flex flex-col gap-5 p-1">
-      {/* Grid: Status & Serial Number */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        
-        {/* Status Badge */}
-        <div 
-          className="rounded-3xl p-4 md:p-8 flex flex-col justify-between gap-5 md:gap-6 border-2 transition-all duration-300 relative overflow-hidden group"
-          style={{ background: cfg.bg, borderColor: cfg.border }}
-        >
-          {/* Decorative blur blob */}
-          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-[40px] opacity-50" style={{ background: cfg.color }}></div>
+      {/* ── HERO STATUS ───────────────────────────── */}
+      <div
+        className="relative overflow-hidden rounded-3xl border-2 p-5 md:p-7"
+        style={{ background: `linear-gradient(135deg, ${cfg.soft} 0%, #ffffff 70%)`, borderColor: cfg.ring }}
+      >
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full opacity-40 blur-[60px]" style={{ background: cfg.color }} />
 
-          <div className="flex items-start justify-between relative z-10">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div 
-                className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border"
-                style={{ background: `${cfg.color}15`, borderColor: `${cfg.color}30` }}
-              >
-                <Icon className="w-5 h-5 md:w-7 md:h-7" color={cfg.color} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-base md:text-xl font-black text-slate-800 tracking-tight leading-none mb-1.5 truncate">Lisensi Software</h4>
-                <span 
-                  className="inline-flex items-center px-3 py-1 rounded-full text-[10px] md:text-xs font-black tracking-widest uppercase text-white shadow-sm"
+        <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border shadow-sm"
+              style={{ background: '#fff', borderColor: cfg.ring }}
+            >
+              <Icon className="h-7 w-7" color={cfg.color} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-lg font-black tracking-tight text-slate-800 md:text-xl">Lisensi Aplikasi Billiard</h4>
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
                   style={{ background: cfg.color }}
                 >
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                   {cfg.label}
                 </span>
               </div>
+              <p className="mt-1 text-xs font-medium text-slate-500 md:text-sm">{state?.message || cfg.desc}</p>
             </div>
-
-            <button
-              onClick={() => fetchStatus(true)}
-              className="p-2.5 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 bg-white/50 hover:bg-white shadow-sm border border-slate-200/50"
-              title="Refresh status"
-            >
-              <RefreshCw size={18} className="text-slate-500" />
-            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:gap-4 mt-2 relative z-10">
-            <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50  min-w-0">
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                <Clock size={12} /> Expired Date
-              </span>
-              <p className="text-xs md:text-base font-black text-slate-800 truncate">{expiredDate}</p>
-            </div>
-            {licenseState?.daysLeft !== undefined && (
-              <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50  min-w-0">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Sisa Waktu
-                </span>
-                <p className="text-xs md:text-base font-black truncate" style={{ color: cfg.color }}>
-                  {licenseState.daysLeft} Hari
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Machine ID / Serial Number */}
-        <div className="bg-slate-50 border-2 border-slate-100 rounded-3xl p-4 md:p-8 flex flex-col justify-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/5 rounded-full blur-[50px] pointer-events-none"></div>
-          
-          <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-            <Monitor className="w-4 h-4" /> Serial Number PC Ini
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center mb-4">
-            <div className="flex-1 bg-white border border-slate-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 shadow-sm w-full min-w-0">
-              <span className="font-mono text-xs md:text-lg font-black tracking-widest text-slate-700 break-all">
-                {licenseState?.machineId || '—'}
-              </span>
-            </div>
-            <button 
-              onClick={copyMachineId} 
-              className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all duration-200 w-full sm:w-auto shadow-sm border ${
-                copied 
-                  ? 'bg-emerald-100 border-emerald-200 text-emerald-600' 
-                  : 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-600'
-              }`}
-            >
-              {copied ? <><CheckCircle size={16} /> Disalin!</> : <><Copy size={16} /> Salin</>}
-            </button>
-          </div>
-          
-          <p className="text-xs text-slate-500 font-medium leading-relaxed bg-white/50 p-3 rounded-xl border border-slate-200/50">
-            Kirimkan <strong className="text-slate-700">Serial Number</strong> ini ke tim teknisi/admin untuk mendapatkan <strong className="text-slate-700">Kode Lisensi</strong> perpanjangan aplikasi Anda.
-          </p>
-        </div>
-
-      </div>
-
-      {/* Panel Perpanjang Lisensi */}
-      <div 
-        className="rounded-3xl p-4 md:p-8 border-2 transition-colors relative overflow-hidden"
-        style={{
-          background: status === 'ACTIVE' ? 'rgba(34,197,94,0.02)' : 'rgba(239,68,68,0.02)',
-          borderColor: status === 'ACTIVE' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-        }}
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div 
-            className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-            style={{ background: status === 'ACTIVE' ? '#22c55e20' : '#dc262620' }}
-          >
-            <Key size={20} color={status === 'ACTIVE' ? '#22c55e' : '#dc2626'} />
-          </div>
-          <div>
-            <h4 className="text-base md:text-lg font-black text-slate-800 tracking-tight">Perpanjang Lisensi</h4>
-            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-              {status === 'ACTIVE' ? `Status Aktif - Sisa ${licenseState?.daysLeft || 0} hari` : 'Aktivasi Lisensi Baru'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <ShieldCheck className="h-5 w-5 text-slate-400" />
-            </div>
-            <input
-              type="text"
-              value={renewKey}
-              onChange={e => setRenewKey(e.target.value.toUpperCase())}
-              placeholder="LIC-XXXX-XXXX-XXXX"
-              onKeyDown={e => e.key === 'Enter' && handleRenew()}
-              className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-slate-200 rounded-xl font-mono text-sm md:text-base font-black tracking-widest text-slate-800 placeholder:text-slate-300 placeholder:font-sans focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
-            />
-          </div>
           <button
-            onClick={handleRenew}
-            disabled={renewLoading || !renewKey.trim()}
-            className={`flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest transition-all duration-300 w-full sm:w-auto shadow-sm ${
-              renewLoading || !renewKey.trim()
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-2 border-slate-200'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-lg hover:shadow-indigo-500/30 border-2 border-indigo-600 hover:-translate-y-0.5'
-            }`}
+            onClick={() => fetchStatus(true)}
+            disabled={refreshing}
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:opacity-60"
           >
-            {renewLoading ? (
-              <><RefreshCw size={16} className="animate-spin" /> Memproses</>
-            ) : (
-              <>Aktifkan <CheckCircle size={16} /></>
-            )}
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Sinkron...' : 'Cek Sekarang'}
           </button>
         </div>
 
-        {renewResult && (
-          <div className={`mt-4 p-4 rounded-xl border-2 flex items-center gap-3 text-sm md:text-base font-bold animate-in fade-in slide-in-from-top-2 ${
-            renewResult.success 
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-              : 'bg-rose-50 border-rose-200 text-rose-700'
-          }`}>
-            {renewResult.success ? <CheckCircle className="w-5 h-5 flex-shrink-0" /> : <AlertTriangle className="w-5 h-5 flex-shrink-0" />}
-            <p>{renewResult.message}</p>
+        {/* Stats */}
+        <div className="relative z-10 mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Stat icon={<CalendarClock size={12} />} label="Berlaku Sampai" value={fmtDate(state?.expiredAt)} />
+          <Stat
+            icon={<Clock size={12} />}
+            label="Sisa Waktu"
+            value={hasExpiry ? `${daysLeft} Hari` : '—'}
+            valueColor={cfg.color}
+          />
+          <Stat
+            icon={online ? <Wifi size={12} /> : <WifiOff size={12} />}
+            label="Server VOCML"
+            value={online ? 'Terhubung' : 'Terputus'}
+            valueColor={online ? '#16a34a' : '#dc2626'}
+          />
+          <Stat icon={<RefreshCw size={12} />} label="Sinkron Terakhir" value={fmtAgo(state?.lastChecked)} />
+        </div>
+
+        {hasExpiry && (
+          <div className="relative z-10 mt-4">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-white/80 ring-1 ring-slate-200/60">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}aa)` }}
+              />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Panel Pembayaran QRIS */}
-      <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden text-white mt-2">
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-[60px] pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-500/20 rounded-full blur-[60px] pointer-events-none"></div>
-        
-        <div className="flex-1 relative z-10 text-center md:text-left">
-          <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
-            <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center border border-indigo-400/30">
-              <Key size={20} className="text-indigo-400" />
-            </div>
-            <h4 className="text-xl font-black tracking-tight">Pembayaran Lisensi</h4>
-          </div>
-          <p className="text-slate-300 text-sm font-medium leading-relaxed max-w-lg mb-6">
-            Dapatkan kode lisensi instan dengan melakukan pembayaran via QRIS. Scan QR Code di samping menggunakan aplikasi e-Wallet atau Mobile Banking Anda.
+      {/* ── MACHINE ID + LICENSE KEY ───────────────── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="relative overflow-hidden rounded-3xl border-2 border-slate-100 bg-slate-50 p-5 md:p-6">
+          <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            <Monitor className="h-4 w-4" /> Machine ID PC Ini
           </p>
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-4 flex flex-col gap-2 max-w-sm mx-auto md:mx-0 ">
-            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Cara Perpanjang:</p>
-            <ol className="text-xs text-slate-300 space-y-1.5 list-decimal list-inside font-medium text-left">
-              <li>Scan QRIS menggunakan aplikasi Bank/e-Wallet.</li>
-              <li>Masukkan nominal perpanjangan yang sesuai.</li>
-              <li>Kirim bukti transfer ke WhatsApp Tim Teknisi.</li>
-              <li>Masukkan kode yang diberikan pada kolom di atas.</li>
-            </ol>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <span className="break-all font-mono text-base font-black tracking-widest text-slate-700 md:text-lg">
+                {state?.machineId || '—'}
+              </span>
+            </div>
+            <CopyBtn active={copied === 'mid'} onClick={() => copy(state?.machineId, 'mid')} />
           </div>
+          <p className="mt-3 text-xs font-medium leading-relaxed text-slate-500">
+            Machine ID ini <strong className="text-slate-700">terdaftar otomatis</strong> di VOCML. Sebutkan ID ini ke admin saat
+            melakukan perpanjangan.
+          </p>
         </div>
 
-        <div className="w-full md:w-auto flex flex-col items-center gap-3 relative z-10 shrink-0">
-          <div className="bg-white p-4 rounded-[2rem] shadow-2xl relative w-48 md:w-64">
-            <div className="absolute inset-0 rounded-[2rem] ring-4 ring-white/20 ring-offset-4 ring-offset-slate-900"></div>
-            {qrisLoading ? (
-              <div className="flex flex-col items-center justify-center h-48 text-slate-400">
-                <RefreshCw size={24} className="animate-spin mb-3" />
-                <span className="text-xs font-bold">Memuat QRIS...</span>
+        <div className="relative overflow-hidden rounded-3xl border-2 border-slate-100 bg-white p-5 md:p-6">
+          <p className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            <Key className="h-4 w-4" /> License Key Aktif
+          </p>
+          {state?.licenseKey ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <span className="line-clamp-3 break-all font-mono text-[11px] font-bold leading-relaxed text-slate-600">
+                  {state.licenseKey}
+                </span>
               </div>
-            ) : renewalInfo?.qrisString ? (
-              <div className="relative w-full overflow-hidden rounded-xl border border-slate-100">
-                <img src="/tempQR.png" alt="QRIS Pembayaran Lisensi" className="w-full h-auto block" />
-                <div className="absolute top-[34%] left-[50%] -translate-x-1/2 w-[56%] bg-white p-1">
-                  <QRCodeSVG 
-                    value={renewalInfo.qrisString} 
-                    size={256} 
-                    level="M" 
-                    includeMargin={false} 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-48 text-rose-400 bg-rose-50 rounded-xl border border-rose-100 p-4 text-center">
-                <AlertTriangle size={24} className="mb-2" />
-                <span className="text-[10px] font-bold">Gagal memuat QRIS / Tagihan belum di-set</span>
-              </div>
-            )}
-          </div>
-          
-          {renewalInfo?.nominal && (
-            <div className="bg-slate-800 border border-slate-700 px-5 py-2.5 rounded-2xl shadow-inner mt-1">
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-0.5">Nominal Tagihan</p>
-              <p className="text-xl md:text-2xl font-mono font-black text-emerald-400 tracking-tight">
-                Rp {renewalInfo.nominal.toLocaleString('id-ID')}
-              </p>
+              <CopyBtn active={copied === 'key'} onClick={() => copy(state.licenseKey, 'key')} />
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-xs font-semibold text-slate-400">
+              Belum ada License Key. Menunggu admin klik <span className="text-slate-600">Generate License Key</span> di VOCML.
             </div>
           )}
-
-          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mt-1 flex items-center gap-1.5">
-            <ShieldCheck size={14} /> Official Payment
+          <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <Server size={12} /> Diterbitkan oleh <span className="font-bold text-slate-700">{serverHost}</span>
           </p>
         </div>
       </div>
 
+      {/* ── CARA PERPANJANG ───────────────────────── */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-900 p-6 text-white md:p-8">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-teal-500/20 blur-[70px]" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-[70px]" />
+
+        <div className="relative z-10 mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/20">
+            <Sparkles size={20} className="text-teal-300" />
+          </div>
+          <div>
+            <h4 className="text-lg font-black tracking-tight md:text-xl">Perpanjangan Otomatis</h4>
+            <p className="text-xs font-medium text-slate-400">Tidak perlu mengetik kode — aplikasi aktif sendiri setelah admin memperpanjang.</p>
+          </div>
+        </div>
+
+        <ol className="relative z-10 grid grid-cols-1 gap-3 md:grid-cols-4">
+          {[
+            { t: 'Salin Machine ID', d: 'Klik tombol Salin pada kartu Machine ID di atas.' },
+            { t: 'Hubungi Admin', d: 'Kirim Machine ID & lakukan pembayaran perpanjangan.' },
+            { t: 'Admin Generate Key', d: 'Admin memilih durasi lalu klik Generate License Key di VOCML.' },
+            { t: 'Aktif Otomatis', d: 'Dalam ±10 detik status di halaman ini berubah tanpa reload.' },
+          ].map((s, i) => (
+            <li key={s.t} className="rounded-2xl border border-white/10 bg-white/5 p-4 transition-colors hover:bg-white/10">
+              <span className="mb-2 flex h-7 w-7 items-center justify-center rounded-full bg-teal-400/20 text-xs font-black text-teal-300">
+                {i + 1}
+              </span>
+              <p className="text-sm font-black">{s.t}</p>
+              <p className="mt-1 text-xs font-medium leading-relaxed text-slate-400">{s.d}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
+  );
+}
+
+function Stat({ icon, label, value, valueColor }: { icon: React.ReactNode; label: string; value: string; valueColor?: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-sm backdrop-blur">
+      <span className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        {icon} {label}
+      </span>
+      <p className="truncate text-sm font-black text-slate-800 md:text-base" style={valueColor ? { color: valueColor } : undefined}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function CopyBtn({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold shadow-sm transition-all sm:w-auto ${
+        active ? 'border-emerald-200 bg-emerald-100 text-emerald-600' : 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+      }`}
+    >
+      {active ? <><CheckCircle size={16} /> Disalin</> : <><Copy size={16} /> Salin</>}
+    </button>
   );
 }
