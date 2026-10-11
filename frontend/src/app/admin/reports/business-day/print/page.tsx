@@ -599,7 +599,11 @@ export default function BusinessDayPrintPage() {
                       </div>
                     </td>
                     <td style={{ padding:'5px 6px' }}>
-                      <span style={{ fontSize:7, fontWeight:800, color:paid?C.green:C.amber, background:paid?C.greenL:C.amberL, padding:'1px 5px', borderRadius:3 }}>{tx.status}</span>
+                      {tx.remarks === 'MOVED CAFE TO BILLIARD TABLE' ? (
+                        <span style={{ fontSize:7, fontWeight:800, color:C.red, background:C.redL, padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap' }}>MOVED CAFE TO BILLIARD TABLE</span>
+                      ) : (
+                        <span style={{ fontSize:7, fontWeight:800, color:paid?C.green:tx.status==='CANCELLED'?C.red:C.amber, background:paid?C.greenL:tx.status==='CANCELLED'?C.redL:C.amberL, padding:'1px 5px', borderRadius:3 }}>{tx.status}</span>
+                      )}
                     </td>
                   </tr>
                 );
