@@ -154,6 +154,10 @@ export default function AttendancePage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFrom, setDateFrom] = useState(toLocalDateStr(new Date()));
     const [dateTo, setDateTo] = useState(toLocalDateStr(new Date()));
+    
+    // Business Day Logic
+    const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
+    const [businessDayOffset, setBusinessDayOffset] = useState('06:00');
 
     // Week navigator for Jadwal tab
     const [weekBase, setWeekBase] = useState(new Date());
@@ -164,6 +168,25 @@ export default function AttendancePage() {
     // Modals
     const [isPinModalOpen, setIsPinModalOpen] = useState(false);
     const [pinAction, setPinAction] = useState<'IN' | 'OUT' | null>(null);
+
+    // Auto-sync Business Day Mode
+    useEffect(() => {
+        if (isBusinessDayMode) {
+            const offsetStr = businessDayOffset || '00:00';
+            const [h, m] = offsetStr.split(':').map(Number);
+            
+            const dStart = new Date();
+            // If current time is before the offset (e.g. 02:00 < 06:00), it belongs to previous business day
+            if (dStart.getHours() < h || (dStart.getHours() === h && dStart.getMinutes() < m)) {
+                dStart.setDate(dStart.getDate() - 1);
+            }
+            
+            // Set both from and to to the exact business date
+            const businessDateStr = toLocalDateStr(dStart);
+            setDateFrom(businessDateStr);
+            setDateTo(businessDateStr);
+        }
+    }, [isBusinessDayMode, businessDayOffset]);
     const [pin, setPin] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isScanningRFID, setIsScanningRFID] = useState(false);
@@ -208,6 +231,9 @@ export default function AttendancePage() {
             setRecords(histRes.data);
             setEmployees(empRes.data || []);
             setAvailableShifts(settingsRes.data?.availableShifts || []);
+            if (settingsRes.data?.businessDayOffset) {
+                setBusinessDayOffset(settingsRes.data.businessDayOffset);
+            }
         } catch (err) {
             console.error('Failed to fetch attendance data', err);
         } finally {
@@ -657,11 +683,24 @@ export default function AttendancePage() {
                                     onChange={e => setSearchQuery(e.target.value)}
                                 />
                             </div>
+                            
+                            <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl px-3 py-1.5 hover:bg-slate-200 transition-all cursor-pointer group/toggle" onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}>
+                                <div className="flex flex-col items-start pr-2 border-r border-slate-300">
+                                    <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest leading-none">Logic Mode</span>
+                                    <span className="text-[9px] font-black text-slate-700 uppercase italic tracking-tighter">
+                                        {isBusinessDayMode ? 'Business Day' : 'Calendar'}
+                                    </span>
+                                </div>
+                                <div className={`w-8 h-5 rounded-full p-1 transition-all duration-500 flex items-center ${isBusinessDayMode ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                                    <div className={`w-3 h-3 bg-white rounded-full shadow-lg transform transition-all duration-500 ${isBusinessDayMode ? 'translate-x-3' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+
                             <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2">
                                 <Filter className="w-4 h-4 text-slate-400" />
-                                <input type="date" className="bg-transparent text-xs font-black text-slate-700 outline-none" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                                <input type="date" className="bg-transparent text-xs font-black text-slate-700 outline-none" value={dateFrom} onChange={e => { setDateFrom(e.target.value); if(isBusinessDayMode) setIsBusinessDayMode(false); }} />
                                 <span className="text-slate-300">–</span>
-                                <input type="date" className="bg-transparent text-xs font-black text-slate-700 outline-none" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                                <input type="date" className="bg-transparent text-xs font-black text-slate-700 outline-none" value={dateTo} onChange={e => { setDateTo(e.target.value); if(isBusinessDayMode) setIsBusinessDayMode(false); }} />
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -1040,8 +1079,8 @@ export default function AttendancePage() {
                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Karyawan</label>
                                     <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
                                         value={assignForm.userId} onChange={e => setAssignForm(f => ({ ...f, userId: e.target.value }))}>
-                                        <option value="">Pilih karyawan...</option>
-                                        {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.role?.name || 'Staff'})</option>)}
+                                        <option className="text-slate-900 bg-white" value="">Pilih karyawan...</option>
+                                        {employees.map(e => <option className="text-slate-900 bg-white" key={e.id} value={e.id}>{e.name} ({e.role?.name || 'Staff'})</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -1096,18 +1135,18 @@ export default function AttendancePage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Karyawan A</label>
-                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-3 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-3 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
                                             value={swapForm.userAId} onChange={e => setSwapForm(f => ({ ...f, userAId: e.target.value }))}>
-                                            <option value="">Pilih...</option>
-                                            {employees.filter(e => e.id !== Number(swapForm.userBId)).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                            <option className="text-slate-900 bg-white" value="">Pilih...</option>
+                                            {employees.filter(e => e.id !== Number(swapForm.userBId)).map(e => <option className="text-slate-900 bg-white" key={e.id} value={e.id}>{e.name}</option>)}
                                         </select>
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Karyawan B</label>
-                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-3 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+                                        <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-3 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
                                             value={swapForm.userBId} onChange={e => setSwapForm(f => ({ ...f, userBId: e.target.value }))}>
-                                            <option value="">Pilih...</option>
-                                            {employees.filter(e => e.id !== Number(swapForm.userAId)).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                            <option className="text-slate-900 bg-white" value="">Pilih...</option>
+                                            {employees.filter(e => e.id !== Number(swapForm.userAId)).map(e => <option className="text-slate-900 bg-white" key={e.id} value={e.id}>{e.name}</option>)}
                                         </select>
                                     </div>
                                 </div>

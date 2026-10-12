@@ -135,6 +135,9 @@ export class AuthService {
       where: { id: requestId },
     });
     if (!request) throw new BadRequestException('Request not found');
+    if (request.status !== AccessRequestStatus.PENDING) {
+      throw new BadRequestException('Request sudah diproses sebelumnya.');
+    }
 
     request.status = AccessRequestStatus.APPROVED;
     request.approvedBy = adminId;
@@ -184,6 +187,9 @@ export class AuthService {
       where: { id: requestId },
     });
     if (!request) throw new BadRequestException('Request not found');
+    if (request.status !== AccessRequestStatus.PENDING) {
+      throw new BadRequestException('Request sudah diproses sebelumnya.');
+    }
 
     request.status = AccessRequestStatus.DENIED;
     request.approvedBy = adminId;

@@ -56,6 +56,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const [setupStep, setSetupStep] = useState<'QR' | 'FORM'>('QR');
     const [scanResult, setScanResult] = useState<{ success: boolean; status?: string; isApproved?: boolean; time?: string; message?: string } | null>(null);
     const [checkInTime, setCheckInTime] = useState<Date | null>(null);
+    const [isCheckingAttendance, setIsCheckingAttendance] = useState(true);
 
     const isStaff = isWaiter || isCashier;
     const shouldShow = forcedOpen || isManualOpen || (!!user && (isStaff || hasPermission('SHIFT_START')) && !activeShift && !isProductionRole && !isManagementRole);
@@ -262,6 +263,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
         // Akun yang tidak wajib absen: langsung ke form, tanpa QR
         if (user.requiresAttendance === false) {
             setSetupStep('FORM');
+            setIsCheckingAttendance(false);
             return;
         }
         axios.get('/attendance/today').then(res => {
@@ -269,7 +271,8 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                 setCheckInTime(new Date(res.data.checkInTime));
                 setSetupStep('FORM');
             }
-        }).catch(() => {});
+        }).catch(() => {})
+        .finally(() => setIsCheckingAttendance(false));
     }, [shouldShow, user?.id, user?.requiresAttendance]);
 
     // ─── LISTEN FOR KIOSK SCAN RESULT ──────────────────────────────────────────
@@ -281,10 +284,6 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
             if (navigator.vibrate) navigator.vibrate(payload?.success ? [80, 40, 80] : 300);
             if (payload?.success) {
                 if (payload.time) setCheckInTime(new Date(payload.time));
-                setTimeout(() => {
-                    setSetupStep('FORM');
-                    setScanResult(null);
-                }, 2800);
             } else {
                 // allow retry with a fresh token
                 setTimeout(() => setScanResult(null), 3500);
@@ -610,7 +609,12 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                             className="max-w-2xl lg:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8"
                             style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))', paddingTop: '10px' }}
                         >
-                            {setupStep === 'QR' ? (
+                            {isCheckingAttendance ? (
+                                <div className="flex flex-col items-center justify-center py-20">
+                                    <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+                                    <p className="mt-4 text-sm font-bold text-slate-400">Memeriksa status kehadiran...</p>
+                                </div>
+                            ) : setupStep === 'QR' ? (
                                 <motion.div
                                     initial={{ y: 10, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
@@ -657,9 +661,16 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                             ⏳ Menunggu verifikasi admin
                                                         </p>
                                                     )}
-                                                    <p className="mt-5 text-white/70 text-xs flex items-center justify-center gap-2">
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Mengarahkan ke persiapan shift…
-                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSetupStep('FORM');
+                                                            setScanResult(null);
+                                                        }}
+                                                        className="mt-6 w-full py-4 bg-white/20 hover:bg-white/30 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/20"
+                                                    >
+                                                        Lanjut Persiapan Shift <ArrowRight className="w-4 h-4" />
+                                                    </button>
                                                 </>
                                             ) : (
                                                 <>

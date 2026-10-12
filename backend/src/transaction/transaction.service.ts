@@ -1029,14 +1029,14 @@ export class TransactionService {
                 ? Number(activePrice)
                 : Number(pkg?.minutePrice || 0) * 60,
             startTimeFormatted: new Date(startTime)
-              .toLocaleTimeString('en-US', {
+              .toLocaleTimeString('en-GB', {
                 hour12: false,
                 hour: '2-digit',
                 minute: '2-digit',
               })
               .replace(/:/g, '.'),
             endTimeFormatted: new Date(endTime)
-              .toLocaleTimeString('en-US', {
+              .toLocaleTimeString('en-GB', {
                 hour12: false,
                 hour: '2-digit',
                 minute: '2-digit',

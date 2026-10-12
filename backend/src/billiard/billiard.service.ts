@@ -2375,14 +2375,14 @@ export class BilliardService implements OnModuleInit {
                 duration: session.durationMinutes,
                 subtotal: billiardCost,
                 startTimeFormatted: (table.startTime || transaction.startTime)
-                  ?.toLocaleTimeString('en-US', {
+                  ?.toLocaleTimeString('en-GB', {
                     hour12: false,
                     hour: '2-digit',
                     minute: '2-digit',
                   })
                   .replace(/:/g, '.'),
                 endTimeFormatted: session.endTime
-                  .toLocaleTimeString('en-US', {
+                  .toLocaleTimeString('en-GB', {
                     hour12: false,
                     hour: '2-digit',
                     minute: '2-digit',
@@ -3554,14 +3554,14 @@ export class BilliardService implements OnModuleInit {
               duration: extensionMinutes,
               subtotal: extensionPrice,
               startTimeFormatted: (currentEnd || now)
-                .toLocaleTimeString('en-US', {
+                .toLocaleTimeString('en-GB', {
                   hour12: false,
                   hour: '2-digit',
                   minute: '2-digit',
                 })
                 .replace(/:/g, '.'),
               endTimeFormatted: table.endTime
-                .toLocaleTimeString('en-US', {
+                .toLocaleTimeString('en-GB', {
                   hour12: false,
                   hour: '2-digit',
                   minute: '2-digit',

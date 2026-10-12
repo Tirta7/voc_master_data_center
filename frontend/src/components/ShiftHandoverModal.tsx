@@ -402,10 +402,18 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                                 <span className="text-indigo-400 font-semibold text-xs sm:text-sm tracking-widest uppercase">system book</span>
                                                             </>
                                                         ) : (
-                                                            <>
-                                                                <p className="text-3xl sm:text-4xl font-bold tracking-tight">{activeShift.salesCount || 0}</p>
-                                                                <span className="text-indigo-400 font-semibold text-xs sm:text-sm tracking-widest uppercase">Total Orders Served</span>
-                                                            </>
+                                                            <div className="flex gap-8">
+                                                                <div>
+                                                                    <p className="text-3xl sm:text-4xl font-bold tracking-tight">{activeShift.salesCount || 0}</p>
+                                                                    <span className="text-indigo-400 font-semibold text-xs sm:text-sm tracking-widest uppercase">Total Orders Served</span>
+                                                                </div>
+                                                                {activeShift.tablesHandled !== undefined && (
+                                                                    <div>
+                                                                        <p className="text-3xl sm:text-4xl font-bold tracking-tight">{activeShift.tablesHandled || 0}</p>
+                                                                        <span className="text-indigo-400 font-semibold text-xs sm:text-sm tracking-widest uppercase">Tables Handled</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         )}
                                                     </div>
                                                     

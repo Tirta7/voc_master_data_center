@@ -50,7 +50,8 @@ const fmtDuration = (mins?: number) => {
 
 export default function CheckoutQrModal({ isOpen, userName, onDone }: Props) {
     const [result, setResult] = useState<ScanResult | null>(null);
-    const { token, issuedAt, clear, refresh } = useRotatingQrToken('CHECKOUT', isOpen && !result);
+    const [isChecking, setIsChecking] = useState(true);
+    const { token, issuedAt, clear, refresh } = useRotatingQrToken('CHECKOUT', isOpen && !result && !isChecking);
 
     // Listen for kiosk result
     useEffect(() => {
@@ -70,7 +71,27 @@ export default function CheckoutQrModal({ isOpen, userName, onDone }: Props) {
         return () => { socket.off('qr_scan_result', onScan); };
     }, [isOpen, onDone, clear, refresh]);
 
-    useEffect(() => { if (!isOpen) setResult(null); }, [isOpen]);
+    useEffect(() => { 
+        if (!isOpen) {
+            setResult(null); 
+            setIsChecking(true);
+            return;
+        }
+        axios.get('/attendance/today').then(res => {
+            if (res.data?.checkOutTime) {
+                setResult({
+                    success: true,
+                    mode: 'CHECKOUT',
+                    isApproved: res.data.isApproved,
+                    time: res.data.checkOutTime,
+                    workDurationMinutes: res.data.workDurationMinutes,
+                    overtimeMinutes: res.data.overtimeMinutes,
+                });
+                clear();
+            }
+        }).catch(() => {})
+        .finally(() => setIsChecking(false));
+    }, [isOpen, clear]);
 
     if (!isOpen || typeof document === 'undefined') return null;
 
@@ -83,7 +104,12 @@ export default function CheckoutQrModal({ isOpen, userName, onDone }: Props) {
 
             <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-10">
                 <AnimatePresence mode="wait">
-                    {result ? (
+                    {isChecking ? (
+                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center">
+                            <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+                            <p className="mt-4 text-sm font-bold text-slate-400">Memeriksa status...</p>
+                        </motion.div>
+                    ) : result ? (
                         <motion.div
                             key="result"
                             initial={{ scale: 0.85, opacity: 0 }}

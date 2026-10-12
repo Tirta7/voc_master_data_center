@@ -236,61 +236,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => clearInterval(interval);
     }, [user]);
 
-    // --- Inactivity Tracking (IDLE -> AWAY) ---
+    // --- Presence Heartbeat ---
+    // Klien HANYA melaporkan "halaman terlihat / tersembunyi" tiap 20 detik.
+    // Server yang memutuskan ACTIVE / AWAY / OFFLINE (agregasi semua tab & perangkat).
+    // Diam di halaman tanpa sentuhan = tetap ACTIVE (standby bukan berarti meninggalkan sistem).
     useEffect(() => {
         if (!user) return;
 
-        // Dynamic threshold from user's payroll config (minutes -> ms) or default 5 minutes
-        const idleMins = user.payrollConfig?.idleThreshold ?? 5;
-        const IDLE_THRESHOLD = Number(idleMins) * 60 * 1000;
-        
-        let lastActivityTime = Date.now();
-        let isIdle = false;
-
-        // 1. Fungsi yang HANYA mencatat waktu saat ada interaksi (sangat ringan)
-        const updateActivity = () => {
-            lastActivityTime = Date.now();
+        const sendPing = () => {
+            if (!socket.connected) return;
+            socket.emit('presence_ping', {
+                userId: user.id,
+                visible: document.visibilityState === 'visible',
+            });
         };
 
-        // Gunakan { passive: true } agar scroll dan sentuhan di HP tetap mulus tanpa beban
-        const activityEvents = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
-        activityEvents.forEach(event => document.addEventListener(event, updateActivity, { passive: true }));
-
-        // 2. Gunakan SATU interval untuk mengecek status secara berkala setiap 5 detik
-        const idleCheckInterval = setInterval(() => {
-            const elapsedMilliseconds = Date.now() - lastActivityTime;
-
-            if (elapsedMilliseconds >= IDLE_THRESHOLD) {
-                if (!isIdle) {
-                    isIdle = true;
-                    socket.emit('update_status', { userId: user.id, status: 'AWAY' });
-                }
-            } else {
-                if (isIdle) {
-                    isIdle = false;
-                    socket.emit('update_status', { userId: user.id, status: 'ACTIVE' });
-                }
-            }
-        }, 5000); // Cek setiap 5 detik sekali saja, bukan setiap piksel pergerakan
+        sendPing();
+        const heartbeat = setInterval(sendPing, 20000);
+        socket.on('connect', sendPing); // segera lapor setelah reconnect
 
         return () => {
-            // Bersihkan semua saat unmount
-            activityEvents.forEach(event => document.removeEventListener(event, updateActivity));
-            clearInterval(idleCheckInterval);
+            clearInterval(heartbeat);
+            socket.off('connect', sendPing);
         };
     }, [user]);
 
     useEffect(() => {
         if (!user) return;
 
-        // Visibility Change: 
-        // INSTANT AWAY when closing/switching tab (as requested)
-        // INSTANT ACTIVE when returning
+        // Visibility Change: laporkan langsung ke server.
+        // Server memberi grace 60 dtk sebelum AWAY (layar mati / pindah tab sebentar aman).
         const handleVisibilityChange = () => {
             const isVisible = document.visibilityState === 'visible';
-            const status = isVisible ? 'ACTIVE' : 'AWAY';
-            
-            socket.emit('update_status', { userId: user.id, status });
+
+            if (isVisible && !socket.connected) socket.connect();
+            socket.emit('presence_ping', { userId: user.id, visible: isVisible });
 
             if (isVisible) {
                 // Re-sync data when coming back

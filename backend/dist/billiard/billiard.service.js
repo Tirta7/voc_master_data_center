@@ -2012,12 +2012,12 @@ let BilliardService = class BilliardService {
                         title: fareNameLabel || 'Open Table',
                         duration: session.durationMinutes,
                         subtotal: billiardCost,
-                        startTimeFormatted: (table.startTime || transaction.startTime)?.toLocaleTimeString('en-US', {
+                        startTimeFormatted: (table.startTime || transaction.startTime)?.toLocaleTimeString('en-GB', {
                             hour12: false,
                             hour: '2-digit',
                             minute: '2-digit'
                         }).replace(/:/g, '.'),
-                        endTimeFormatted: session.endTime.toLocaleTimeString('en-US', {
+                        endTimeFormatted: session.endTime.toLocaleTimeString('en-GB', {
                             hour12: false,
                             hour: '2-digit',
                             minute: '2-digit'
@@ -2881,12 +2881,12 @@ let BilliardService = class BilliardService {
                         title: extensionTitle,
                         duration: extensionMinutes,
                         subtotal: extensionPrice,
-                        startTimeFormatted: (currentEnd || now).toLocaleTimeString('en-US', {
+                        startTimeFormatted: (currentEnd || now).toLocaleTimeString('en-GB', {
                             hour12: false,
                             hour: '2-digit',
                             minute: '2-digit'
                         }).replace(/:/g, '.'),
-                        endTimeFormatted: table.endTime.toLocaleTimeString('en-US', {
+                        endTimeFormatted: table.endTime.toLocaleTimeString('en-GB', {
                             hour12: false,
                             hour: '2-digit',
                             minute: '2-digit'

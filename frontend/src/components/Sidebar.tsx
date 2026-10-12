@@ -81,6 +81,14 @@ export default function Sidebar() {
         }
     }, [pathname, setIsOpen]);
 
+    React.useEffect(() => {
+        const handleOpenHandover = () => {
+            setIsHandoverModalOpen(true);
+        };
+        window.addEventListener('openShiftHandover', handleOpenHandover);
+        return () => window.removeEventListener('openShiftHandover', handleOpenHandover);
+    }, []);
+
     // Build dynamic menu groups using translations
     const menuGroups = [
         {
@@ -186,9 +194,11 @@ export default function Sidebar() {
     // Update liveBadges with actual count
     liveBadges['/admin/approvals'] = pendingApprovalCount;
 
-    // Close sidebar when route changes only on mobile
+    // Close sidebar when route changes
     React.useEffect(() => {
-        if (window.innerWidth < 1024 && isOpen) {
+        const shouldCloseOnDesktop = pathname.includes('/admin/reports/business-day');
+        
+        if (isOpen && (window.innerWidth < 1024 || shouldCloseOnDesktop)) {
             setIsOpen(false);
         }
     }, [pathname]);

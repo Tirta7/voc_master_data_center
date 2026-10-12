@@ -678,12 +678,12 @@ let TransactionService = class TransactionService {
                         subtotal: Number(activePrice),
                         isExtension: false,
                         ratePerHour: pkg?.type === _billiardpackageentity.PackageType.FIXED ? Number(activePrice) : Number(pkg?.minutePrice || 0) * 60,
-                        startTimeFormatted: new Date(startTime).toLocaleTimeString('en-US', {
+                        startTimeFormatted: new Date(startTime).toLocaleTimeString('en-GB', {
                             hour12: false,
                             hour: '2-digit',
                             minute: '2-digit'
                         }).replace(/:/g, '.'),
-                        endTimeFormatted: new Date(endTime).toLocaleTimeString('en-US', {
+                        endTimeFormatted: new Date(endTime).toLocaleTimeString('en-GB', {
                             hour12: false,
                             hour: '2-digit',
                             minute: '2-digit'

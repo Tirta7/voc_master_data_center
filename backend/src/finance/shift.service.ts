@@ -654,6 +654,33 @@ export class ShiftService {
         this.logger.error(`Failed to calculate top-ups for shift ${shift.id}: ${error.message}`);
         shift.totalTopUp = 0;
       }
+
+      // Live sales/performance calculation for Waiter
+      try {
+        const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['role'] });
+        const roleName = (user?.role?.name || '').toUpperCase();
+        if (roleName.includes('WAITER') || roleName.includes('PELAYAN')) {
+           const salesCount = await this.orderItemRepo.count({
+             where: { 
+               createdByUserId: userId, 
+               createdAt: MoreThanOrEqual(shift.startTime) 
+             }
+           });
+           
+           const tablesHandled = await this.transactionRepo.count({
+             where: {
+               createdByUserId: userId,
+               createdAt: MoreThanOrEqual(shift.startTime)
+             }
+           });
+           
+           (shift as any).salesCount = salesCount;
+           (shift as any).tablesHandled = tablesHandled;
+        }
+      } catch (error) {
+        this.logger.error(`Failed to calculate salesCount for shift ${shift.id}: ${error.message}`);
+        (shift as any).salesCount = 0;
+      }
     }
 
     return shift;

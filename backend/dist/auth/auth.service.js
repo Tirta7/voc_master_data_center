@@ -157,6 +157,9 @@ let AuthService = class AuthService {
             }
         });
         if (!request) throw new _common.BadRequestException('Request not found');
+        if (request.status !== _accessrequestentity.AccessRequestStatus.PENDING) {
+            throw new _common.BadRequestException('Request sudah diproses sebelumnya.');
+        }
         request.status = _accessrequestentity.AccessRequestStatus.APPROVED;
         request.approvedBy = adminId;
         request.approvedByName = adminName;
@@ -195,6 +198,9 @@ let AuthService = class AuthService {
             }
         });
         if (!request) throw new _common.BadRequestException('Request not found');
+        if (request.status !== _accessrequestentity.AccessRequestStatus.PENDING) {
+            throw new _common.BadRequestException('Request sudah diproses sebelumnya.');
+        }
         request.status = _accessrequestentity.AccessRequestStatus.DENIED;
         request.approvedBy = adminId;
         request.approvedByName = adminName;

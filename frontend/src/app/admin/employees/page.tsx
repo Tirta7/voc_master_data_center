@@ -1671,7 +1671,10 @@ export default function EmployeePage() {
                                                             Time Log
                                                         </span>
                                                         <span className="text-xs font-black text-slate-700 tabular-nums">
-                                                            {new Date(
+                                                            {new Date(pa.checkOutTime || pa.checkInTime).toLocaleDateString("id-ID", {
+                                                                day: "numeric",
+                                                                month: "short"
+                                                            })} · {new Date(
                                                                 pa.checkOutTime || pa.checkInTime,
                                                             ).toLocaleTimeString("id-ID", {
                                                                 hour: "2-digit",

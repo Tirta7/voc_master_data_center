@@ -232,7 +232,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     const formatTime = (date: any) => {
         if (!date) return '--.--';
-        return new Date(date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '.');
+        return new Date(date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '.');
     };
 
     const calculateDuration = (start: any, end: any) => {
@@ -244,9 +244,22 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         return `${h} Hour : ${m} Minute : ${String(s).padStart(2, '0')} Second`;
     };
 
+    const calculatedDuration = () => {
+        if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
+            const totalMins = tx.billingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.duration) || 0), 0);
+            if (totalMins > 0 && tx.status === 'PAID') { 
+                const h = Math.floor(totalMins / 60);
+                const m = totalMins % 60;
+                return `${h} Hour : ${m} Minute : 00 Second`;
+            }
+        }
+        const endToUse = isOngoing ? new Date() : endTime;
+        return calculateDuration(startTime, endToUse);
+    };
+
     const displayDuration = tx.sessionDuration && tx.sessionDuration !== '0 Hour : 0 Minute : 0 Second'
         ? tx.sessionDuration
-        : (isOngoing ? calculateDuration(startTime, new Date()) : calculateDuration(startTime, endTime));
+        : calculatedDuration();
 
     // Payer mapping for items
     const payerMap: Record<number, string> = {};

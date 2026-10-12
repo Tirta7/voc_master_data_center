@@ -226,7 +226,7 @@ export function RegisterModal({
                   </div>
 
                   {/* Wajib Absensi toggle */}
-                  <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-2xl p-4 mt-4">
                     <div className="pr-4">
                       <p className="text-[10px] font-black text-slate-900 uppercase leading-none">Wajib Absensi</p>
                       <p className="text-[8px] font-bold text-slate-400 uppercase mt-1.5 leading-snug">

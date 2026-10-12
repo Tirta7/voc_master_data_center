@@ -44,6 +44,19 @@ export class EventsGateway
     { tableId: number; type: string; transactionId?: number } | null
   >();
   private lastPageChange = new Map<string, number>(); // socketId -> timestamp
+  // ===== Presence Engine (server-authoritative) =====
+  // Status dihitung server dari heartbeat tiap koneksi, bukan dari satu event klien.
+  //  ACTIVE  : minimal 1 koneksi halaman TERLIHAT (atau baru disembunyikan < grace)
+  //  AWAY    : masih terhubung tapi semua halaman tersembunyi > grace / heartbeat basi
+  //  OFFLINE : tidak ada koneksi (setelah grace disconnect) & tidak ada shift, atau logout/end shift
+  private static readonly HIDDEN_GRACE_MS = 60_000;
+  private static readonly STALE_PING_MS = 75_000;
+  private static readonly SWEEP_MS = 15_000;
+  private clientPresence = new Map<
+    string,
+    { userId: number; visible: boolean; lastPing: number; hiddenSince: number | null }
+  >(); // socketId -> presence
+  private appliedStatus = new Map<number, UserStatus>(); // userId -> last status applied by engine
 
   constructor(
     @Inject(forwardRef(() => UserService))
@@ -54,6 +67,14 @@ export class EventsGateway
 
   afterInit(server: Server) {
     this.logger.log('EventsGateway initialized');
+    // Presence sweep: koreksi status otomatis (heartbeat basi / grace habis)
+    setInterval(() => {
+      for (const uId of this.userConnections.keys()) {
+        this.recomputeUserStatus(uId).catch((e) =>
+          this.logger.error(`Presence sweep failed for ${uId}: ${e}`),
+        );
+      }
+    }, EventsGateway.SWEEP_MS);
     // Throttle SETTINGS_UPDATE broadcasts to avoid spamming clients during high load
     this.settingsUpdateSubject
       .pipe(
@@ -72,6 +93,7 @@ export class EventsGateway
   @OnEvent('approval.finalized')
   handleApprovalFinalized(payload: any) {
     this.server.to(`user_${payload.requestedByUserId}`).emit('approval_finalized', payload);
+    this.server.to(['management', 'cashier']).emit('approval_finalized', payload);
   }
 
   async handleConnection(client: Socket) {
@@ -86,6 +108,12 @@ export class EventsGateway
         this.userConnections.set(uId, connections);
       }
       connections.add(client.id);
+      this.clientPresence.set(client.id, {
+        userId: uId,
+        visible: true,
+        lastPing: Date.now(),
+        hiddenSince: null,
+      });
 
       // Join user to their private room for distributed broadcasting
       await client.join(`user_${uId}`);
@@ -112,6 +140,7 @@ export class EventsGateway
       await this.processIdlePenalty(uId);
       this.logger.log(`User ${uId} connected to socket ${client.id} (Role: ${roleName})`);
       await this.userService.updateStatus(uId, UserStatus.ACTIVE, client.id);
+      this.appliedStatus.set(uId, UserStatus.ACTIVE);
 
       // Targeted status broadcast
       this.server.to(['management', 'cashier']).emit('user_status_change', {
@@ -132,34 +161,48 @@ export class EventsGateway
       if (connections) {
         connections.delete(client.id);
         this.lastPageChange.delete(client.id);
+        this.clientPresence.delete(client.id);
 
-        // Only mark OFFLINE/AWAY if no more active connections
+        // Masih ada koneksi lain -> hitung ulang (mis. tab lain masih terlihat)
+        if (connections.size > 0) {
+          await this.recomputeUserStatus(uId);
+        }
+
+        // Grace period 25s: koneksi HP yang putus sebentar (sinyal/reconnect) tidak langsung AWAY
         if (connections.size === 0) {
-          this.userConnections.delete(uId);
+          setTimeout(async () => {
+            try {
+              const current = this.userConnections.get(uId);
+              if (current && current.size > 0) return; // sudah reconnect
+              this.userConnections.delete(uId);
+              this.appliedStatus.delete(uId);
 
-          // Fetch current status to check if it was an explicit logout
-          const user = await this.userService.findById(uId);
-          if (user?.status === UserStatus.OFFLINE) {
-            this.idleTracking.delete(uId);
-            return;
-          }
+              // Fetch current status to check if it was an explicit logout
+              const user = await this.userService.findById(uId);
+              if (user?.status === UserStatus.OFFLINE) {
+                this.idleTracking.delete(uId);
+                return;
+              }
 
-          // If the user has an active shift, treat disconnect as AWAY (Mobile backgrounding)
-          const hasShift = await this.userService.hasActiveShift(uId);
-          const status = hasShift ? UserStatus.AWAY : UserStatus.OFFLINE;
+              // If the user has an active shift, treat disconnect as AWAY (Mobile backgrounding)
+              const hasShift = await this.userService.hasActiveShift(uId);
+              const status = hasShift ? UserStatus.AWAY : UserStatus.OFFLINE;
 
-          await this.userService.updateStatus(uId, status);
-          this.server.to(['management', 'cashier']).emit('user_status_change', { userId: uId, status });
-          this.mqttService.broadcastUserStatus(uId, status);
+              await this.userService.updateStatus(uId, status);
+              this.server.to(['management', 'cashier']).emit('user_status_change', { userId: uId, status });
+              this.mqttService.broadcastUserStatus(uId, status);
 
-          if (hasShift) {
-            if (!this.idleTracking.has(uId)) {
-              this.idleTracking.set(uId, Date.now());
+              if (hasShift) {
+                if (!this.idleTracking.has(uId)) {
+                  this.idleTracking.set(uId, Date.now());
+                }
+              } else {
+                this.idleTracking.delete(uId);
+              }
+            } catch (e) {
+              this.logger.error(`Disconnect finalize failed for ${uId}: ${e}`);
             }
-          } else {
-            // If no shift, stop tracking idle
-            this.idleTracking.delete(uId);
-          }
+          }, 25000);
         }
       } else {
         // Fallback for safety
@@ -200,31 +243,92 @@ export class EventsGateway
     this.idleTracking.delete(userId);
   }
 
+  /** Catat heartbeat/visibilitas satu koneksi */
+  private touchPresence(socketId: string, userId: number, visible: boolean) {
+    const now = Date.now();
+    const prev = this.clientPresence.get(socketId);
+    this.clientPresence.set(socketId, {
+      userId,
+      visible,
+      lastPing: now,
+      hiddenSince: visible ? null : (prev && !prev.visible ? prev.hiddenSince : now),
+    });
+  }
+
+  /** Hitung status user dari semua koneksinya */
+  private async recomputeUserStatus(userId: number) {
+    // OFFLINE eksplisit (logout / end shift) tidak ditimpa oleh sweep
+    if (this.appliedStatus.get(userId) === UserStatus.OFFLINE) return;
+
+    const now = Date.now();
+    let hasConn = false;
+    let active = false;
+    for (const p of this.clientPresence.values()) {
+      if (p.userId !== userId) continue;
+      hasConn = true;
+      if (now - p.lastPing > EventsGateway.STALE_PING_MS) continue; // heartbeat basi (HP terkunci/JS dibekukan)
+      if (p.visible) { active = true; break; }
+      if (p.hiddenSince && now - p.hiddenSince < EventsGateway.HIDDEN_GRACE_MS) { active = true; break; }
+    }
+    if (!hasConn) return; // ditangani handleDisconnect
+
+    await this.applyStatus(userId, active ? UserStatus.ACTIVE : UserStatus.AWAY);
+  }
+
+  /** Terapkan status hanya jika berubah, lalu broadcast */
+  private async applyStatus(userId: number, status: UserStatus) {
+    if (this.appliedStatus.get(userId) === status) return;
+    this.appliedStatus.set(userId, status);
+
+    if (status === UserStatus.ACTIVE) {
+      await this.processIdlePenalty(userId);
+    } else if (status === UserStatus.AWAY && !this.idleTracking.has(userId)) {
+      this.idleTracking.set(userId, Date.now());
+    }
+
+    await this.userService.updateStatus(userId, status);
+    this.server.to(['management', 'cashier']).emit('user_status_change', { userId, status });
+    this.mqttService.broadcastUserStatus(userId, status);
+  }
+
+  @SubscribeMessage('presence_ping')
+  async handlePresencePing(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: number; visible: boolean },
+  ) {
+    const uId = +data?.userId;
+    if (!uId) return;
+    this.touchPresence(client.id, uId, !!data.visible);
+    await this.recomputeUserStatus(uId);
+  }
+
   @SubscribeMessage('update_status')
   async handleStatusUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { userId: number; status: string },
   ) {
-    // Convert string status to Enum if possible
-    const status =
-      data.status === 'IDLE' ? UserStatus.AWAY : (data.status as UserStatus);
+    const uId = +data?.userId;
+    if (!uId) return;
 
-    // If user returns to ACTIVE, process accumulated idle time
-    if (status === UserStatus.ACTIVE) {
-      await this.processIdlePenalty(data.userId);
+    // Logout eksplisit -> OFFLINE langsung
+    if (data.status === UserStatus.OFFLINE) {
+      this.clientPresence.delete(client.id);
+      this.idleTracking.delete(uId);
+      this.appliedStatus.set(uId, UserStatus.OFFLINE);
+      await this.userService.updateStatus(uId, UserStatus.OFFLINE, client.id);
+      this.server.to(['management', 'cashier']).emit('user_status_change', { userId: uId, status: UserStatus.OFFLINE });
+      this.mqttService.broadcastUserStatus(uId, UserStatus.OFFLINE);
+      return;
     }
 
-    await this.userService.updateStatus(data.userId, status, client.id);
-
-    // If user goes to AWAY, start/continue tracking (if not already started)
-    if (status === UserStatus.AWAY) {
-      if (!this.idleTracking.has(data.userId)) {
-        this.idleTracking.set(data.userId, Date.now());
-      }
+    // ACTIVE/AWAY/IDLE dari klien diperlakukan sebagai sinyal visibilitas,
+    // keputusan akhir tetap dihitung server (agregasi semua koneksi).
+    const visible = data.status === UserStatus.ACTIVE;
+    if (visible && this.appliedStatus.get(uId) === UserStatus.OFFLINE) {
+      this.appliedStatus.delete(uId); // user kembali aktif setelah OFFLINE
     }
-
-    this.server.to(['management', 'cashier']).emit('user_status_change', { userId: data.userId, status });
-    this.mqttService.broadcastUserStatus(data.userId, status);
+    this.touchPresence(client.id, uId, visible);
+    await this.recomputeUserStatus(uId);
   }
 
   @SubscribeMessage('page_change')
@@ -240,6 +344,7 @@ export class EventsGateway
     const now = Date.now();
     if (now - last < 1000) return;
     this.lastPageChange.set(client.id, now);
+    this.touchPresence(client.id, uId, true);
 
     // Force status to ACTIVE when they are navigating, and update page
     await this.userService.updateStatus(
@@ -405,6 +510,7 @@ export class EventsGateway
 
   async forceLogout(userId: number, message?: string) {
     // Force user status to OFFLINE in DB and Broadcast immediately
+    this.appliedStatus.set(userId, UserStatus.OFFLINE);
     await this.userService.updateStatus(userId, UserStatus.OFFLINE);
     this.server.to(['management', 'cashier']).emit('user_status_change', {
         userId,
@@ -436,6 +542,7 @@ export class EventsGateway
     this.idleTracking.delete(userId);
 
     // ✅ NEW: Force user status to OFFLINE in DB and Broadcast
+    this.appliedStatus.set(userId, UserStatus.OFFLINE);
     await this.userService.updateStatus(userId, UserStatus.OFFLINE);
     this.server.to(['management', 'cashier']).emit('user_status_change', {
         userId,
@@ -454,6 +561,7 @@ export class EventsGateway
    */
   async shiftAutoClosed(userId: number) {
     this.idleTracking.delete(userId);
+    this.appliedStatus.set(userId, UserStatus.OFFLINE);
     await this.userService.updateStatus(userId, UserStatus.OFFLINE);
     this.server.to(['management', 'cashier']).emit('user_status_change', {
       userId,
