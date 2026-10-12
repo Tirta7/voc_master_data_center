@@ -462,10 +462,16 @@ export class FinanceService {
       (sum, item) => sum + Number(item.amount),
       0,
     );
+    // Gaji yang sudah dibayar (rilis payroll) dicatat sebagai OUT dengan source 'payroll'
+    const payrollOut = expenses
+      .filter((e) => (e.source || '').toLowerCase() === 'payroll')
+      .reduce((sum, item) => sum + Number(item.amount), 0);
 
     return {
       totalIn,
       totalOut,
+      payrollOut,
+      operatingOut: totalOut - payrollOut,
       netProfit: totalIn - totalOut,
     };
   }
