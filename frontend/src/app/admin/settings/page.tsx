@@ -1854,7 +1854,7 @@ export default function BusinessSettings() {
 
                                                             type="time"
 
-                                                            value={settings.autoSettlementTime || settings.businessDayOffset || '04:00'}
+                                                            value={settings.autoSettlementTime || settings.businessDayOffset || '00:00'}
 
                                                             savedValue={lastSavedSettings?.autoSettlementTime}
 

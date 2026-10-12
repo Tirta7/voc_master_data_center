@@ -460,23 +460,27 @@ export default function ExpensePage() {
             {/* ── Professional Expense Entry Modal ───────────────────────── */}
             {showModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 " onClick={() => setShowModal(false)} />
-                    <div className="relative bg-white w-full max-w-xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                        <header className="p-6 md:p-10 bg-slate-900 text-white flex justify-between items-center">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-[#0B1221] border border-white/10 w-full max-w-xl rounded-[2rem] md:rounded-[3rem] shadow-[0_0_80px_-15px_rgba(99,102,241,0.4)] overflow-hidden animate-in fade-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        {/* Decorative Gradient Glows */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+                        
+                        <header className="relative p-6 md:p-10 border-b border-white/5 flex justify-between items-center z-10">
                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/10 flex items-center justify-center">
-                                    <CreditCard className="w-5 h-5 md:w-7 md:h-7 text-white" />
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                                    <CreditCard className="w-5 h-5 md:w-7 md:h-7 text-indigo-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl md:text-2xl font-black tracking-tight">{editingId ? 'Edit Authorized Expense' : 'Record New Expenditure'}</h2>
-                                    <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] mt-1 font-black">Fiscal Year 2026 Protocol</p>
+                                    <h2 className="text-xl md:text-2xl font-black tracking-tight text-white">{editingId ? 'Edit Authorized Expense' : 'Record New Expenditure'}</h2>
+                                    <p className="text-[10px] text-indigo-300/70 uppercase tracking-[0.2em] mt-1 font-black">Fiscal Year 2026 Protocol</p>
                                 </div>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white/10 rounded-2xl text-white hover:bg-rose-500 transition-all group">
+                            <button onClick={() => setShowModal(false)} className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl text-slate-300 hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/30 transition-all group">
                                 <X className="w-5 h-5 group-hover:scale-125 transition-transform" />
                             </button>
                         </header>
-                        <form onSubmit={handleSave} className="p-6 md:p-10 space-y-6 md:space-y-8 bg-white">
+                        <form onSubmit={handleSave} className="relative p-6 md:p-10 space-y-6 md:space-y-8 z-10">
                             <InputField
                                 label="Disbursement Amount (Rp)"
                                 type="number"
@@ -484,24 +488,29 @@ export default function ExpensePage() {
                                 onChange={(val) => setFormData({ ...formData, amount: val })}
                                 required
                                 placeholder="0"
-                                className="!text-2xl md:!text-3xl !font-black !py-6 md:!py-8 !bg-slate-50 !border-slate-50 focus:!bg-white focus:!border-indigo-600 !rounded-[1.5rem] shadow-inner"
+                                className="!text-2xl md:!text-3xl !font-black !py-6 md:!py-8 !bg-white/5 !border-white/10 !text-white focus:!bg-white/10 focus:!border-indigo-500 !rounded-[1.5rem] shadow-inner"
                             />
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                                 <div className="space-y-2">
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Business Sector</label>
-                                    <select
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        className="w-full bg-slate-50 border-2 border-slate-50 rounded-[1.25rem] px-5 py-4 font-bold text-slate-700 focus:bg-white focus:border-indigo-600 outline-none transition-all shadow-inner"
-                                    >
-                                        <option value="maintenance">Maintenance</option>
-                                        <option value="staff">Staff / Payroll</option>
-                                        <option value="utility">Utility / Energy</option>
-                                        <option value="inventory_stock">Stock Procurement</option>
-                                        <option value="marketing">Brand Marketing</option>
-                                        <option value="other">General Other</option>
-                                    </select>
+                                    <div className="relative">
+                                        <select
+                                            value={formData.category}
+                                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                            className="w-full bg-white/5 border-2 border-white/10 rounded-[1.25rem] px-5 py-4 font-bold text-white focus:bg-white/10 focus:border-indigo-500 outline-none transition-all shadow-inner appearance-none"
+                                        >
+                                            <option value="maintenance" className="bg-slate-900 text-white">Maintenance</option>
+                                            <option value="staff" className="bg-slate-900 text-white">Staff / Payroll</option>
+                                            <option value="utility" className="bg-slate-900 text-white">Utility / Energy</option>
+                                            <option value="inventory_stock" className="bg-slate-900 text-white">Stock Procurement</option>
+                                            <option value="marketing" className="bg-slate-900 text-white">Brand Marketing</option>
+                                            <option value="other" className="bg-slate-900 text-white">General Other</option>
+                                        </select>
+                                        <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                                            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     <InputField
@@ -510,7 +519,7 @@ export default function ExpensePage() {
                                         onChange={(val) => setFormData({ ...formData, recordedBy: val })}
                                         required
                                         placeholder="Officer Name..."
-                                        className="!bg-slate-50 !border-slate-50 focus:!bg-white focus:!border-indigo-600 !rounded-[1.25rem] !py-4 shadow-inner"
+                                        className="!bg-white/5 !border-white/10 !text-white focus:!bg-white/10 focus:!border-indigo-500 !rounded-[1.25rem] !py-4 shadow-inner"
                                     />
                                 </div>
                             </div>
@@ -523,14 +532,14 @@ export default function ExpensePage() {
                                     onChange={(val) => setFormData({ ...formData, description: val })}
                                     required
                                     placeholder="Provide a detailed justification for this disbursement..."
-                                    className="!bg-slate-50 !border-slate-50 focus:!bg-white focus:!border-indigo-600 !rounded-[1.25rem] shadow-inner !min-h-[120px]"
+                                    className="!bg-white/5 !border-white/10 !text-white focus:!bg-white/10 focus:!border-indigo-500 !rounded-[1.25rem] shadow-inner !min-h-[120px]"
                                 />
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="w-full bg-slate-900 hover:bg-indigo-600 text-white font-black py-6 rounded-[1.5rem] flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50 text-[13px] uppercase tracking-[0.2em] shadow-xl shadow-slate-200"
+                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-6 rounded-[1.5rem] flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50 text-[13px] uppercase tracking-[0.2em] shadow-[0_10px_40px_-10px_rgba(99,102,241,0.5)] border border-indigo-500/50"
                             >
                                 {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Plus className="w-5 h-5" />}
                                 {saving ? 'Authorizing Disbursement...' : editingId ? 'Update Official Record' : 'Commit Disbursement'}

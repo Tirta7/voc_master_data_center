@@ -505,7 +505,7 @@ export default function LedgerPage() {
         if (!settings) return;
 
         if (isBusinessDayMode) {
-            const offsetStr = settings.businessDayOffset || '04:00';
+            const offsetStr = settings.businessDayOffset || '00:00';
             const [h, m] = offsetStr.split(':').map(Number);
             
             const dStart = new Date();
@@ -896,7 +896,7 @@ export default function LedgerPage() {
                             <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 shadow-inner group-hover:bg-white transition-all">
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-black text-slate-900 uppercase tracking-tighter italic leading-none">Business Day Mode</span>
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">Operasional ({settings?.businessDayOffset || '04:00'})</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">Operasional ({settings?.businessDayOffset || '00:00'})</span>
                                 </div>
                                 <div
                                     onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}
@@ -978,7 +978,7 @@ export default function LedgerPage() {
                                 <button
                                     onClick={() => {
                                         const now = new Date();
-                                        const offset = settings?.businessDayOffset || '04:00';
+                                        const offset = settings?.businessDayOffset || '00:00';
                                         const today = now.toISOString().split('T')[0];
 
                                         if (isBusinessDayMode) {

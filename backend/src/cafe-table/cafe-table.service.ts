@@ -533,6 +533,7 @@ export class CafeTableService {
     if (cafeTable.currentTransactionId) {
       await this.transactionRepo.update(cafeTable.currentTransactionId, {
         status: TransactionStatus.CANCELLED,
+        remarks: 'CANCEL ORDER',
       });
     }
     cafeTable.status = CafeTableStatus.AVAILABLE;

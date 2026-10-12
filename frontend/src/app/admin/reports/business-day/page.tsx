@@ -72,6 +72,7 @@ const formatDateIndonesia = (dateStr: string) => {
 };
 
 import { formatRupiah as fmt } from '@/utils/formatUtils';
+import { getTxStatusInfo } from '@/utils/txStatusLabel';
 const fmtK = fmt;
 
 /**
@@ -1191,9 +1192,14 @@ export default function BusinessDayDashboard() {
                                                 </td>
                                                 <td className="px-6 py-5 align-top text-right">
                                                     <p className="text-sm font-black text-slate-900 leading-none">Rp {Number(tx.grandTotal).toLocaleString()}</p>
-                                                    <span className={`inline-block mt-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                        {tx.status === 'CANCELLED' && tx.remarks ? tx.remarks : tx.status}
-                                                    </span>
+                                                    {(() => {
+                                                        const si = getTxStatusInfo(tx);
+                                                        return (
+                                                            <span className={`inline-block mt-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${si.kind === 'PAID' ? 'bg-emerald-100 text-emerald-700' : si.kind === 'MOVE' ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                                {si.label}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-5 align-top text-right">
                                                     <button onClick={() => setReprintTxId(tx.id)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-slate-100 shadow-sm active:scale-90">
@@ -1322,7 +1328,12 @@ export default function BusinessDayDashboard() {
                                                     })}
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'text-emerald-500' : tx.status === 'CANCELLED' ? 'text-rose-500' : 'text-amber-500'}`}>{tx.status === 'CANCELLED' && tx.remarks ? tx.remarks : tx.status}</p>
+                                                    {(() => {
+                                                        const si = getTxStatusInfo(tx);
+                                                        return (
+                                                            <p className={`text-[8px] font-black uppercase tracking-widest ${si.kind === 'PAID' ? 'text-emerald-500' : si.kind === 'MOVE' ? 'text-indigo-500' : si.kind === 'CANCEL' ? 'text-rose-500' : 'text-amber-500'}`}>{si.label}</p>
+                                                        );
+                                                    })()}
                                                     {Number(tx.changeAmount) > 0 && <p className="text-[7px] font-bold text-slate-400">Kembali {fmtK(tx.changeAmount)}</p>}
                                                 </div>
                                             </div>

@@ -572,7 +572,7 @@ export default function ApprovalCenterPage() {
     useEffect(() => {
         if (!settings) return;
         if (isBusinessDayMode) {
-            const [h, m] = (settings.businessDayOffset || '04:00').split(':').map(Number);
+            const [h, m] = (settings.businessDayOffset || '00:00').split(':').map(Number);
             const now = new Date();
             const dStart = new Date(now);
             if (now.getHours() < h) dStart.setDate(dStart.getDate() - 1);

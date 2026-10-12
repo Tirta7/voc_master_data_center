@@ -153,7 +153,7 @@ export default function AuditPage() {
         if (!settings) return;
 
         if (isBusinessDayMode) {
-            const offsetStr = settings.businessDayOffset || '04:00';
+            const offsetStr = settings.businessDayOffset || '00:00';
             const [h, m] = offsetStr.split(':').map(Number);
             
             const now = new Date();

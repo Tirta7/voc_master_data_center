@@ -447,6 +447,24 @@ export class EventsGateway
     this.mqttService.broadcastShiftEnded({ userId });
   }
 
+  /**
+   * Shift ditutup otomatis oleh sistem (pergantian Business Day).
+   * Idle tracking dibersihkan TANPA denda, karena waktu offline semalam
+   * bukan pelanggaran dan tidak boleh memotong gaji/komisi staf.
+   */
+  async shiftAutoClosed(userId: number) {
+    this.idleTracking.delete(userId);
+    await this.userService.updateStatus(userId, UserStatus.OFFLINE);
+    this.server.to(['management', 'cashier']).emit('user_status_change', {
+      userId,
+      status: UserStatus.OFFLINE,
+    });
+    this.mqttService.broadcastUserStatus(userId, UserStatus.OFFLINE);
+    this.server.emit('shift_ended', { userId });
+    this.mqttService.broadcastShiftEnded({ userId });
+  }
+
+
   employeeUpdated(data: any) {
     this.server.emit('employee_updated', data);
     this.mqttService.publish('billiard/employee/update', data);

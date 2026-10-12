@@ -975,7 +975,7 @@ export class TransactionService {
         startTime,
         endTime,
         pkg || { minutePrice: 50000 / 60 },
-        businessDayOffset || '04:00'
+        businessDayOffset || '00:00'
       );
 
       // ALWAYS sync with the most accurate calculation for Open Table
@@ -1056,7 +1056,7 @@ export class TransactionService {
     }
   }
 
-  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string, businessDayOffset: string = '04:00', isExtension: boolean = false): number {
+  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string, businessDayOffset: string = '00:00', isExtension: boolean = false): number {
     if (!pkg) return 0;
     const now = new Date();
     const timeVal = now.getHours() * 60 + now.getMinutes();
@@ -1065,7 +1065,7 @@ export class TransactionService {
     // currentDayCode, hitung sendiri berdasarkan business day offset.
     // (Bug lama: tanpa day code, slot weekday 50k bisa terpakai di weekend 60k)
     if (!currentDayCode) {
-      const [oh, om] = (businessDayOffset || '04:00').split(':').map(Number);
+      const [oh, om] = (businessDayOffset || '00:00').split(':').map(Number);
       const shifted = new Date(now.getTime() - ((oh || 0) * 60 + (om || 0)) * 60000);
       currentDayCode = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][shifted.getDay()];
     }
@@ -1152,7 +1152,7 @@ export class TransactionService {
     startTime: Date,
     endTime: Date,
     pkg: any,
-    businessDayOffset: string = '04:00',
+    businessDayOffset: string = '00:00',
   ): { total: number; details: any[] } {
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -1228,7 +1228,7 @@ export class TransactionService {
       d.getMinutes().toString().padStart(2, '0');
 
     const DAYS_MAP = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const [offsetHours, offsetMinutes] = (businessDayOffset || '04:00').split(':').map(Number);
+    const [offsetHours, offsetMinutes] = (businessDayOffset || '00:00').split(':').map(Number);
 
     while (current < calculationEnd) {
       const timeVal = current.getHours() * 60 + current.getMinutes();

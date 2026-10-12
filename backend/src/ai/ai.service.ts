@@ -270,8 +270,19 @@ export class AIService {
     });
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  private lastPruneKey: string | null = null;
+
+  @Cron(CronExpression.EVERY_MINUTE)
   async pruneHistoricalLogs() {
+    // Jalan sekali per hari tepat pada jam Business Day Offset (Settings), bukan jam hardcode.
+    const settings = await this.settingRepo.findOne({ where: {} });
+    const [oh, om] = (settings?.businessDayOffset || '00:00').split(':').map(Number);
+    const nowDate = new Date();
+    if (nowDate.getHours() !== (oh || 0) || nowDate.getMinutes() !== (om || 0)) return;
+    const runKey = `${nowDate.getFullYear()}-${nowDate.getMonth()}-${nowDate.getDate()}`;
+    if (this.lastPruneKey === runKey) return;
+    this.lastPruneKey = runKey;
+
     this.logger.log('AIService: Starting autonomous database maintenance...');
     try {
       const thirtyDaysAgo = new Date();

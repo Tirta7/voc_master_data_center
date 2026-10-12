@@ -2290,7 +2290,7 @@ export class BilliardService implements OnModuleInit {
             table.startTime,
             new Date(),
             pkg,
-            offsetSettings?.businessDayOffset || '04:00',
+            offsetSettings?.businessDayOffset || '00:00',
           );
           billiardCost = pricing.total;
           billingDetails = pricing.details;
@@ -3949,6 +3949,7 @@ export class BilliardService implements OnModuleInit {
         // Need to import TransactionStatus or update via string 'CANCELLED'
         await this.transactionService.updateTransaction(activeTxId, {
           status: 'CANCELLED' as any,
+          remarks: 'CANCEL ORDER (RESET MEJA)',
           tableId: null as any,
         });
       } catch (e) {

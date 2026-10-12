@@ -4,8 +4,8 @@
  * it will return the day code for the previous calendar day.
  */
 export const getBusinessDayCode = (offsetString?: string): string => {
-    // Default to '04:00' if no offset is provided
-    const offset = offsetString || '04:00';
+    // Default to '00:00' if no offset is provided
+    const offset = offsetString || '00:00';
     const [offsetHours, offsetMinutes] = offset.split(':').map(Number);
     
     const now = new Date();

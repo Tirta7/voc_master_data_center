@@ -1,6 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
+import { getTxStatusInfo } from '@/utils/txStatusLabel';
 
 // import { API_URL } from '@/utils/urlUtils';
 const fmt  = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
@@ -24,17 +26,23 @@ const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   html,body{font-family:'Inter',system-ui,sans-serif;background:#e9edf2;-webkit-print-color-adjust:exact;print-color-adjust:exact;color:#0f172a}
+  .print-portal{position:fixed;inset:0;z-index:99999;overflow:auto;background:#e9edf2}
   @media print{
-    html,body{background:white!important}
+    html,body{background:white!important;height:auto!important;overflow:visible!important}
+    /* Sembunyikan seluruh layout admin (sidebar, header, dsb) — hanya laporan yang tercetak */
+    body > *:not(#print-portal){display:none!important}
+    .print-portal{position:static!important;inset:auto!important;overflow:visible!important;background:white!important;z-index:auto!important}
     .no-print{display:none!important}
-    .page-wrap{box-shadow:none!important;margin:0!important;border-radius:0!important;border:none!important}
+    .page-wrap{width:100%!important;box-shadow:none!important;margin:0!important;border-radius:0!important;border:none!important;overflow:visible!important}
     .pb{break-before:page}
     .keep{break-inside:avoid}
+    tr{break-inside:avoid}
+    thead{display:table-header-group}
     @page{size:A4 portrait;margin:8mm 8mm}
   }
   @media screen{
     .no-print{display:flex!important}
-    .page-wrap{width:210mm;margin:72px auto 32px;box-shadow:0 8px 40px rgba(0,0,0,.18);border-radius:8px;overflow:hidden;border:1px solid #cbd5e1}
+    .page-wrap{width:min(210mm, calc(100vw - 32px));margin:72px auto 32px;box-shadow:0 8px 40px rgba(0,0,0,.18);border-radius:8px;overflow-x:auto;border:1px solid #cbd5e1}
   }
   table{border-collapse:collapse;width:100%}
   th,td{padding:0}
@@ -103,6 +111,8 @@ export default function BusinessDayPrintPage() {
   const [report, setReport]   = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [error, setError]     = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('id');
@@ -168,7 +178,7 @@ export default function BusinessDayPrintPage() {
     return <span style={{ fontSize:6, fontWeight:800, textTransform:'uppercase' as const, color, background:bg, border:`1px solid ${color}40`, borderRadius:3, padding:'1px 5px', marginRight:3, whiteSpace:'nowrap' as const }}>{k==='MEMBER'?'MBRSHP':k}</span>;
   }
 
-  return (
+  const content = (
     <div style={{ fontFamily:'Inter,system-ui,sans-serif', color:C.ink }}>
       <style>{css}</style>
 
@@ -599,11 +609,12 @@ export default function BusinessDayPrintPage() {
                       </div>
                     </td>
                     <td style={{ padding:'5px 6px' }}>
-                      {tx.remarks === 'MOVED CAFE TO BILLIARD TABLE' ? (
-                        <span style={{ fontSize:7, fontWeight:800, color:C.red, background:C.redL, padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap' }}>MOVED CAFE TO BILLIARD TABLE</span>
-                      ) : (
-                        <span style={{ fontSize:7, fontWeight:800, color:paid?C.green:tx.status==='CANCELLED'?C.red:C.amber, background:paid?C.greenL:tx.status==='CANCELLED'?C.redL:C.amberL, padding:'1px 5px', borderRadius:3 }}>{tx.status}</span>
-                      )}
+                      {(() => {
+                        const si = getTxStatusInfo(tx);
+                        const col = si.kind==='PAID'?C.green : si.kind==='MOVE'?C.indigo : si.kind==='CANCEL'?C.red : C.amber;
+                        const bgc = si.kind==='PAID'?C.greenL : si.kind==='MOVE'?C.indigoL : si.kind==='CANCEL'?C.redL : C.amberL;
+                        return <span style={{ fontSize:7, fontWeight:800, color:col, background:bgc, padding:'1px 5px', borderRadius:3, whiteSpace:'nowrap' }}>{si.label}</span>;
+                      })()}
                     </td>
                   </tr>
                 );
@@ -644,4 +655,7 @@ export default function BusinessDayPrintPage() {
       </div>
     </div>
   );
+
+  // Render ke <body> agar lepas dari layout admin (sidebar/header) dan mengikuti lebar layar penuh
+  return mounted ? createPortal(<div id="print-portal" className="print-portal">{content}</div>, document.body) : null;
 }

@@ -495,7 +495,7 @@ export class AttendanceService implements OnModuleInit {
    */
   async getLogicalDateString(now?: Date): Promise<string> {
     const settings = await this.settingsService.getSettings();
-    const offset = settings?.businessDayOffset || '10:00';
+    const offset = settings?.businessDayOffset || '00:00';
     const [h, m] = offset.split(':').map(Number);
 
     const target = now || new Date();
@@ -1265,14 +1265,28 @@ export class AttendanceService implements OnModuleInit {
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Daily cron job runs at 04:00 AM (after businessDayOffset).
+   * Cron berjalan tiap menit dan hanya mengeksekusi tepat pada jam Business Day Offset
+   * (Settings → Aturan Operasional), sekali per hari. Tidak ada jam yang di-hardcode.
    * Smart ALPHA detection:
    * 1. Skip if business was CLOSED yesterday (no ALPHA for anyone)
    * 2. Only mark ALPHA for employees who WERE scheduled to work
    * 3. Auto-approve pending records
    */
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  private lastAlphaRunKey: string | null = null;
+
+  @Cron(CronExpression.EVERY_MINUTE)
   async handleAlphaAttendance() {
+    const settings = await this.settingsService.getSettings();
+    const offset = settings?.businessDayOffset || '00:00';
+    const [oh, om] = offset.split(':').map(Number);
+    const nowDate = new Date();
+    if (nowDate.getHours() !== (oh || 0) || nowDate.getMinutes() !== (om || 0)) {
+      return;
+    }
+    const runKey = `${nowDate.getFullYear()}-${nowDate.getMonth()}-${nowDate.getDate()}`;
+    if (this.lastAlphaRunKey === runKey) return;
+    this.lastAlphaRunKey = runKey;
+
     this.logger.log('Running smart ALPHA detection & PENDING safety check...');
 
     // Determine the logical date that just ended (yesterday's operational day)
