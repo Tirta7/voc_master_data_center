@@ -35,6 +35,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import { useRouter } from 'next/navigation';
 import FloorPlanMap from './FloorPlanMap';
+import { QRCodeSVG } from 'qrcode.react';
+import { useRotatingQrToken } from '@/lib/hooks/useRotatingQrToken';
+import { QrLifeBar } from './CheckoutQrModal';
 
 export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?: boolean }) {
     const { user, activeShift, refetchShift, refetchProfile, logout, hasPermission } = useAuth();
@@ -48,6 +51,11 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const isProductionRole = ['KITCHEN', 'BARTENDER', 'CHEF'].some(r => userRole.includes(r));
     
     const [isManualOpen, setIsManualOpen] = useState(false);
+    
+    // QR Step
+    const [setupStep, setSetupStep] = useState<'QR' | 'FORM'>('QR');
+    const [scanResult, setScanResult] = useState<{ success: boolean; status?: string; isApproved?: boolean; time?: string; message?: string } | null>(null);
+    const [checkInTime, setCheckInTime] = useState<Date | null>(null);
 
     const isStaff = isWaiter || isCashier;
     const shouldShow = forcedOpen || isManualOpen || (!!user && (isStaff || hasPermission('SHIFT_START')) && !activeShift && !isProductionRole && !isManagementRole);
@@ -66,6 +74,8 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const [fetchingData, setFetchingData] = useState(true);
     const [shiftMismatchWarning, setShiftMismatchWarning] = useState<{show: boolean, selectedShift: any, expectedShift: any}>({show: false, selectedShift: null, expectedShift: null});
     const [coverNote, setCoverNote] = useState<string>('');
+    // Jadwal shift hari ini dari menu Absensi → Jadwal (sudah termasuk Tukar Shift)
+    const [rosterInfo, setRosterInfo] = useState<{ shift: any | null; source: string; isSwap: boolean; swappedWithName: string | null } | null>(null);
     const [emergencyWarning, setEmergencyWarning] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'map'>('map');
     // Fresh assignment data fetched directly from API (not from stale user context)
@@ -171,6 +181,13 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
             refetchShift(); // Ensure we have the latest shift status from context
             fetchData();
             if (user?.baseShift) setShiftName(user.baseShift);
+            // Prioritaskan jadwal hari ini (hasil Atur Jadwal / Tukar Shift)
+            axios.get('/attendance/my-shift')
+                .then(res => {
+                    setRosterInfo(res.data || null);
+                    if (res.data?.shift?.name) setShiftName(res.data.shift.name);
+                })
+                .catch(() => setRosterInfo(null));
             if (isWaiter) setCashStart(0);
             else setCashStart(500000); // Default for non-waiters
         }
@@ -239,6 +256,50 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
         return () => window.removeEventListener('openShiftSetup', handler);
     }, []);
 
+    // ─── CHECK IF ALREADY CHECKED-IN TODAY (skip QR) ───────────────────────────
+    useEffect(() => {
+        if (!shouldShow || !user) return;
+        // Akun yang tidak wajib absen: langsung ke form, tanpa QR
+        if (user.requiresAttendance === false) {
+            setSetupStep('FORM');
+            return;
+        }
+        axios.get('/attendance/today').then(res => {
+            if (res.data?.checkInTime) {
+                setCheckInTime(new Date(res.data.checkInTime));
+                setSetupStep('FORM');
+            }
+        }).catch(() => {});
+    }, [shouldShow, user?.id, user?.requiresAttendance]);
+
+    // ─── LISTEN FOR KIOSK SCAN RESULT ──────────────────────────────────────────
+    useEffect(() => {
+        if (!socket) return;
+        const onScan = (payload: any) => {
+            if (payload?.mode && payload.mode !== 'CHECKIN') return;
+            setScanResult(payload);
+            if (navigator.vibrate) navigator.vibrate(payload?.success ? [80, 40, 80] : 300);
+            if (payload?.success) {
+                if (payload.time) setCheckInTime(new Date(payload.time));
+                setTimeout(() => {
+                    setSetupStep('FORM');
+                    setScanResult(null);
+                }, 2800);
+            } else {
+                // allow retry with a fresh token
+                setTimeout(() => setScanResult(null), 3500);
+            }
+        };
+        socket.on('qr_scan_result', onScan);
+        return () => { socket.off('qr_scan_result', onScan); };
+    }, []);
+
+    // ─── ROTATING QR TOKEN (3s TTL, rotates every 1.5s) ────────────────────────
+    const { token: qrToken, issuedAt: qrIssuedAt } = useRotatingQrToken(
+        'CHECKIN',
+        !!shouldShow && setupStep === 'QR' && !scanResult,
+    );
+
     useEffect(() => {
         if (!isManualOpen) return;
         const handleEsc = (e: KeyboardEvent) => {
@@ -305,7 +366,13 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
         const now = new Date();
         let expectedShift: any = null;
 
-        for (const shift of availableShifts) {
+        // 1. Jadwal resmi hari ini (Absensi → Jadwal / Tukar Shift) selalu jadi acuan utama
+        if (rosterInfo?.shift?.name) {
+            expectedShift = availableShifts.find((x: any) => x.name?.toUpperCase() === rosterInfo.shift.name.toUpperCase()) || rosterInfo.shift;
+        }
+
+        // 2. Tanpa jadwal → tebak dari jam sekarang
+        for (const shift of (expectedShift ? [] : availableShifts)) {
             if (!shift.startTime || !shift.endTime) continue;
             const [sh, sm] = shift.startTime.split(':').map(Number);
             const [eh, em] = shift.endTime.split(':').map(Number);
@@ -543,18 +610,129 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                             className="max-w-2xl lg:max-w-3xl mx-auto px-4 sm:px-6 lg:px-8"
                             style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))', paddingTop: '10px' }}
                         >
-                            <motion.form
-                                initial={{ y: 10, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.05, duration: 0.35 }}
-                                onSubmit={handleStart}
-                                className="space-y-4"
-                            >
-                                {/* ── Page Header (Desktop only, mobile uses sidebar) ── */}
-                                <div className="hidden lg:block pb-4 border-b border-slate-200">
-                                    <h3 className="text-[22px] font-semibold text-slate-900 tracking-tight">Persiapan Operasional</h3>
-                                    <p className="text-[14px] text-slate-500 mt-1">Lengkapi detail berikut untuk mengaktifkan sesi kerja.</p>
-                                </div>
+                            {setupStep === 'QR' ? (
+                                <motion.div
+                                    initial={{ y: 10, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    className="flex flex-col items-center justify-center space-y-8 py-12"
+                                >
+                                    <AnimatePresence mode="wait">
+                                    {scanResult ? (
+                                        <motion.div
+                                            key="scan-result"
+                                            initial={{ scale: 0.85, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            exit={{ scale: 0.9, opacity: 0 }}
+                                            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                                            className={`w-full max-w-sm rounded-[28px] p-8 text-center shadow-2xl ${scanResult.success
+                                                ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200'
+                                                : 'bg-gradient-to-br from-rose-500 to-pink-600 shadow-rose-200'}`}
+                                        >
+                                            <motion.div
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1 }}
+                                                transition={{ delay: 0.15, type: 'spring', stiffness: 300 }}
+                                                className="mx-auto w-24 h-24 rounded-full bg-white/20 ring-8 ring-white/10 flex items-center justify-center mb-5"
+                                            >
+                                                {scanResult.success
+                                                    ? <CheckCircle2 className="w-14 h-14 text-white" strokeWidth={2.2} />
+                                                    : <AlertTriangle className="w-12 h-12 text-white" strokeWidth={2.2} />}
+                                            </motion.div>
+                                            <h3 className="text-2xl font-black text-white tracking-tight">
+                                                {scanResult.success ? 'Check-in Berhasil!' : 'Check-in Gagal'}
+                                            </h3>
+                                            {scanResult.success ? (
+                                                <>
+                                                    <p className="text-white/90 text-sm font-medium mt-2">
+                                                        Selamat bekerja, {user?.name?.split(' ')[0]} 👋
+                                                    </p>
+                                                    <div className="mt-5 bg-white/15 rounded-2xl py-3 px-4 flex items-center justify-between">
+                                                        <span className="text-white/80 text-xs font-bold uppercase tracking-widest">Jam Masuk</span>
+                                                        <span className="text-white text-lg font-black tabular-nums">
+                                                            {scanResult.time ? new Date(scanResult.time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                                                        </span>
+                                                    </div>
+                                                    {scanResult.isApproved === false && (
+                                                        <p className="mt-3 text-[11px] font-bold text-white/80 uppercase tracking-wider">
+                                                            ⏳ Menunggu verifikasi admin
+                                                        </p>
+                                                    )}
+                                                    <p className="mt-5 text-white/70 text-xs flex items-center justify-center gap-2">
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Mengarahkan ke persiapan shift…
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-white/90 text-sm font-medium mt-2">{scanResult.message}</p>
+                                                    <p className="mt-5 text-white/70 text-xs">QR baru akan dibuat otomatis, silakan scan ulang.</p>
+                                                </>
+                                            )}
+                                        </motion.div>
+                                    ) : (
+                                    <motion.div key="qr-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center space-y-8 w-full">
+                                    <div className="text-center space-y-2">
+                                        <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Scan Kehadiran</h3>
+                                        <p className="text-sm font-medium text-slate-500">
+                                            Arahkan kode QR ini ke kamera Kiosk kasir untuk check-in.
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="p-8 bg-white rounded-3xl shadow-xl border-4 border-indigo-50 flex items-center justify-center">
+                                        {qrToken ? (
+                                            <QRCodeSVG value={qrToken} size={256} className="text-slate-900" />
+                                        ) : (
+                                            <div className="w-[256px] h-[256px] bg-slate-100 flex items-center justify-center rounded-2xl animate-pulse">
+                                                <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="w-[256px] space-y-2">
+                                        <QrLifeBar issuedAt={qrIssuedAt} color="bg-indigo-500" />
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                            QR berganti tiap detik · screenshot tidak berlaku
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setSetupStep('FORM')}
+                                        className="mt-6 px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center gap-2"
+                                    >
+                                        Lanjut Persiapan Shift <ArrowRight className="w-4 h-4" />
+                                    </button>
+                                    </motion.div>
+                                    )}
+                                    </AnimatePresence>
+                                </motion.div>
+                            ) : (
+                                <motion.form
+                                    initial={{ y: 10, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.05, duration: 0.35 }}
+                                    onSubmit={handleStart}
+                                    className="space-y-4"
+                                >
+                                    {/* ── Page Header (Desktop only, mobile uses sidebar) ── */}
+                                    <div className="hidden lg:block pb-4 border-b border-slate-200">
+                                        <h3 className="text-[22px] font-semibold text-slate-900 tracking-tight">Persiapan Operasional</h3>
+                                        <p className="text-[14px] text-slate-500 mt-1">Lengkapi detail berikut untuk mengaktifkan sesi kerja.</p>
+                                    </div>
+
+                                {/* ── Check-in Confirmation Banner ── */}
+                                {checkInTime && (
+                                    <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
+                                        <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                                            <CheckCircle2 className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[14px] font-semibold text-emerald-800">Kehadiran tercatat</p>
+                                            <p className="text-[12px] text-emerald-600">
+                                                Check-in pukul {checkInTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* ── Emergency Cover Warning ── */}
                                 {emergencyWarning && (
@@ -652,6 +830,12 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                 {/* ── 2. Pilih Shift ── */}
                                 <section className="space-y-2">
                                     <p className="text-[13px] font-medium text-slate-500 px-1">Jadwal Shift</p>
+                                    {rosterInfo?.shift?.name && (
+                                        <div className={`px-3 py-2 rounded-xl text-[12px] font-medium border ${rosterInfo.isSwap ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-blue-50 border-blue-100 text-blue-700'}`}>
+                                            📅 Jadwal Anda hari ini: <b>{rosterInfo.shift.name}</b> ({rosterInfo.shift.startTime} — {rosterInfo.shift.endTime})
+                                            {rosterInfo.isSwap && <> · hasil tukar shift{rosterInfo.swappedWithName ? ` dengan ${rosterInfo.swappedWithName}` : ''}</>}
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                                         {fetchingData && availableShifts.length === 0 ? (
@@ -1121,6 +1305,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     </p>
                                 </div>
                             </motion.form>
+                            )}
                         </div>
 
                         {/* Safe area bottom padding for iOS home indicator */}
@@ -1154,7 +1339,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     <AlertTriangle className="w-8 h-8 text-white" />
                                 </div>
                                 <h3 className="text-2xl font-black text-white tracking-tight uppercase relative z-10">Peringatan Jadwal</h3>
-                                <p className="text-amber-100 text-sm mt-2 font-medium relative z-10">Jadwal yang dipilih tidak sesuai dengan waktu saat ini.</p>
+                                <p className="text-amber-100 text-sm mt-2 font-medium relative z-10">{rosterInfo?.shift?.name ? 'Shift yang dipilih berbeda dengan jadwal Anda hari ini.' : 'Jadwal yang dipilih tidak sesuai dengan waktu saat ini.'}</p>
                             </div>
 
                             <div className="p-8 space-y-8 bg-slate-50">

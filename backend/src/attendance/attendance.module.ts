@@ -13,6 +13,7 @@ import { SocketModule } from '../socket/socket.module';
 import { forwardRef } from '@nestjs/common';
 import { MqttModule } from '../mqtt/mqtt.module';
 import { UserModule } from '../user/user.module';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UserModule } from '../user/user.module';
     forwardRef(() => SocketModule),
     forwardRef(() => MqttModule),
     forwardRef(() => UserModule),
+    RedisModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

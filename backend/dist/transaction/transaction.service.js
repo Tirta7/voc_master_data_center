@@ -648,7 +648,7 @@ let TransactionService = class TransactionService {
         if (sessionType === 'open') {
             const pricing = this.calculateTimeBasedPrice(startTime, endTime, pkg || {
                 minutePrice: 50000 / 60
-            }, businessDayOffset || '04:00');
+            }, businessDayOffset || '00:00');
             // ALWAYS sync with the most accurate calculation for Open Table
             transaction.billiardTotal = pricing.total;
             transaction.billingDetails = pricing.details;
@@ -700,7 +700,7 @@ let TransactionService = class TransactionService {
             }
         }
     }
-    calculateCurrentPackagePrice(pkg, currentDayCode, businessDayOffset = '04:00', isExtension = false) {
+    calculateCurrentPackagePrice(pkg, currentDayCode, businessDayOffset = '00:00', isExtension = false) {
         if (!pkg) return 0;
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
@@ -708,7 +708,7 @@ let TransactionService = class TransactionService {
         // currentDayCode, hitung sendiri berdasarkan business day offset.
         // (Bug lama: tanpa day code, slot weekday 50k bisa terpakai di weekend 60k)
         if (!currentDayCode) {
-            const [oh, om] = (businessDayOffset || '04:00').split(':').map(Number);
+            const [oh, om] = (businessDayOffset || '00:00').split(':').map(Number);
             const shifted = new Date(now.getTime() - ((oh || 0) * 60 + (om || 0)) * 60000);
             currentDayCode = [
                 'SUN',
@@ -785,7 +785,7 @@ let TransactionService = class TransactionService {
     /**
    * Calculates the time-based price given a startTime, endTime (or now), and a package configuration.
    * Uses GMT+7 awareness.
-   */ calculateTimeBasedPrice(startTime, endTime, pkg, businessDayOffset = '04:00') {
+   */ calculateTimeBasedPrice(startTime, endTime, pkg, businessDayOffset = '00:00') {
         const start = new Date(startTime);
         const end = new Date(endTime);
         let total = 0;
@@ -852,7 +852,7 @@ let TransactionService = class TransactionService {
             'FRI',
             'SAT'
         ];
-        const [offsetHours, offsetMinutes] = (businessDayOffset || '04:00').split(':').map(Number);
+        const [offsetHours, offsetMinutes] = (businessDayOffset || '00:00').split(':').map(Number);
         while(current < calculationEnd){
             const timeVal = current.getHours() * 60 + current.getMinutes();
             const dateVal = current.toLocaleDateString('en-GB'); // Use as part of key to separate days if needed

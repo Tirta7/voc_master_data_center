@@ -69,6 +69,10 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
         if (isOpen) {
             fetchData();
             if (user?.baseShift) setShiftName(user.baseShift);
+            // Jadwal hari ini (Atur Jadwal / Tukar Shift) lebih diutamakan dari shift default
+            axios.get('/attendance/my-shift')
+                .then(res => { if (res.data?.shift?.name) setShiftName(res.data.shift.name); })
+                .catch(() => { /* fallback ke baseShift */ });
             if (user?.role?.toUpperCase() === 'WAITER') setCashStart(0);
         }
     }, [isOpen, user, fetchData]);

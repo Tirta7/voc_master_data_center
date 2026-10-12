@@ -9,7 +9,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Not, IsNull, LessThanOrEqual, MoreThanOrEqual, MoreThan } from 'typeorm';
+import { Repository, Between, Not, IsNull, LessThanOrEqual, MoreThanOrEqual, MoreThan, Like } from 'typeorm';
 import { Attendance, AttendanceStatus } from './entities/attendance.entity';
 import { EmployeeShiftSchedule } from './entities/employee-shift-schedule.entity';
 import { User } from '../user/entities/user.entity';
@@ -22,8 +22,10 @@ import { PayrollConfig } from '../user/entities/payroll-config.entity';
 import { MqttService } from '../mqtt/mqtt.service';
 import { MqttModule } from '../mqtt/mqtt.module';
 import { UserService } from '../user/user.service';
+import { RedisService } from '../redis/redis.service';
+import * as crypto from 'crypto';
 
-interface ShiftDef {
+export interface ShiftDef {
   name: string;
   startTime: string; // 'HH:MM'
   endTime: string;   // 'HH:MM'
@@ -53,6 +55,7 @@ export class AttendanceService implements OnModuleInit {
     private mqttService: MqttService,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
+    private redisService: RedisService,
   ) { }
 
   private activeDualSession: { userId: number, type: 'RFID' | 'FINGER', timestamp: number } | null = null;
@@ -596,7 +599,7 @@ export class AttendanceService implements OnModuleInit {
   private determineStatus(
     checkInTime: Date,
     shift: ShiftDef | null,
-    lateGraceMinutes = 15,
+    lateGraceMinutes: number,
   ): AttendanceStatus {
     if (!shift) return AttendanceStatus.PRESENT;
 
@@ -709,7 +712,9 @@ export class AttendanceService implements OnModuleInit {
 
     // Get shift for this employee on today's logical date
     const shift = await this.getShiftForEmployee(userId, today);
-    const status = this.determineStatus(now, shift);
+    const settings = await this.settingsService.getSettings();
+    const tolerance = settings?.lateToleranceMinutes ?? 15;
+    const status = this.determineStatus(now, shift, tolerance);
 
     if (existing) {
       existing.checkInTime = now;
@@ -722,6 +727,7 @@ export class AttendanceService implements OnModuleInit {
         existing.approvedAt = now;
       }
       const saved = await this.attendanceRepository.save(existing);
+      if (isAdmin) await this.applyLatePenalty(saved, shift);
       this.mqttService.publish('billiard/attendance/feedback', {
         name: user.name.substring(0, 16).toUpperCase(),
         status: (user.role?.name || 'STAFF') + ' | ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
@@ -743,6 +749,8 @@ export class AttendanceService implements OnModuleInit {
     };
     const attendance = this.attendanceRepository.create(attendanceData);
     const saved = await this.attendanceRepository.save(attendance);
+    // Kasir/Admin langsung di-approve → denda telat harus langsung dihitung juga
+    if (isAdmin) await this.applyLatePenalty(saved, shift);
 
     // Always broadcast update to frontend for real-time sync
     this.eventsGateway.attendanceUpdated({ 
@@ -757,6 +765,63 @@ export class AttendanceService implements OnModuleInit {
     });
 
     return saved;
+  }
+
+  /** QR lifetime. Kept very short so a screenshot can't realistically be forwarded & scanned. */
+  static readonly QR_TTL_SECONDS = 3;
+
+  async generateQrToken(userId: number, mode?: 'CHECKIN' | 'CHECKOUT'): Promise<{ token: string; expiresAt: Date; ttlSeconds: number; mode: string | null }> {
+    const ttl = AttendanceService.QR_TTL_SECONDS;
+    const token = crypto.randomBytes(16).toString('hex');
+    // Value stored only in Redis — the QR itself carries no identifiable data
+    await this.redisService.set(`qr_token:${token}`, mode ? `${userId}|${mode}` : String(userId), ttl);
+    return {
+      token,
+      expiresAt: new Date(Date.now() + ttl * 1000),
+      ttlSeconds: ttl,
+      mode: mode || null,
+    };
+  }
+
+  async processQrToken(token: string, requestedMode: 'CHECKIN' | 'CHECKOUT'): Promise<Attendance & { scanMode: 'CHECKIN' | 'CHECKOUT' }> {
+    const stored = await this.redisService.get(`qr_token:${token}`);
+    if (!stored) {
+      throw new BadRequestException('PELANGGARAN, ANDA MELAKUKAN TITIP ABSEN');
+    }
+    
+    // Pull (read and delete) to ensure one-time use
+    await this.redisService.del(`qr_token:${token}`);
+    
+    const [userIdPart, tokenMode] = String(stored).split('|');
+    const userId = Number(userIdPart);
+    // Token intent (from employee's phone) wins over kiosk button
+    const mode: 'CHECKIN' | 'CHECKOUT' = (tokenMode === 'CHECKIN' || tokenMode === 'CHECKOUT') ? tokenMode : requestedMode;
+    const room = `user_${userId}`;
+
+    try {
+      const record = mode === 'CHECKIN'
+        ? await this.checkIn(userId, 'QR Code Check-in')
+        : await this.checkOut(userId, 'QR Code Check-out');
+
+      this.eventsGateway.server.to(room).emit('qr_scan_result', {
+        success: true,
+        mode,
+        status: record.status,
+        isApproved: record.isApproved,
+        time: mode === 'CHECKIN' ? record.checkInTime : record.checkOutTime,
+        workDurationMinutes: record.workDurationMinutes,
+        overtimeMinutes: record.overtimeMinutes,
+      });
+      const u = await this.userRepository.findOne({ where: { id: userId }, select: ['id', 'name'] });
+      return Object.assign(record, { scanMode: mode, userName: u?.name || null });
+    } catch (err: any) {
+      this.eventsGateway.server.to(room).emit('qr_scan_result', {
+        success: false,
+        mode,
+        message: err?.message || 'Gagal memproses absensi.',
+      });
+      throw err;
+    }
   }
 
   async checkInByPin(pin: string, note?: string): Promise<Attendance> {
@@ -867,7 +932,9 @@ export class AttendanceService implements OnModuleInit {
     record.approvedAt = now;
 
     const shift = await this.getShiftForEmployee(record.userId, record.date);
-    record.status = this.determineStatus(record.checkInTime, shift);
+    const settings = await this.settingsService.getSettings();
+    const tolerance = settings?.lateToleranceMinutes ?? 15;
+    record.status = this.determineStatus(record.checkInTime, shift, tolerance);
 
     if (record.checkOutTime) {
       record.workDurationMinutes = Math.floor(
@@ -899,19 +966,34 @@ export class AttendanceService implements OnModuleInit {
 
     const saved = await this.attendanceRepository.save(record);
 
-    // ─── AUTO LATE PENALTY ────────────────────────────────────────────────────
+    await this.applyLatePenalty(saved, shift);
+
+    this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_APPROVED', data: saved });
+    return saved;
+  }
+
+  /**
+   * Denda keterlambatan otomatis (LATE_LOGIN).
+   * Idempotent: ditandai dengan marker [ABSEN#<id>] di deskripsi sehingga approve ulang
+   * (mis. setelah check-out yang membuat status kembali PENDING) tidak membuat denda ganda.
+   */
+  private async applyLatePenalty(record: Attendance, shift: ShiftDef | null): Promise<void> {
     // If status is LATE, calculate lateness minutes and auto-log LATE_LOGIN violation
     if (record.status === AttendanceStatus.LATE && shift && record.checkInTime) {
       try {
-        // Remove any duplicate LATE_LOGIN for same attendance record first
-        await this.violationRepository.delete({
-          userId: record.userId,
-          type: ViolationType.LATE_LOGIN,
-          attendanceId: record.id,
-        } as any);
+        const marker = `[ABSEN#${record.id}]`;
+        const already = await this.violationRepository.findOne({
+          where: {
+            userId: record.userId,
+            type: ViolationType.LATE_LOGIN,
+            description: Like(`%${marker}%`),
+          },
+        });
+        if (already) return;
 
         const [sh, sm] = shift.startTime.split(':').map(Number);
-        const graceMinutes = 15; // grace period (same as determineStatus)
+        const settings = await this.settingsService.getSettings();
+        const graceMinutes = settings?.lateToleranceMinutes ?? 15; // grace period from settings
         const checkIn = new Date(record.checkInTime);
         const wibCheckInHour = (checkIn.getUTCHours() + 7) % 24;
         const wibCheckInMin = checkIn.getUTCMinutes();
@@ -937,7 +1019,7 @@ export class AttendanceService implements OnModuleInit {
           await this.userService.logViolation(
             record.userId,
             ViolationType.LATE_LOGIN,
-            `Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`,
+            `${marker} Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`,
             penaltyAmount,
             latenessMinutes,
           );
@@ -948,9 +1030,29 @@ export class AttendanceService implements OnModuleInit {
         this.logger.warn(`[LATE_PENALTY] Failed to log violation: ${e.message}`);
       }
     }
+  }
 
-    this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_APPROVED', data: saved });
-    return saved;
+  /**
+   * Jadwal shift karyawan untuk hari operasional saat ini (mengikuti Jadwal/Tukar Shift,
+   * fallback ke shift default karyawan). Dipakai form "Mulai Shift" agar nama shift
+   * yang dipilih sama dengan jadwal absensi.
+   */
+  async getMyScheduledShift(userId: number) {
+    const date = await this.getLogicalDateString();
+    const schedule = await this.scheduleRepository.findOne({ where: { userId, date } });
+    const shift = await this.getShiftForEmployee(userId, date);
+    let swappedWithName: string | null = null;
+    if (schedule?.isSwap && schedule.swappedWithUserId) {
+      const other = await this.userRepository.findOne({ where: { id: schedule.swappedWithUserId } });
+      swappedWithName = other?.name || null;
+    }
+    return {
+      date,
+      shift,
+      source: schedule ? 'SCHEDULE' : shift ? 'DEFAULT' : 'NONE',
+      isSwap: !!schedule?.isSwap,
+      swappedWithName,
+    };
   }
 
   async getPendingAttendance(): Promise<Attendance[]> {
@@ -1388,6 +1490,13 @@ export class AttendanceService implements OnModuleInit {
       where: { baseShift: Not(IsNull()) },
     });
     usersWithShift.forEach((u) => scheduled.add(u.id));
+
+    // 3. Exclude accounts flagged as not requiring attendance
+    const exempt = await this.userRepository.find({
+      where: { requiresAttendance: false },
+      select: ['id'],
+    });
+    exempt.forEach((u) => scheduled.delete(u.id));
 
     return scheduled;
   }

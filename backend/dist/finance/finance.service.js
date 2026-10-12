@@ -366,9 +366,13 @@ let FinanceService = class FinanceService {
         });
         const totalIn = incomes.reduce((sum, item)=>sum + Number(item.amount), 0);
         const totalOut = expenses.reduce((sum, item)=>sum + Number(item.amount), 0);
+        // Gaji yang sudah dibayar (rilis payroll) dicatat sebagai OUT dengan source 'payroll'
+        const payrollOut = expenses.filter((e)=>(e.source || '').toLowerCase() === 'payroll' || String(e.referenceId || '').startsWith('PAYROLL-') || String(e.description || '').startsWith('[GAJI]')).reduce((sum, item)=>sum + Number(item.amount), 0);
         return {
             totalIn,
             totalOut,
+            payrollOut,
+            operatingOut: totalOut - payrollOut,
             netProfit: totalIn - totalOut
         };
     }

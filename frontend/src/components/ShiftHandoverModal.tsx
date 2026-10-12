@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { openCheckoutQr } from './CheckoutQrModal';
 
 interface ShiftHandoverModalProps {
     isOpen: boolean;
@@ -176,14 +177,25 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
 
             showToast(
                 isAdminOrCashier ? "Shift Berhasil Diakhiri" : "Laporan Berhasil", 
-                "Sesi Anda telah ditutup. Aplikasi akan logout otomatis.", 
+                "Sesi Anda telah ditutup.", 
                 "success"
             );
 
-            // Wait a bit for the toast, then logout immediately
-            setTimeout(() => {
-                logout();
-            }, 800);
+            // If the employee checked in today and hasn't checked out → show checkout QR first
+            let needsCheckout = false;
+            if (user?.requiresAttendance !== false) {
+                try {
+                    const today = await axios.get('/attendance/today');
+                    needsCheckout = !!today.data?.checkInTime && !today.data?.checkOutTime;
+                } catch { /* ignore */ }
+            }
+
+            if (needsCheckout) {
+                onClose();
+                openCheckoutQr();
+            } else {
+                setTimeout(() => logout(), 800);
+            }
         } catch (err: any) {
             showToast("Gagal Mengirim Laporan", err.response?.data?.message || "Terjadi kesalahan", "warning");
         } finally {

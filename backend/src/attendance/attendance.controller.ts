@@ -38,6 +38,22 @@ export class AttendanceController {
     return this.attendanceService.getTodayRecord(req.user.id);
   }
 
+  @Get('my-shift')
+  @UseGuards(AuthGuard('jwt'))
+  async getMyShift(@Request() req: any) {
+    return this.attendanceService.getMyScheduledShift(req.user.id);
+  }
+
+  @Get('qr-token')
+  @UseGuards(AuthGuard('jwt'))
+  async getQrToken(@Request() req: any, @Query('mode') mode?: string) {
+    const m = mode?.toUpperCase();
+    return this.attendanceService.generateQrToken(
+      req.user.id,
+      m === 'CHECKIN' || m === 'CHECKOUT' ? m : undefined,
+    );
+  }
+
   // ─── Public PIN endpoints (kiosk/CFD) ───────────────────────────────────
 
   @Post('public/checkin')
@@ -48,6 +64,11 @@ export class AttendanceController {
   @Post('public/checkout')
   async publicCheckOut(@Body() body: { pin: string; note?: string }) {
     return this.attendanceService.checkOutByPin(body.pin, body.note);
+  }
+
+  @Post('public/qr')
+  async publicQrCheck(@Body() body: { token: string; mode: 'CHECKIN' | 'CHECKOUT' }) {
+    return this.attendanceService.processQrToken(body.token, body.mode);
   }
 
   @Post('public/prompt')

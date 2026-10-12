@@ -464,7 +464,12 @@ export class FinanceService {
     );
     // Gaji yang sudah dibayar (rilis payroll) dicatat sebagai OUT dengan source 'payroll'
     const payrollOut = expenses
-      .filter((e) => (e.source || '').toLowerCase() === 'payroll')
+      .filter(
+        (e) =>
+          (e.source || '').toLowerCase() === 'payroll' ||
+          String(e.referenceId || '').startsWith('PAYROLL-') ||
+          String(e.description || '').startsWith('[GAJI]'),
+      )
       .reduce((sum, item) => sum + Number(item.amount), 0);
 
     return {

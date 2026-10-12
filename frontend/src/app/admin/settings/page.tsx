@@ -1618,6 +1618,26 @@ export default function BusinessSettings() {
                                                 helper="Waktu sistem menganggap hari berganti (untuk operasional 24 jam)"
 
                                             />
+                                            
+                                            <InputField
+
+                                                label="Toleransi Keterlambatan (Menit)"
+
+                                                value={settings.lateToleranceMinutes || 15}
+
+                                                savedValue={lastSavedSettings?.lateToleranceMinutes}
+
+                                                isEditing={true}
+
+                                                onChange={(val) => setSettings({ ...settings, lateToleranceMinutes: parseInt(val as string) || 0 })}
+
+                                                placeholder="Misal: 15"
+
+                                                helper="Batas toleransi menit sebelum karyawan terhitung telat"
+
+                                                type="number"
+
+                                            />
 
                                             {/* ───── AI SUGGEST CARD ───── */}
                                             {settings.enableAISalesOrchestrator && (

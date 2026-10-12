@@ -32,6 +32,7 @@ import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { AuditLog } from '../report/entities/audit-log.entity';
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 import type { EventsGateway } from '../socket/events.gateway';
+import { Attendance } from '../attendance/entities/attendance.entity';
 
 @Injectable()
 export class ShiftService {
@@ -495,7 +496,24 @@ export class ShiftService {
         order: { endTime: 'DESC' },
       });
 
-      if (prevShiftToday) {
+      // If the employee never checked out (attendance still open), they never
+      // actually left — treat the new shift as a continuation, NOT a cover.
+      let attendanceStillOpen = false;
+      if (prevShiftToday && !isEmergencyCover) {
+        const since = new Date(Date.now() - 20 * 60 * 60 * 1000); // ignore stale/forgotten records
+        const openAttendance = await this.shiftRepo.manager.getRepository(Attendance).findOne({
+          where: { userId, checkOutTime: IsNull(), checkInTime: MoreThanOrEqual(since) },
+          order: { checkInTime: 'DESC' },
+        });
+        attendanceStillOpen = !!openAttendance;
+        if (attendanceStillOpen) {
+          this.logger.log(
+            `[startShift] User ${userId} re-opened shift after #${prevShiftToday.id}, attendance still open (check-in ${openAttendance!.checkInTime.toISOString()}) → continuation, not COVER.`,
+          );
+        }
+      }
+
+      if (prevShiftToday && !attendanceStillOpen) {
         detectedEmergency = true;
         warningMessage = `⚠️ Anda sudah pernah bertugas hari ini (${prevShiftToday.shiftName || 'Shift sebelumnya'} pukul ${prevShiftToday.startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}–${prevShiftToday.endTime?.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}). Shift ini akan ditandai sebagai "COVER DARURAT" dan dicatat terpisah. Pastikan modal awal (kas di laci) yang Anda isi sudah benar.`;
         this.logger.warn(
@@ -510,7 +528,7 @@ export class ShiftService {
 
       // Calculate Lateness
       let latenessMinutes = 0;
-      if (shiftName && shiftName !== 'CUSTOM' && !detectedEmergency) {
+      if (shiftName && shiftName !== 'CUSTOM' && !detectedEmergency && !attendanceStillOpen) {
         const settings = await this.settingRepo.findOne({ where: {} });
         const matchingShift = settings?.availableShifts?.find(
           (s) => s.name.toUpperCase() === shiftName.toUpperCase(),

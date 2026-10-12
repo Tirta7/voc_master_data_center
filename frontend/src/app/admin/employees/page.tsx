@@ -100,6 +100,7 @@ interface User {
     pin?: string;
     payrollConfig?: PayrollConfig;
     baseShift?: string;
+    requiresAttendance?: boolean;
     phone?: string;
     jobTitle?: string;
     gender?: string;
@@ -309,6 +310,7 @@ export default function EmployeePage() {
         idleThreshold: 5,
         penaltyLate: 0,
         baseShift: "", // Added baseShift to newEmployee state
+        requiresAttendance: true,
         fingerprintData: "",
         securityMode: "HYBRID" as
             | "RFID_ONLY"
@@ -627,6 +629,7 @@ export default function EmployeePage() {
             idleThreshold: 5,
             penaltyLate: 0,
             baseShift: "",
+            requiresAttendance: true,
             fingerprintData: "",
             securityMode: "HYBRID",
             isVerified: true,
@@ -926,6 +929,7 @@ export default function EmployeePage() {
             idleThreshold: employee.payrollConfig?.idleThreshold || 0,
             penaltyLate: employee.payrollConfig?.penaltyLate || 0,
             baseShift: employee.baseShift || "",
+            requiresAttendance: employee.requiresAttendance !== false,
             fingerprintData: employee.fingerprintData || "",
             securityMode: employee.securityMode || "HYBRID",
             isVerified:

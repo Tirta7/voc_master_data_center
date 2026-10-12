@@ -32,6 +32,7 @@ const _redisservice = require("../redis/redis.service");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _auditlogentity = require("../report/entities/audit-log.entity");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
+const _attendanceentity = require("../attendance/entities/attendance.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -105,7 +106,7 @@ let ShiftService = class ShiftService {
         // 4. Safe Auto-Settle logic
         // Guard: Only auto-settle if we are past the deadline AND the logical date has actually shifted.
         if (activeDay && settings?.autoSettlementEnabled && activeDay.date !== dateString) {
-            const [h, m] = (settings.autoSettlementTime || '04:00').split(':').map(Number);
+            const [h, m] = (settings.autoSettlementTime || settings.businessDayOffset || '00:00').split(':').map(Number);
             const deadline = new Date(activeDay.date);
             deadline.setDate(deadline.getDate() + 1);
             deadline.setHours(h, m, 0, 0);
@@ -185,7 +186,129 @@ let ShiftService = class ShiftService {
                 }
             }
         }
+        // 6. Safety net: tutup semua shift yang masih OPEN tetapi milik Business Day lama.
+        // Tanpa ini, waiter yang ter-logout (JWT habis) saat pergantian hari akan
+        // meninggalkan shift OPEN selamanya sehingga data End Shift tidak tersimpan.
+        await this.closeOrphanedShifts(activeDay.id).catch((e)=>this.logger.error(`closeOrphanedShifts failed: ${e?.message}`));
         return activeDay;
+    }
+    /**
+   * Menutup otomatis shift OPEN yang businessDayId-nya bukan Business Day aktif.
+   * Seluruh data (kas, performa, handover) dihitung & disimpan seperti endShift normal,
+   * sehingga muncul di laporan Business Day asalnya.
+   */ async closeOrphanedShifts(activeBusinessDayId) {
+        if (this.closingOrphans) return 0;
+        this.closingOrphans = true;
+        try {
+            const orphans = await this.shiftRepo.find({
+                where: {
+                    status: _shiftentity.ShiftStatus.OPEN
+                },
+                relations: [
+                    'user',
+                    'user.role',
+                    'businessDay'
+                ]
+            });
+            const stale = orphans.filter((s)=>s.businessDayId !== activeBusinessDayId);
+            let closed = 0;
+            for (const shift of stale){
+                try {
+                    await this.autoCloseShift(shift);
+                    closed++;
+                } catch (e) {
+                    this.logger.error(`Failed to auto-close stale shift #${shift.id}: ${e?.message}`);
+                }
+            }
+            return closed;
+        } finally{
+            this.closingOrphans = false;
+        }
+    }
+    /**
+   * Menutup satu shift secara otomatis (tanpa input kas fisik) dan menyimpan seluruh datanya.
+   */ async autoCloseShift(shift) {
+        const now = new Date();
+        // Aturan jam operasional (Settings):
+        //  - Batas hari bisnis  = tanggal hari bisnis + 1 hari pada jam businessDayOffset (mis. 04:00)
+        //  - Jam selesai shift  = endTime jadwal shift (mis. SHIFT 1 → 18:00, SHIFT 2 → 02:00 hari berikutnya)
+        // Shift yang lupa ditutup diakhiri pada jam jadwal selesainya, tidak melewati batas hari bisnis.
+        let endTime = now;
+        const settings = await this.settingRepo.findOne({
+            where: {}
+        });
+        let boundary = null;
+        const bdDate = shift.businessDay?.date;
+        if (bdDate) {
+            const [oh, om] = (settings?.businessDayOffset || '00:00').split(':').map(Number);
+            const [y, mo, d] = bdDate.split('-').map(Number);
+            boundary = new Date(y, (mo || 1) - 1, (d || 1) + 1, oh || 0, om || 0, 0, 0);
+        }
+        // Cocokkan nama shift (hilangkan prefix "COVER (...)" bila shift darurat)
+        const rawName = (shift.shiftName || '').replace(/^COVER \((.*)\)$/i, '$1').trim();
+        const matching = settings?.availableShifts?.find((s)=>s.name.toUpperCase() === rawName.toUpperCase());
+        let scheduledEnd = null;
+        if (matching?.endTime) {
+            const [sh, sm] = matching.endTime.split(':').map(Number);
+            scheduledEnd = new Date(shift.startTime);
+            scheduledEnd.setHours(sh || 0, sm || 0, 0, 0);
+            // Shift lintas tengah malam (mis. 18:01 → 02:00): selesai di hari berikutnya
+            if (scheduledEnd <= shift.startTime) {
+                scheduledEnd.setDate(scheduledEnd.getDate() + 1);
+            }
+        }
+        if (scheduledEnd && scheduledEnd < now) {
+            endTime = scheduledEnd;
+        }
+        if (boundary && boundary > shift.startTime && boundary < endTime) {
+            endTime = boundary;
+        }
+        // Simpan endTime lebih dulu agar kalkulasi (window waktu) memakai batas yang benar
+        shift.endTime = endTime;
+        await this.shiftRepo.save(shift);
+        const breakdown = await this.calculateExpectedCash(shift.id);
+        const performance = await this.calculateShiftPerformance(shift.id);
+        const shiftTxs = await this.transactionRepo.find({
+            where: {
+                shiftId: shift.id
+            },
+            relations: [
+                'table',
+                'cafeTable'
+            ]
+        });
+        const totalTopUp = shiftTxs.filter((tx)=>tx.type === 'TOPUP').reduce((sum, tx)=>sum + Number(tx.grandTotal || 0), 0);
+        const handoverTransactions = shiftTxs.filter((tx)=>tx.status === _transactionentity.TransactionStatus.UNPAID || tx.status === _transactionentity.TransactionStatus.PARTIAL).map((tx)=>({
+                transactionId: tx.id,
+                invoiceNumber: tx.invoiceNumber,
+                tableName: tx.table?.name || tx.cafeTable?.tableName || `TX #${tx.id}`,
+                grandTotal: Number(tx.grandTotal || 0)
+            }));
+        shift.cashSystem = breakdown.expectedTotal;
+        shift.cashPhysical = breakdown.expectedTotal; // tidak ada hitung fisik → selisih 0, ditandai di catatan
+        shift.discrepancy = 0;
+        shift.totalTopUp = totalTopUp;
+        shift.cashRevenue = breakdown.cashRevenue;
+        shift.nonCashRevenue = breakdown.nonCashRevenue;
+        shift.totalExpenses = breakdown.totalExpenses;
+        shift.performanceSummary = performance;
+        shift.handoverTransactions = handoverTransactions.length > 0 ? handoverTransactions : null;
+        shift.note = `${shift.note ? shift.note + ' | ' : ''}[AUTO-CLOSE] Shift ditutup otomatis oleh sistem saat pergantian Business Day (tanpa hitung kas fisik).`;
+        shift.status = _shiftentity.ShiftStatus.CLOSED;
+        shift.endedBy = 'SYSTEM (AUTO-CLOSE)';
+        shift.isActive = false;
+        shift.approvalStatus = _shiftentity.ShiftApprovalStatus.APPROVED;
+        await this.shiftRepo.save(shift);
+        // Segarkan cache laporan hari terkait
+        await this.redisService.del(`report_business_day_${shift.businessDayId}`).catch(()=>{});
+        this.logger.warn(`[AUTO-CLOSE] Shift #${shift.id} (user ${shift.userId}, ${shift.user?.name}) ditutup otomatis untuk Business Day #${shift.businessDayId}.`);
+        if (shift.userId) {
+            try {
+                await this.eventsGateway.shiftAutoClosed(shift.userId);
+            } catch (e) {
+                this.logger.warn(`shiftEnded broadcast failed: ${e?.message}`);
+            }
+        }
     }
     /**
    * Mendapatkan status settlement untuk peringatan di frontend
@@ -194,7 +317,7 @@ let ShiftService = class ShiftService {
             where: {}
         });
         const autoSettlementEnabled = settings?.autoSettlementEnabled || false;
-        const autoSettlementTime = settings?.autoSettlementTime || '04:00';
+        const autoSettlementTime = settings?.autoSettlementTime || settings?.businessDayOffset || '00:00';
         const activeDay = await this.businessDayRepo.findOne({
             where: {
                 isClosed: false
@@ -252,6 +375,9 @@ let ShiftService = class ShiftService {
             throw new _common.ConflictException('Proses mulai shift sedang berjalan.');
         }
         try {
+            // Pastikan Business Day aktif sudah benar & shift usang (hari lama) sudah ditutup,
+            // supaya user tidak terblokir oleh shift OPEN dari hari sebelumnya.
+            await this.getOrCreateActiveBusinessDay();
             // Cek jika user sudah punya shift yang masih OPEN
             const existingShift = await this.shiftRepo.findOne({
                 where: {
@@ -281,7 +407,27 @@ let ShiftService = class ShiftService {
                     endTime: 'DESC'
                 }
             });
-            if (prevShiftToday) {
+            // If the employee never checked out (attendance still open), they never
+            // actually left — treat the new shift as a continuation, NOT a cover.
+            let attendanceStillOpen = false;
+            if (prevShiftToday && !isEmergencyCover) {
+                const since = new Date(Date.now() - 20 * 60 * 60 * 1000); // ignore stale/forgotten records
+                const openAttendance = await this.shiftRepo.manager.getRepository(_attendanceentity.Attendance).findOne({
+                    where: {
+                        userId,
+                        checkOutTime: (0, _typeorm1.IsNull)(),
+                        checkInTime: (0, _typeorm1.MoreThanOrEqual)(since)
+                    },
+                    order: {
+                        checkInTime: 'DESC'
+                    }
+                });
+                attendanceStillOpen = !!openAttendance;
+                if (attendanceStillOpen) {
+                    this.logger.log(`[startShift] User ${userId} re-opened shift after #${prevShiftToday.id}, attendance still open (check-in ${openAttendance.checkInTime.toISOString()}) → continuation, not COVER.`);
+                }
+            }
+            if (prevShiftToday && !attendanceStillOpen) {
                 detectedEmergency = true;
                 warningMessage = `⚠️ Anda sudah pernah bertugas hari ini (${prevShiftToday.shiftName || 'Shift sebelumnya'} pukul ${prevShiftToday.startTime.toLocaleTimeString('id-ID', {
                     hour: '2-digit',
@@ -297,7 +443,7 @@ let ShiftService = class ShiftService {
             const finalAssignments = assignedTableIds || user?.assignedTableIds || undefined;
             // Calculate Lateness
             let latenessMinutes = 0;
-            if (shiftName && shiftName !== 'CUSTOM' && !detectedEmergency) {
+            if (shiftName && shiftName !== 'CUSTOM' && !detectedEmergency && !attendanceStillOpen) {
                 const settings = await this.settingRepo.findOne({
                     where: {}
                 });
@@ -1997,11 +2143,14 @@ let ShiftService = class ShiftService {
                 startTime: 'DESC'
             }
         });
-        // Find first open shift whose user has a cashier/kasir role
-        const cashierShift = openShifts.find((shift)=>{
+        // Find open shifts whose user has a cashier/kasir role
+        const cashierShifts = openShifts.filter((shift)=>{
             const roleName = (shift.user?.role?.name || '').toUpperCase();
             return roleName.includes('KASIR') || roleName.includes('CASHIER');
         });
+        // Kasir reguler didahulukan; shift COVER darurat hanya dipakai bila
+        // tidak ada kasir reguler yang sedang bertugas (cover = pengganti sementara).
+        const cashierShift = cashierShifts.find((s)=>!s.isEmergencyCover) ?? cashierShifts[0];
         return cashierShift ?? null;
     }
     /**
@@ -2097,6 +2246,7 @@ let ShiftService = class ShiftService {
         this.redisService = redisService;
         this.whatsappService = whatsappService;
         this.logger = new _common.Logger(ShiftService.name);
+        this.closingOrphans = false;
     }
 };
 ShiftService = _ts_decorate([

@@ -241,6 +241,16 @@ let AIService = class AIService {
         });
     }
     async pruneHistoricalLogs() {
+        // Jalan sekali per hari tepat pada jam Business Day Offset (Settings), bukan jam hardcode.
+        const settings = await this.settingRepo.findOne({
+            where: {}
+        });
+        const [oh, om] = (settings?.businessDayOffset || '00:00').split(':').map(Number);
+        const nowDate = new Date();
+        if (nowDate.getHours() !== (oh || 0) || nowDate.getMinutes() !== (om || 0)) return;
+        const runKey = `${nowDate.getFullYear()}-${nowDate.getMonth()}-${nowDate.getDate()}`;
+        if (this.lastPruneKey === runKey) return;
+        this.lastPruneKey = runKey;
         this.logger.log('AIService: Starting autonomous database maintenance...');
         try {
             const thirtyDaysAgo = new Date();
@@ -2720,6 +2730,7 @@ let AIService = class AIService {
         this.isTraining = false;
         this.AI_STORAGE_DIR = _path.join(process.cwd(), 'storage', 'ai');
         this.BUFFER_FILE = _path.join(process.cwd(), 'storage', 'ai', 'experience_buffer.json');
+        this.lastPruneKey = null;
     }
 };
 _ts_decorate([
@@ -2729,7 +2740,7 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], AIService.prototype, "scheduledAISave", null);
 _ts_decorate([
-    (0, _schedule.Cron)(_schedule.CronExpression.EVERY_DAY_AT_4AM),
+    (0, _schedule.Cron)(_schedule.CronExpression.EVERY_MINUTE),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)

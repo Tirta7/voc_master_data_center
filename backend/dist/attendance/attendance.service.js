@@ -22,6 +22,38 @@ const _violationentity = require("../user/entities/violation.entity");
 const _payrollconfigentity = require("../user/entities/payroll-config.entity");
 const _mqttservice = require("../mqtt/mqtt.service");
 const _userservice = require("../user/user.service");
+const _redisservice = require("../redis/redis.service");
+const _crypto = /*#__PURE__*/ _interop_require_wildcard(require("crypto"));
+function _getRequireWildcardCache(nodeInterop) {
+    if (typeof WeakMap !== "function") return null;
+    var cacheBabelInterop = new WeakMap();
+    var cacheNodeInterop = new WeakMap();
+    return (_getRequireWildcardCache = function(nodeInterop) {
+        return nodeInterop ? cacheNodeInterop : cacheBabelInterop;
+    })(nodeInterop);
+}
+function _interop_require_wildcard(obj, nodeInterop) {
+    if (!nodeInterop && obj && obj.__esModule) return obj;
+    if (obj === null || typeof obj !== "object" && typeof obj !== "function") return {
+        default: obj
+    };
+    var cache = _getRequireWildcardCache(nodeInterop);
+    if (cache && cache.has(obj)) return cache.get(obj);
+    var newObj = {
+        __proto__: null
+    };
+    var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
+    for(var key in obj){
+        if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
+            var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+            if (desc && (desc.get || desc.set)) Object.defineProperty(newObj, key, desc);
+            else newObj[key] = obj[key];
+        }
+    }
+    newObj.default = obj;
+    if (cache) cache.set(obj, newObj);
+    return newObj;
+}
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -454,7 +486,7 @@ let AttendanceService = class AttendanceService {
    * it counts as the previous calendar day's operational period.
    */ async getLogicalDateString(now) {
         const settings = await this.settingsService.getSettings();
-        const offset = settings?.businessDayOffset || '10:00';
+        const offset = settings?.businessDayOffset || '00:00';
         const [h, m] = offset.split(':').map(Number);
         const target = now || new Date();
         const logical = new Date(target);
@@ -539,7 +571,7 @@ let AttendanceService = class AttendanceService {
    * Determine PRESENT or LATE status, fully aware of cross-midnight shifts.
    * For shift SHIFT2 (17:00-02:00): check-in at 01:50 on D+1 calendar
    * should be compared against 17:00 on D (logical date).
-   */ determineStatus(checkInTime, shift, lateGraceMinutes = 15) {
+   */ determineStatus(checkInTime, shift, lateGraceMinutes) {
         if (!shift) return _attendanceentity.AttendanceStatus.PRESENT;
         // Get check-in time in WIB minutes-of-day (0-1439)
         const wibHour = (checkInTime.getUTCHours() + 7) % 24;
@@ -637,7 +669,9 @@ let AttendanceService = class AttendanceService {
         const isAdmin = user.role?.name === 'ADMIN' || user.role?.name === 'CASHIER';
         // Get shift for this employee on today's logical date
         const shift = await this.getShiftForEmployee(userId, today);
-        const status = this.determineStatus(now, shift);
+        const settings = await this.settingsService.getSettings();
+        const tolerance = settings?.lateToleranceMinutes ?? 15;
+        const status = this.determineStatus(now, shift, tolerance);
         if (existing) {
             existing.checkInTime = now;
             existing.shiftName = shift?.name || null;
@@ -649,6 +683,7 @@ let AttendanceService = class AttendanceService {
                 existing.approvedAt = now;
             }
             const saved = await this.attendanceRepository.save(existing);
+            if (isAdmin) await this.applyLatePenalty(saved, shift);
             this.mqttService.publish('billiard/attendance/feedback', {
                 name: user.name.substring(0, 16).toUpperCase(),
                 status: (user.role?.name || 'STAFF') + ' | ' + now.toLocaleTimeString('id-ID', {
@@ -672,6 +707,8 @@ let AttendanceService = class AttendanceService {
         };
         const attendance = this.attendanceRepository.create(attendanceData);
         const saved = await this.attendanceRepository.save(attendance);
+        // Kasir/Admin langsung di-approve → denda telat harus langsung dihitung juga
+        if (isAdmin) await this.applyLatePenalty(saved, shift);
         // Always broadcast update to frontend for real-time sync
         this.eventsGateway.attendanceUpdated({
             type: isAdmin ? 'ATTENDANCE_UPDATE' : 'ATTENDANCE_PENDING',
@@ -686,6 +723,63 @@ let AttendanceService = class AttendanceService {
             msg: 'SUCCESS'
         });
         return saved;
+    }
+    async generateQrToken(userId, mode) {
+        const ttl = AttendanceService.QR_TTL_SECONDS;
+        const token = _crypto.randomBytes(16).toString('hex');
+        // Value stored only in Redis — the QR itself carries no identifiable data
+        await this.redisService.set(`qr_token:${token}`, mode ? `${userId}|${mode}` : String(userId), ttl);
+        return {
+            token,
+            expiresAt: new Date(Date.now() + ttl * 1000),
+            ttlSeconds: ttl,
+            mode: mode || null
+        };
+    }
+    async processQrToken(token, requestedMode) {
+        const stored = await this.redisService.get(`qr_token:${token}`);
+        if (!stored) {
+            throw new _common.BadRequestException('PELANGGARAN, ANDA MELAKUKAN TITIP ABSEN');
+        }
+        // Pull (read and delete) to ensure one-time use
+        await this.redisService.del(`qr_token:${token}`);
+        const [userIdPart, tokenMode] = String(stored).split('|');
+        const userId = Number(userIdPart);
+        // Token intent (from employee's phone) wins over kiosk button
+        const mode = tokenMode === 'CHECKIN' || tokenMode === 'CHECKOUT' ? tokenMode : requestedMode;
+        const room = `user_${userId}`;
+        try {
+            const record = mode === 'CHECKIN' ? await this.checkIn(userId, 'QR Code Check-in') : await this.checkOut(userId, 'QR Code Check-out');
+            this.eventsGateway.server.to(room).emit('qr_scan_result', {
+                success: true,
+                mode,
+                status: record.status,
+                isApproved: record.isApproved,
+                time: mode === 'CHECKIN' ? record.checkInTime : record.checkOutTime,
+                workDurationMinutes: record.workDurationMinutes,
+                overtimeMinutes: record.overtimeMinutes
+            });
+            const u = await this.userRepository.findOne({
+                where: {
+                    id: userId
+                },
+                select: [
+                    'id',
+                    'name'
+                ]
+            });
+            return Object.assign(record, {
+                scanMode: mode,
+                userName: u?.name || null
+            });
+        } catch (err) {
+            this.eventsGateway.server.to(room).emit('qr_scan_result', {
+                success: false,
+                mode,
+                message: err?.message || 'Gagal memproses absensi.'
+            });
+            throw err;
+        }
     }
     async checkInByPin(pin, note) {
         this.logger.debug(`Attempting check-in with PIN (Type: ${typeof pin})`);
@@ -804,7 +898,9 @@ let AttendanceService = class AttendanceService {
         record.approvedBy = adminName;
         record.approvedAt = now;
         const shift = await this.getShiftForEmployee(record.userId, record.date);
-        record.status = this.determineStatus(record.checkInTime, shift);
+        const settings = await this.settingsService.getSettings();
+        const tolerance = settings?.lateToleranceMinutes ?? 15;
+        record.status = this.determineStatus(record.checkInTime, shift, tolerance);
         if (record.checkOutTime) {
             record.workDurationMinutes = Math.floor((record.checkOutTime.getTime() - record.checkInTime.getTime()) / 60000);
             if (shift) {
@@ -827,18 +923,33 @@ let AttendanceService = class AttendanceService {
             }
         }
         const saved = await this.attendanceRepository.save(record);
-        // ─── AUTO LATE PENALTY ────────────────────────────────────────────────────
+        await this.applyLatePenalty(saved, shift);
+        this.eventsGateway.attendanceUpdated({
+            type: 'ATTENDANCE_APPROVED',
+            data: saved
+        });
+        return saved;
+    }
+    /**
+   * Denda keterlambatan otomatis (LATE_LOGIN).
+   * Idempotent: ditandai dengan marker [ABSEN#<id>] di deskripsi sehingga approve ulang
+   * (mis. setelah check-out yang membuat status kembali PENDING) tidak membuat denda ganda.
+   */ async applyLatePenalty(record, shift) {
         // If status is LATE, calculate lateness minutes and auto-log LATE_LOGIN violation
         if (record.status === _attendanceentity.AttendanceStatus.LATE && shift && record.checkInTime) {
             try {
-                // Remove any duplicate LATE_LOGIN for same attendance record first
-                await this.violationRepository.delete({
-                    userId: record.userId,
-                    type: _violationentity.ViolationType.LATE_LOGIN,
-                    attendanceId: record.id
+                const marker = `[ABSEN#${record.id}]`;
+                const already = await this.violationRepository.findOne({
+                    where: {
+                        userId: record.userId,
+                        type: _violationentity.ViolationType.LATE_LOGIN,
+                        description: (0, _typeorm1.Like)(`%${marker}%`)
+                    }
                 });
+                if (already) return;
                 const [sh, sm] = shift.startTime.split(':').map(Number);
-                const graceMinutes = 15; // grace period (same as determineStatus)
+                const settings = await this.settingsService.getSettings();
+                const graceMinutes = settings?.lateToleranceMinutes ?? 15; // grace period from settings
                 const checkIn = new Date(record.checkInTime);
                 const wibCheckInHour = (checkIn.getUTCHours() + 7) % 24;
                 const wibCheckInMin = checkIn.getUTCMinutes();
@@ -862,7 +973,7 @@ let AttendanceService = class AttendanceService {
                     });
                     const ratePerMinute = +(payrollConfig?.penaltyLate || 0);
                     const penaltyAmount = latenessMinutes * ratePerMinute;
-                    await this.userService.logViolation(record.userId, _violationentity.ViolationType.LATE_LOGIN, `Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`, penaltyAmount, latenessMinutes);
+                    await this.userService.logViolation(record.userId, _violationentity.ViolationType.LATE_LOGIN, `${marker} Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`, penaltyAmount, latenessMinutes);
                     this.logger.log(`[LATE_PENALTY] User ${record.userId} — ${latenessMinutes} mnt × Rp ${ratePerMinute} = Rp ${penaltyAmount}`);
                 }
             } catch (e) {
@@ -870,11 +981,36 @@ let AttendanceService = class AttendanceService {
                 this.logger.warn(`[LATE_PENALTY] Failed to log violation: ${e.message}`);
             }
         }
-        this.eventsGateway.attendanceUpdated({
-            type: 'ATTENDANCE_APPROVED',
-            data: saved
+    }
+    /**
+   * Jadwal shift karyawan untuk hari operasional saat ini (mengikuti Jadwal/Tukar Shift,
+   * fallback ke shift default karyawan). Dipakai form "Mulai Shift" agar nama shift
+   * yang dipilih sama dengan jadwal absensi.
+   */ async getMyScheduledShift(userId) {
+        const date = await this.getLogicalDateString();
+        const schedule = await this.scheduleRepository.findOne({
+            where: {
+                userId,
+                date
+            }
         });
-        return saved;
+        const shift = await this.getShiftForEmployee(userId, date);
+        let swappedWithName = null;
+        if (schedule?.isSwap && schedule.swappedWithUserId) {
+            const other = await this.userRepository.findOne({
+                where: {
+                    id: schedule.swappedWithUserId
+                }
+            });
+            swappedWithName = other?.name || null;
+        }
+        return {
+            date,
+            shift,
+            source: schedule ? 'SCHEDULE' : shift ? 'DEFAULT' : 'NONE',
+            isSwap: !!schedule?.isSwap,
+            swappedWithName
+        };
     }
     async getPendingAttendance() {
         return this.attendanceRepository.find({
@@ -1157,16 +1293,17 @@ let AttendanceService = class AttendanceService {
     async deleteClosure(id) {
         await this.closureRepository.delete(id);
     }
-    // ─────────────────────────────────────────────────────────────────────────────
-    // CRON: SMART ALPHA DETECTION
-    // ─────────────────────────────────────────────────────────────────────────────
-    /**
-   * Daily cron job runs at 04:00 AM (after businessDayOffset).
-   * Smart ALPHA detection:
-   * 1. Skip if business was CLOSED yesterday (no ALPHA for anyone)
-   * 2. Only mark ALPHA for employees who WERE scheduled to work
-   * 3. Auto-approve pending records
-   */ async handleAlphaAttendance() {
+    async handleAlphaAttendance() {
+        const settings = await this.settingsService.getSettings();
+        const offset = settings?.businessDayOffset || '00:00';
+        const [oh, om] = offset.split(':').map(Number);
+        const nowDate = new Date();
+        if (nowDate.getHours() !== (oh || 0) || nowDate.getMinutes() !== (om || 0)) {
+            return;
+        }
+        const runKey = `${nowDate.getFullYear()}-${nowDate.getMonth()}-${nowDate.getDate()}`;
+        if (this.lastAlphaRunKey === runKey) return;
+        this.lastAlphaRunKey = runKey;
         this.logger.log('Running smart ALPHA detection & PENDING safety check...');
         // Determine the logical date that just ended (yesterday's operational day)
         const yesterday = new Date();
@@ -1259,9 +1396,19 @@ let AttendanceService = class AttendanceService {
             }
         });
         usersWithShift.forEach((u)=>scheduled.add(u.id));
+        // 3. Exclude accounts flagged as not requiring attendance
+        const exempt = await this.userRepository.find({
+            where: {
+                requiresAttendance: false
+            },
+            select: [
+                'id'
+            ]
+        });
+        exempt.forEach((u)=>scheduled.delete(u.id));
         return scheduled;
     }
-    constructor(attendanceRepository, userRepository, scheduleRepository, closureRepository, violationRepository, payrollConfigRepository, settingsService, eventsGateway, mqttService, userService){
+    constructor(attendanceRepository, userRepository, scheduleRepository, closureRepository, violationRepository, payrollConfigRepository, settingsService, eventsGateway, mqttService, userService, redisService){
         this.attendanceRepository = attendanceRepository;
         this.userRepository = userRepository;
         this.scheduleRepository = scheduleRepository;
@@ -1272,6 +1419,7 @@ let AttendanceService = class AttendanceService {
         this.eventsGateway = eventsGateway;
         this.mqttService = mqttService;
         this.userService = userService;
+        this.redisService = redisService;
         this.logger = new _common.Logger(AttendanceService.name);
         this.activeDualSession = null;
         this.lastIdentifiedUserId = null;
@@ -1279,10 +1427,22 @@ let AttendanceService = class AttendanceService {
         // REMOTE LCD PROMPT
         // ─────────────────────────────────────────────────────────────────────────────
         this.isRegistrationActive = false;
+        // ─────────────────────────────────────────────────────────────────────────────
+        // CRON: SMART ALPHA DETECTION
+        // ─────────────────────────────────────────────────────────────────────────────
+        /**
+   * Cron berjalan tiap menit dan hanya mengeksekusi tepat pada jam Business Day Offset
+   * (Settings → Aturan Operasional), sekali per hari. Tidak ada jam yang di-hardcode.
+   * Smart ALPHA detection:
+   * 1. Skip if business was CLOSED yesterday (no ALPHA for anyone)
+   * 2. Only mark ALPHA for employees who WERE scheduled to work
+   * 3. Auto-approve pending records
+   */ this.lastAlphaRunKey = null;
     }
 };
+/** QR lifetime. Kept very short so a screenshot can't realistically be forwarded & scanned. */ AttendanceService.QR_TTL_SECONDS = 3;
 _ts_decorate([
-    (0, _schedule.Cron)(_schedule.CronExpression.EVERY_DAY_AT_4AM),
+    (0, _schedule.Cron)(_schedule.CronExpression.EVERY_MINUTE),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
@@ -1308,7 +1468,8 @@ AttendanceService = _ts_decorate([
         typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
         typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
-        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService
+        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService,
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
     ])
 ], AttendanceService);
 

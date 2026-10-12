@@ -38,6 +38,9 @@ export class Setting {
   @Column({ default: '03:00' })
   autoMaintenanceTime: string; // e.g., '03:00'
 
+  @Column({ type: 'int', default: 15 })
+  lateToleranceMinutes: number;
+
   @Column({ type: 'int', default: 30 })
   maintenanceAuditLogDays: number; // Hapus audit log lebih dari N hari
 

@@ -206,6 +206,13 @@ _ts_decorate([
 ], User.prototype, "baseShift", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], User.prototype, "requiresAttendance", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         nullable: true
     }),
     _ts_metadata("design:type", String)

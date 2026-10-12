@@ -97,6 +97,10 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   baseShift: string;
 
+  // Apakah akun ini wajib absen (QR check-in/out & deteksi ALPHA). Default: wajib.
+  @Column({ type: 'boolean', default: true })
+  requiresAttendance: boolean;
+
   @Column({ nullable: true })
   socketId: string;
 

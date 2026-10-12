@@ -16,6 +16,7 @@ interface User {
     permissions: string[];
     baseShift?: string;
     phone?: string;
+    requiresAttendance?: boolean;
     assignedTableIds?: any[];
     approvalLevel?: number;
     payrollConfig?: {
@@ -410,7 +411,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             router.push('/bartender');
         } else if (isWaiter || isCashier) {
             // Waiters and Cashiers MUST go through shift setup for presence tracking
-            router.push('/shift-setup');
+            // Hard navigation → guarantees the latest bundle (QR step) on mobile browsers
+            window.location.assign('/shift-setup');
         } else {
             router.push('/');
         }
@@ -424,6 +426,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('user');
         delete axios.defaults.headers.common['Authorization'];
         setPendingAccessData(null);
+        sessionStorage.removeItem('pendingCheckoutQr');
         setUser(null);
         setActiveShift(null); // CRITICAL: Clear shift state on logout
         router.push('/login');

@@ -1954,7 +1954,7 @@ let BilliardService = class BilliardService {
                         };
                     }
                     const offsetSettings = await this.settingsService.getSettings();
-                    const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, new Date(), pkg, offsetSettings?.businessDayOffset || '04:00');
+                    const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, new Date(), pkg, offsetSettings?.businessDayOffset || '00:00');
                     billiardCost = pricing.total;
                     billingDetails = pricing.details;
                 } else if (table.sessionType === 'prepaid') {
@@ -3163,6 +3163,7 @@ let BilliardService = class BilliardService {
                 // Need to import TransactionStatus or update via string 'CANCELLED'
                 await this.transactionService.updateTransaction(activeTxId, {
                     status: 'CANCELLED',
+                    remarks: 'CANCEL ORDER (RESET MEJA)',
                     tableId: null
                 });
             } catch (e) {

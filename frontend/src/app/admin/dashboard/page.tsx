@@ -1103,7 +1103,7 @@ export default function AdminDashboard() {
                                 icon={<DollarSign className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
                             <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.operatingOut ?? finance?.totalOut ?? 0) - Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}
-                                sub={`Opex: ${fmtK(finance?.operatingOut ?? finance?.totalOut ?? 0)} · Gaji: ${fmtK(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}`}
+                                sub={`Omzet ${fmtK(totalRevenue)} − Biaya ${fmtK(finance?.operatingOut ?? finance?.totalOut ?? 0)} − Beban gaji ${fmtK(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}${(finance?.payrollOut || 0) > 0 ? ` · Gaji dibayar (kas) ${fmtK(finance?.payrollOut || 0)} tidak dihitung ulang` : ''}`}
                                 icon={<TrendingUp className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
                             <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(activeSummary?.unpaidAmount || 0))}

@@ -225,6 +225,27 @@ export function RegisterModal({
                     </div>
                   </div>
 
+                  {/* Wajib Absensi toggle */}
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <div className="pr-4">
+                      <p className="text-[10px] font-black text-slate-900 uppercase leading-none">Wajib Absensi</p>
+                      <p className="text-[8px] font-bold text-slate-400 uppercase mt-1.5 leading-snug">
+                        {newEmployee.requiresAttendance !== false
+                          ? "Akun ini harus scan QR check-in & check-out"
+                          : "Tanpa absensi: tidak perlu scan QR & tidak dihitung ALPHA"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={newEmployee.requiresAttendance !== false}
+                      onClick={() => setNewEmployee({ ...newEmployee, requiresAttendance: newEmployee.requiresAttendance === false })}
+                      className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${newEmployee.requiresAttendance !== false ? "bg-emerald-500" : "bg-slate-300"}`}
+                    >
+                      <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${newEmployee.requiresAttendance !== false ? "translate-x-5" : ""}`} />
+                    </button>
+                  </div>
+
                   <div className="pt-8 border-t border-slate-100 mt-6 space-y-6">
                     <div className="flex items-center gap-2 mb-2">
                       <ShieldAlert className="w-4 h-4 text-rose-500" />

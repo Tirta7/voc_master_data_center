@@ -11,6 +11,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import QRScanner from '@/components/QRScanner';
 import { getFullImageUrl /*, API_URL */ } from '@/utils/urlUtils';
+import { Html5Qrcode } from 'html5-qrcode';
 
 
 const PROMOS = [
@@ -137,6 +138,65 @@ function SmartDisplayContent() {
  const [regSuccess, setRegSuccess] = useState(false);
  const { waitingList } = useRealtimeData();
  const [settings, setSettings] = useState<any>(null);
+
+ // ─── Camera Scanner ────────────────────────────────────────────────────────
+ // QR tokens live only ~3s, so we submit IMMEDIATELY on decode (no manual tap).
+ // The token itself carries CHECKIN/CHECKOUT intent; the kiosk button is only a fallback.
+ const attendanceActionRef = useRef(attendanceAction);
+ useEffect(() => { attendanceActionRef.current = attendanceAction; }, [attendanceAction]);
+ const scanBusyRef = useRef(false);
+ const lastScannedRef = useRef<string>('');
+
+ useEffect(() => {
+     let html5QrCode: Html5Qrcode | null = null;
+     let resetTimer: any;
+
+     const submitToken = async (token: string) => {
+         if (scanBusyRef.current || token === lastScannedRef.current) return;
+         scanBusyRef.current = true;
+         lastScannedRef.current = token;
+         setAttendancePin(token);
+         setAttendanceStatus('LOADING');
+         try {
+             const res = await axios.post(`/attendance/public/qr`, {
+                 token,
+                 mode: attendanceActionRef.current || 'CHECKIN',
+             });
+             const doneMode = res.data?.scanMode || attendanceActionRef.current || 'CHECKIN';
+             const name = res.data?.userName;
+             setAttendanceAction(doneMode);
+             setAttendanceStatus('SUCCESS');
+             setAttendanceMsg(`${name ? name + ' — ' : ''}Berhasil ${doneMode === 'CHECKIN' ? 'Check-in' : 'Check-out'}!`);
+         } catch (err: any) {
+             setAttendanceStatus('ERROR');
+             setAttendanceMsg(err.response?.data?.message || 'QR TIDAK VALID');
+         } finally {
+             resetTimer = setTimeout(() => {
+                 setAttendancePin('');
+                 setAttendanceStatus('IDLE');
+                 scanBusyRef.current = false;
+             }, 2500);
+         }
+     };
+
+     if (emptyView === 'ATTENDANCE') {
+         html5QrCode = new Html5Qrcode("qr-reader-display");
+         html5QrCode.start(
+             { facingMode: "user" },
+             { fps: 15, qrbox: { width: 260, height: 260 } },
+             (decodedText) => { submitToken(decodedText.trim()); },
+             () => { /* ignore per-frame decode misses */ }
+         ).catch(err => console.error("Scanner error:", err));
+     }
+
+     return () => {
+         clearTimeout(resetTimer);
+         scanBusyRef.current = false;
+         if (html5QrCode && html5QrCode.isScanning) {
+             html5QrCode.stop().catch(console.error);
+         }
+     };
+ }, [emptyView]);
 
  // Remote Scanner Flow for Topup/Check
  const [scanRequestId, setScanRequestId] = useState<string | null>(null);
@@ -1223,16 +1283,18 @@ function SmartDisplayContent() {
 
  const renderAttendanceView = () => {
  const handleAttendance = async (action: 'CHECKIN' | 'CHECKOUT') => {
- if (attendancePin.length < 4) return;
+ if (!attendancePin) return;
  setAttendanceStatus('LOADING');
  setAttendanceAction(action);
  try {
- const endpoint = action === 'CHECKIN' ? 'public/checkin' : 'public/checkout';
- const res = await axios.post(`/attendance/${endpoint}`, {
- pin: attendancePin
+ const res = await axios.post(`/attendance/public/qr`, {
+ token: attendancePin,
+ mode: action
  });
+ const doneMode = res.data?.scanMode || action;
+ setAttendanceAction(doneMode);
  setAttendanceStatus('SUCCESS');
- setAttendanceMsg(`Berhasil ${action === 'CHECKIN' ? 'Check-in' : 'Check-out'}: ${res.data.user?.name || 'Karyawan'}`);
+ setAttendanceMsg(`Berhasil ${doneMode === 'CHECKIN' ? 'Check-in' : 'Check-out'}!`);
  
  setTimeout(() => {
  setAttendancePin('');
@@ -1241,15 +1303,12 @@ function SmartDisplayContent() {
  }, 3000);
  } catch (err: any) {
  setAttendanceStatus('ERROR');
- setAttendanceMsg(err.response?.data?.message || 'PIN SALAH / GAGAL ABSEN');
+ setAttendanceMsg(err.response?.data?.message || 'QR TIDAK VALID');
+ setAttendancePin('');
  setTimeout(() => {
  setAttendanceStatus('IDLE');
  }, 3000);
  }
- };
-
- const addDigit = (digit: string | number) => {
- if (attendancePin.length < 6) setAttendancePin(prev => prev + digit.toString());
  };
 
  return (
@@ -1262,51 +1321,41 @@ function SmartDisplayContent() {
  </div>
  <div>
  <h2 className="text-3xl font-black text-white uppercase tracking-tight ">PRESENSI KARYAWAN</h2>
- <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] opacity-80 mt-2">Masukan PIN untuk Check-in/out</p>
+ <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] opacity-80 mt-2">Scan QR Code Karyawan Anda</p>
  </div>
  </div>
 
- {attendanceStatus === 'SUCCESS' ? (
+ {attendanceStatus === 'SUCCESS' || attendanceStatus === 'ERROR' ? (
  <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-10 text-center space-y-6">
- <div className="w-20 h-20 bg-[#30D158] rounded-full flex items-center justify-center mx-auto shadow-2xl">
+ <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-2xl ${attendanceStatus === 'SUCCESS' ? 'bg-[#30D158]' : 'bg-rose-500'}`}>
+ {attendanceStatus === 'SUCCESS' ? (
  <CheckCircle2 className="w-10 h-10 text-white animate-bounce" />
+ ) : (
+ <AlertTriangle className="w-10 h-10 text-white animate-pulse" />
+ )}
  </div>
- <p className="text-[#30D158] font-black uppercase tracking-widest leading-relaxed text-sm">
+ <p className={`font-black uppercase tracking-widest leading-relaxed text-sm ${attendanceStatus === 'SUCCESS' ? 'text-[#30D158]' : 'text-rose-500'}`}>
  {attendanceMsg}
  </p>
  </motion.div>
  ) : (
  <div className="space-y-8 relative z-10">
- {/* PIN Display */}
- <div className="flex justify-center gap-4 py-4">
- {[...Array(6)].map((_, i) => (
- <motion.div 
- key={i} 
- animate={attendancePin.length > i ? { scale: [1, 1.2, 1], backgroundColor: '#6366f1' } : { scale: 1, backgroundColor: 'rgba(255,255,255,0.05)' }}
- className={`w-4 h-4 rounded-full border border-white/10 transition-colors`} 
- />
- ))}
- </div>
-
- {attendanceStatus === 'ERROR' && (
- <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest text-center animate-pulse">{attendanceMsg}</p>
- )}
-
- {/* Numeric Keypad */}
- <div className="grid grid-cols-3 gap-4">
- {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, 'DEL'].map((btn) => (
- <button
- key={btn.toString()}
- onClick={() => {
- if (btn === 'C') setAttendancePin('');
- else if (btn === 'DEL') setAttendancePin(prev => prev.slice(0, -1));
- else addDigit(btn);
+ {/* QR Scanner Input */}
+ <div className="space-y-6 relative">
+ <div id="qr-reader-display" className="mx-auto w-full max-w-sm overflow-hidden rounded-3xl border-2 border-emerald-500/20" />
+ <input
+ type="password" 
+ placeholder="Atau gunakan Scanner External..."
+ className="w-full bg-white/5 border border-white/10 rounded-2xl py-6 text-center text-xl font-black tracking-widest outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-white/20 text-white"
+ value={attendancePin} 
+ onChange={e => setAttendancePin(e.target.value)} 
+ autoFocus
+ onKeyDown={e => {
+ if (e.key === 'Enter' && attendancePin && attendanceAction) {
+    handleAttendance(attendanceAction);
+ }
  }}
- className="h-16 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-black text-xl transition-all active:scale-90 shadow-lg"
- >
- {btn}
- </button>
- ))}
+ />
  </div>
 
  <div className="flex flex-col sm:flex-row gap-4 pt-6">
@@ -1321,14 +1370,14 @@ function SmartDisplayContent() {
  </button>
  <div className="order-1 sm:order-2 flex-[2] flex gap-3">
  <button
- disabled={attendancePin.length < 4 || attendanceStatus === 'LOADING'}
+ disabled={!attendancePin || attendanceStatus === 'LOADING'}
  onClick={() => handleAttendance('CHECKIN')}
  className="flex-1 py-5 bg-emerald-600 hover:bg-[#30D158] disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
  >
- {attendanceStatus === 'LOADING' && attendanceAction === 'CHECKIN' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CHECK IN'}
+ {attendanceStatus === 'LOADING' && attendanceAction === 'CHECKIN' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'SCAN CHECK IN'}
  </button>
  <button
- disabled={attendancePin.length < 4 || attendanceStatus === 'LOADING'}
+ disabled={!attendancePin || attendanceStatus === 'LOADING'}
  onClick={() => handleAttendance('CHECKOUT')}
  className="flex-1 py-5 bg-[#0A84FF] hover:bg-indigo-500 disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-xl shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
  >

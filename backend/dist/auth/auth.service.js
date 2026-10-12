@@ -233,7 +233,8 @@ let AuthService = class AuthService {
                 username: user.username,
                 role: user.role?.name || user.role,
                 permissions: user.role?.permissions || user.permissions,
-                assignedTableIds: user.assignedTableIds
+                assignedTableIds: user.assignedTableIds,
+                requiresAttendance: user.requiresAttendance !== false
             }
         };
     }

@@ -104,6 +104,13 @@ _ts_decorate([
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'int',
+        default: 15
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "lateToleranceMinutes", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
         default: 30
     }),
     _ts_metadata("design:type", Number)

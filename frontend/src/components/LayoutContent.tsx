@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import ShiftSetupOverlay from './ShiftSetupOverlay';
 import ShiftOvertimeNotifier from './ShiftOvertimeNotifier';
 import RedeemNotificationOverlay from './RedeemNotificationOverlay';
+import { CheckoutQrHost } from './CheckoutQrModal';
 import { AlertProvider } from './ui/AlertProvider';
 import { useSidebar } from './SidebarContext';
 import { useAuth } from '@/context/AuthContext';
@@ -46,7 +47,7 @@ function MqttListeners() {
 
 export default function LayoutContent({ children }: { children: React.ReactNode }) {
     const { isOpen } = useSidebar();
-    const { user, loading } = useAuth();
+    const { user, loading, logout } = useAuth();
     const { showToast } = useToast();
     const pathname = usePathname();
     const router = useRouter();
@@ -166,6 +167,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                             {user && !hideSidebar && <ShiftSetupOverlay />}
                             {user && !hideSidebar && <ShiftOvertimeNotifier />}
                             {user && <RedeemNotificationOverlay />}
+                            {user && !hideSidebar && <CheckoutQrHost userName={user.name} onLogout={logout} />}
                             <div className={`flex-1 min-w-0 max-w-full min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${(hideSidebar || isVibrантPage) ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
                                 {user && !hideSidebar && <InstallmentNotificationBanner />}
                                 {user && !hideSidebar && <SettlementWarningBanner />}

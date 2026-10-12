@@ -132,6 +132,7 @@ let UserService = class UserService {
                 'joinedAt',
                 'phone',
                 'baseShift',
+                'requiresAttendance',
                 'fingerprintData',
                 'securityMode',
                 'rfid',
@@ -295,6 +296,7 @@ let UserService = class UserService {
             'joinedAt',
             'phone',
             'baseShift',
+            'requiresAttendance',
             'fingerprintData',
             'securityMode',
             'rfid',
@@ -1066,6 +1068,8 @@ let UserService = class UserService {
         }
         const summary = await this.calculateMonthlyPayroll(userId, month, year);
         if (!summary) throw new _common.NotFoundException('Payroll summary not found');
+        // Hari bisnis aktif untuk pencatatan pengeluaran gaji di Buku Kas
+        const payrollBusinessDay = await this.shiftService.getOrCreateActiveBusinessDay();
         return this.userRepository.manager.transaction(async (manager)=>{
             // 1. Create Release Record
             const release = manager.create(_payrollreleaseentity.PayrollRelease, {
@@ -1085,37 +1089,87 @@ let UserService = class UserService {
             const savedRelease = await manager.save(_payrollreleaseentity.PayrollRelease, release);
             const startDate = new Date(year, month - 1, 1);
             const endDate = new Date(year, month, 0, 23, 59, 59);
-            // 2. Tag Items as Released
+            const pad = (n)=>String(n).padStart(2, '0');
+            const startDay = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`;
+            const endDay = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`;
+            // 2. Tag Items as Released — HANYA data pada periode yang dibayar (sama dengan
+            // jendela waktu di calculateMonthlyPayroll), supaya data bulan lain tidak ikut hilang.
             // OrderItems (Sales/Waiter share)
             await manager.createQueryBuilder().update(_orderitementity.OrderItem).set({
                 payrollReleaseId: savedRelease.id
             }).where('payrollReleaseId IS NULL').andWhere('(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))', {
                 userId
+            }).andWhere('createdAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
             }).execute();
             // OrderItems (Production share)
             await manager.createQueryBuilder().update(_orderitementity.OrderItem).set({
                 payrollReleaseId: savedRelease.id
             }).where('payrollReleaseId IS NULL').andWhere('completedByUserId = :userId', {
                 userId
+            }).andWhere('completedAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
             }).execute();
             // Transactions (Billiard/Service share)
             await manager.createQueryBuilder().update(_transactionentity.Transaction).set({
                 payrollReleaseId: savedRelease.id
             }).where('payrollReleaseId IS NULL').andWhere('(commissionUserId = :userId OR (commissionUserId IS NULL AND COALESCE(openedByUserId, createdByUserId) = :userId))', {
                 userId
+            }).andWhere('createdAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
             }).execute();
             // 4. Violations (Deductions reset)
             await manager.createQueryBuilder().update(_violationentity.Violation).set({
                 payrollReleaseId: savedRelease.id
             }).where('payrollReleaseId IS NULL').andWhere('userId = :userId', {
                 userId
+            }).andWhere('createdAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
             }).execute();
             // 5. Attendance (Overtime reset)
             await manager.createQueryBuilder().update(_attendanceentity.Attendance).set({
                 payrollReleaseId: savedRelease.id
             }).where('payrollReleaseId IS NULL').andWhere('userId = :userId', {
                 userId
+            }).andWhere('date BETWEEN :startDay AND :endDay', {
+                startDay,
+                endDay
             }).execute();
+            // 6. Catat pembayaran gaji sebagai PENGELUARAN di Buku Kas (sekali per rilis;
+            // rilis sendiri sudah unik per karyawan-bulan-tahun sehingga tidak bisa dobel).
+            const payoutAmount = Number(summary.total || 0);
+            if (payoutAmount > 0) {
+                const lastEntry = await manager.findOne(_cashflowentity.Cashflow, {
+                    where: {},
+                    order: {
+                        id: 'DESC'
+                    },
+                    lock: {
+                        mode: 'pessimistic_write'
+                    }
+                });
+                const prevBalance = lastEntry ? Number(lastEntry.balanceAfter) : 0;
+                const payee = await manager.findOne(_userentity.User, {
+                    where: {
+                        id: userId
+                    }
+                });
+                const payrollCashflow = manager.create(_cashflowentity.Cashflow, {
+                    amount: payoutAmount,
+                    type: _cashflowentity.CashflowType.OUT,
+                    source: 'payroll',
+                    referenceId: `PAYROLL-${savedRelease.id}`,
+                    description: `[GAJI] ${payee?.name || 'Karyawan'} periode ${month}/${year}`,
+                    businessDayId: payrollBusinessDay.id,
+                    balanceAfter: Number((prevBalance - payoutAmount).toFixed(2)),
+                    timestamp: new Date()
+                });
+                await manager.save(_cashflowentity.Cashflow, payrollCashflow);
+            }
             // Notify real-time
             this.eventsGateway.server.emit('payrollReleased', {
                 userId,

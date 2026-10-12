@@ -117,6 +117,7 @@ export class UserService {
         'joinedAt',
         'phone',
         'baseShift',
+        'requiresAttendance',
         'fingerprintData',
         'securityMode',
         'rfid',
@@ -275,7 +276,7 @@ export class UserService {
     const userFields: (keyof User)[] = [
       'name', 'placeOfBirth', 'dateOfBirth', 'gender', 'address', 'religion',
       'maritalStatus', 'jobTitle', 'nationality', 'joinedAt', 'phone', 'baseShift',
-      'fingerprintData', 'securityMode', 'rfid', 'isVerified'
+      'requiresAttendance', 'fingerprintData', 'securityMode', 'rfid', 'isVerified'
     ];
     
     userFields.forEach(f => {

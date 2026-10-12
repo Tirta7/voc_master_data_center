@@ -5,13 +5,14 @@ import {
     Calendar, Clock, UserCheck, AlertCircle, CalendarDays,
     ChevronLeft, ChevronRight, Shuffle, Plus, Filter, Search,
     ClipboardList, Users, Ban, UserX, Info, CheckCircle2, X, RefreshCw,
-    Pencil, Trash2, AlarmClock, Moon, Sun, Sunrise, Zap,
+    Pencil, Trash2, AlarmClock, Moon, Sun, Sunrise, Zap, QrCode
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
+import { Html5Qrcode } from 'html5-qrcode';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -283,15 +284,43 @@ export default function AttendancePage() {
         };
     }, [subscribe, fetchAll, isPinModalOpen, isScanningRFID, showToast]);
 
+    // ─── Camera Scanner ────────────────────────────────────────────────────────
+    
+    useEffect(() => {
+        let html5QrCode: Html5Qrcode;
+        if (isPinModalOpen) {
+            html5QrCode = new Html5Qrcode("qr-reader");
+            html5QrCode.start(
+                { facingMode: "user" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    setPin(decodedText);
+                    html5QrCode.stop().then(() => {
+                        handlePinSubmit(decodedText);
+                    }).catch(console.error);
+                },
+                (errorMessage) => { /* ignore */ }
+            ).catch(err => console.error("Scanner error:", err));
+        }
+
+        return () => {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().catch(console.error);
+            }
+        };
+    }, [isPinModalOpen, pinAction]);
+
     // ─── Check-In / Check-Out ─────────────────────────────────────────────────
 
     const handlePinSubmit = async (manualPin?: string) => {
         const pinToUse = manualPin || pin;
-        if (pinToUse.length < 4) return;
+        if (!pinToUse) return;
         setIsSubmitting(true);
         try {
-            const endpoint = pinAction === 'IN' ? '/attendance/public/checkin' : '/attendance/public/checkout';
-            await axios.post(endpoint, { pin: pinToUse });
+            await axios.post('/attendance/public/qr', { 
+                token: pinToUse, 
+                mode: pinAction === 'IN' ? 'CHECKIN' : 'CHECKOUT' 
+            });
             showToast(
                 pinAction === 'IN' ? 'Check-in Berhasil!' : 'Check-out Berhasil!',
                 pinAction === 'IN' ? 'Semangat bekerja hari ini!' : 'Terima kasih sudah bekerja keras!',
@@ -299,7 +328,6 @@ export default function AttendancePage() {
             );
             setIsPinModalOpen(false);
             setPin('');
-            axios.post('/attendance/public/prompt', { mode: 'RESET' }).catch(() => { });
             fetchAll();
         } catch (error: any) {
             showToast('Gagal', error.response?.data?.message || 'Terjadi kesalahan', 'error');
@@ -490,43 +518,54 @@ export default function AttendancePage() {
             <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
                 {/* ── Hero Header ── */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-800 via-indigo-700 to-slate-900 rounded-3xl p-6 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-6 md:mb-10">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-6 md:mb-10">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
-                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white  border border-white/20 shrink-0">
-                                <CalendarDays className="w-7 h-7" />
+                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+                                    <CalendarDays className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">
+                                    Attendance System
+                                </span>
                             </div>
-                            <div>
-                                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">PRESENSI KARYAWAN</h1>
-                                <p className="text-[10px] md:text-xs font-bold text-indigo-200 uppercase tracking-[0.2em] mt-1">Monitoring Kehadiran & Shift Kerja</p>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">
+                                PRESENSI KARYAWAN
+                            </h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">
+                                Monitoring kehadiran & shift kerja
+                            </p>
+                            <div className="flex flex-wrap gap-3 mt-5">
+                                <div className="bg-white/15 px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Users className="w-4 h-4" /> Total {employees.length} Karyawan
+                                </div>
                             </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+
+                        <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                             <button
                                 onClick={() => {
                                     setPinAction('IN');
                                     setIsPinModalOpen(true);
                                     setIsScanningRFID(true);
-                                    axios.post('/attendance/public/prompt', { mode: 'CHECKIN' }).catch(() => { });
                                 }}
-                                className="group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 flex-1 border border-emerald-400"
+                                className="flex-1 lg:flex-none bg-emerald-500 hover:bg-emerald-600 border border-emerald-400 text-white px-6 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 group text-xs shadow-lg shadow-emerald-500/20"
                             >
-                                <Zap className="w-4 h-4 animate-pulse text-emerald-100" />
-                                RFID CHECK-IN
+                                <QrCode className="w-4 h-4 animate-pulse text-emerald-100" />
+                                SCAN QR CHECK-IN
                             </button>
                             <button
                                 onClick={() => {
                                     setPinAction('OUT');
                                     setIsPinModalOpen(true);
                                     setIsScanningRFID(true);
-                                    axios.post('/attendance/public/prompt', { mode: 'CHECKOUT' }).catch(() => { });
                                 }}
-                                className="group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:scale-105 active:scale-95 flex-1 border border-slate-700"
+                                className="flex-1 lg:flex-none bg-white text-indigo-900 hover:bg-indigo-50 px-6 py-2 rounded-xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xl shadow-white/20 text-xs tracking-wide"
                             >
-                                <Zap className="w-4 h-4 animate-pulse text-indigo-400" />
-                                RFID CHECK-OUT
+                                <QrCode className="w-4 h-4 animate-pulse text-indigo-600" />
+                                SCAN QR CHECK-OUT
                             </button>
                         </div>
                     </div>
@@ -933,83 +972,54 @@ export default function AttendancePage() {
                 </div>
             )}
 
-            {/* ══════════════════════════ MODAL: RFID & PIN ══════════════════════════ */}
+            {/* ══════════════════════════ MODAL: SCAN QR ══════════════════════════ */}
             {isPinModalOpen && (
                 <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                    <div className="absolute inset-0 bg-slate-900/80  animate-in fade-in duration-300" onClick={() => {
+                    <div className="absolute inset-0 bg-slate-900/80 animate-in fade-in duration-300" onClick={() => {
                         setIsPinModalOpen(false);
-                        axios.post('/attendance/public/prompt', { mode: 'RESET' }).catch(() => { });
+                        setPin('');
                     }} />
                     <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 relative max-h-[90vh] flex flex-col">
                         <div className="p-8 text-center space-y-8 overflow-y-auto no-scrollbar pb-[calc(2rem+env(safe-area-inset-bottom,20px))] sm:pb-8 flex-1">
                             <div className="flex justify-center">
                                 <div className="relative">
-                                    {isScanningRFID && (
-                                        <>
-                                            <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20" />
-                                            <div className="absolute inset-[-10px] bg-indigo-500 rounded-full animate-ping opacity-10 delay-300" />
-                                        </>
-                                    )}
+                                    <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20" />
+                                    <div className="absolute inset-[-10px] bg-indigo-500 rounded-full animate-ping opacity-10 delay-300" />
                                     <div className={`relative w-20 h-20 rounded-[2rem] flex items-center justify-center shadow-xl ${pinAction === 'IN' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white'}`}>
-                                        <Zap className={`w-10 h-10 ${isScanningRFID ? 'animate-bounce' : ''}`} />
+                                        <QrCode className="w-10 h-10 animate-pulse" />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="space-y-2">
                                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
-                                    MODAL {pinAction === 'IN' ? 'CHECK-IN' : 'CHECK-OUT'}
+                                    SCAN QR {pinAction === 'IN' ? 'CHECK-IN' : 'CHECK-OUT'}
                                 </h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">
-                                    {isScanningRFID ? 'Silakan Tempelkan Kartu atau Sidik Jari Anda' : 'Masukkan PIN Keamanan Karyawan'}
+                                    Arahkan QR Code Karyawan ke Scanner
                                 </p>
                             </div>
 
-                            {isScanningRFID ? (
-                                <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] py-12 px-6 space-y-4">
-                                    <div className="flex justify-center gap-2">
-                                        {[1, 2, 3].map(i => (
-                                            <div key={i} className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                                        ))}
-                                    </div>
-                                    <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">Menunggu Sinyal Perangkat...</p>
-                                    <button
-                                        onClick={() => setIsScanningRFID(false)}
-                                        className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-200 hover:text-slate-900 transition-all pt-4"
-                                    >
-                                        Gunakan PIN Manual
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="space-y-6">
-                                    <input
-                                        type="password" maxLength={6} placeholder="••••••"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-3xl py-6 text-center text-4xl font-black tracking-[0.5em] outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 placeholder:text-slate-200"
-                                        value={pin} onChange={e => setPin(e.target.value)} autoFocus
-                                        onKeyDown={e => e.key === 'Enter' && handlePinSubmit()}
-                                    />
-                                    <button
-                                        onClick={() => setIsScanningRFID(true)}
-                                        className="text-[10px] font-black text-indigo-600 uppercase border-b border-indigo-200 hover:text-indigo-800 transition-all"
-                                    >
-                                        Kembali ke Mode Scan
-                                    </button>
-                                </div>
-                            )}
+                            <div className="space-y-6 relative">
+                                <div id="qr-reader" className="mx-auto w-full max-w-sm overflow-hidden rounded-3xl border-2 border-indigo-100" />
+                                <input
+                                    type="password" 
+                                    placeholder="Atau gunakan Scanner External..."
+                                    className="w-full bg-slate-50 border-2 border-indigo-100 rounded-3xl py-6 text-center text-xl font-black tracking-widest outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 placeholder:text-slate-300 placeholder:text-sm"
+                                    value={pin} onChange={e => setPin(e.target.value)} autoFocus
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') handlePinSubmit();
+                                    }}
+                                />
+                            </div>
 
-                            <div className={`grid gap-4 ${isScanningRFID ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            <div className="grid gap-4 grid-cols-1">
                                 <button onClick={() => {
                                     setIsPinModalOpen(false);
                                     setPin('');
-                                    axios.post('/attendance/public/prompt', { mode: 'RESET' }).catch(() => { });
                                 }} className="py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200 shadow-sm">
-                                    Batal
+                                    Batal & Tutup
                                 </button>
-                                {!isScanningRFID && (
-                                    <button onClick={() => handlePinSubmit()} disabled={pin.length < 4 || isSubmitting} className={`py-4 rounded-2xl font-black text-[10px] uppercase text-white shadow-lg disabled:opacity-50 tracking-widest ${pinAction === 'IN' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-slate-900 shadow-slate-200'}`}>
-                                        {isSubmitting ? 'PROSES...' : 'KONFIRMASI'}
-                                    </button>
-                                )}
                             </div>
                         </div>
                     </div>

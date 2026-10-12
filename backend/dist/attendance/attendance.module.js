@@ -22,6 +22,7 @@ const _settingsmodule = require("../settings/settings.module");
 const _socketmodule = require("../socket/socket.module");
 const _mqttmodule = require("../mqtt/mqtt.module");
 const _usermodule = require("../user/user.module");
+const _redismodule = require("../redis/redis.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -51,7 +52,8 @@ AttendanceModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_mqttmodule.MqttModule),
-            (0, _common.forwardRef)(()=>_usermodule.UserModule)
+            (0, _common.forwardRef)(()=>_usermodule.UserModule),
+            _redismodule.RedisModule
         ],
         controllers: [
             _attendancecontroller.AttendanceController

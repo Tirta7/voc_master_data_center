@@ -464,7 +464,8 @@ let CafeTableService = class CafeTableService {
         if (!cafeTable) throw new _common.NotFoundException('Meja tidak ditemukan');
         if (cafeTable.currentTransactionId) {
             await this.transactionRepo.update(cafeTable.currentTransactionId, {
-                status: _transactionentity.TransactionStatus.CANCELLED
+                status: _transactionentity.TransactionStatus.CANCELLED,
+                remarks: 'CANCEL ORDER'
             });
         }
         cafeTable.status = _cafetableentity.CafeTableStatus.AVAILABLE;

@@ -227,6 +227,7 @@ export class AuthService {
         role: user.role?.name || user.role,
         permissions: user.role?.permissions || user.permissions,
         assignedTableIds: user.assignedTableIds,
+        requiresAttendance: user.requiresAttendance !== false,
       },
     };
   }

@@ -45,12 +45,22 @@ let AttendanceController = class AttendanceController {
     async getToday(req) {
         return this.attendanceService.getTodayRecord(req.user.id);
     }
+    async getMyShift(req) {
+        return this.attendanceService.getMyScheduledShift(req.user.id);
+    }
+    async getQrToken(req, mode) {
+        const m = mode?.toUpperCase();
+        return this.attendanceService.generateQrToken(req.user.id, m === 'CHECKIN' || m === 'CHECKOUT' ? m : undefined);
+    }
     // ─── Public PIN endpoints (kiosk/CFD) ───────────────────────────────────
     async publicCheckIn(body) {
         return this.attendanceService.checkInByPin(body.pin, body.note);
     }
     async publicCheckOut(body) {
         return this.attendanceService.checkOutByPin(body.pin, body.note);
+    }
+    async publicQrCheck(body) {
+        return this.attendanceService.processQrToken(body.token, body.mode);
     }
     async lcdPrompt(body) {
         return this.attendanceService.sendLcdPrompt(body.mode);
@@ -183,6 +193,28 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "getToday", null);
 _ts_decorate([
+    (0, _common.Get)('my-shift'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "getMyShift", null);
+_ts_decorate([
+    (0, _common.Get)('qr-token'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Query)('mode')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "getQrToken", null);
+_ts_decorate([
     (0, _common.Post)('public/checkin'),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -200,6 +232,15 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "publicCheckOut", null);
+_ts_decorate([
+    (0, _common.Post)('public/qr'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "publicQrCheck", null);
 _ts_decorate([
     (0, _common.Post)('public/prompt'),
     _ts_param(0, (0, _common.Body)()),
