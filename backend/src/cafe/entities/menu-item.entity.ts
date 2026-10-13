@@ -25,6 +25,7 @@ export class MenuItem {
 
   @ManyToOne(() => Category, (category) => category.menuItems, {
     nullable: true,
+    onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'categoryId' })
   category: Category;

@@ -11,7 +11,7 @@ export class PayrollConfig {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @OneToOne('User', (user: any) => user.payrollConfig)
+  @OneToOne('User', (user: any) => user.payrollConfig, { onDelete: 'CASCADE' })
   @JoinColumn()
   user: any; // Avoid circular import — type resolved at runtime by TypeORM
 

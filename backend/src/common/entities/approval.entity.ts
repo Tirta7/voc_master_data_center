@@ -57,12 +57,12 @@ export class ApprovalRequest {
   @Column({ type: 'text', nullable: true })
   metadata?: string; // JSON with source details for display
 
-  @Column()
-  requestedByUserId: number;
+  @Column({ nullable: true })
+  requestedByUserId: number | null;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'requestedByUserId' })
-  requestedBy: User;
+  requestedBy: User | null;
 
   @OneToMany(() => ApprovalHistory, (history) => history.approvalRequest)
   history: ApprovalHistory[];
@@ -86,12 +86,12 @@ export class ApprovalHistory {
   @JoinColumn({ name: 'approvalRequestId' })
   approvalRequest: ApprovalRequest;
 
-  @Column()
-  userId: number;
+  @Column({ nullable: true })
+  userId: number | null;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user: User | null;
 
   @Column()
   level: number;

@@ -27,17 +27,45 @@ let AllExceptionsFilter = class AllExceptionsFilter {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse();
         const request = ctx.getRequest();
-        const status = exception instanceof _common.HttpException ? exception.getStatus() : _common.HttpStatus.INTERNAL_SERVER_ERROR;
-        const message = exception.message || 'Internal server error';
-        const stack = exception.stack || '';
+        let status = exception instanceof _common.HttpException ? exception.getStatus() : _common.HttpStatus.INTERNAL_SERVER_ERROR;
+        let message = exception?.message || 'Internal server error';
+        const stack = exception?.stack || '';
+        if (exception instanceof _common.HttpException) {
+            const errResponse = exception.getResponse();
+            if (typeof errResponse === 'string') {
+                message = errResponse;
+            } else if (typeof errResponse === 'object' && errResponse !== null) {
+                message = errResponse.message || errResponse.error || exception.message;
+            }
+        } else {
+            // Database errors & unhandled driver exceptions
+            const err = exception;
+            const rawMessage = String(err?.message || '');
+            const sqlCode = err?.code || err?.driverError?.code;
+            if (sqlCode === '23503' || rawMessage.includes('violates foreign key constraint')) {
+                status = _common.HttpStatus.BAD_REQUEST;
+                message = 'Data tidak dapat dihapus atau diubah karena masih terhubung dengan data lain di sistem (seperti riwayat transaksi, approval, atau arsip laporan). Harap periksa atau selesaikan data terkait terlebih dahulu.';
+            } else if (sqlCode === '23505' || rawMessage.includes('violates unique constraint')) {
+                status = _common.HttpStatus.CONFLICT;
+                message = 'Data tidak dapat disimpan karena nama, kode/SKU, atau username yang sama sudah terdaftar di sistem. Silakan gunakan nama atau kode yang berbeda.';
+            } else if (sqlCode === '23502' || rawMessage.includes('violates not-null constraint')) {
+                status = _common.HttpStatus.BAD_REQUEST;
+                message = 'Mohon lengkapi semua kolom isian wajib yang diperlukan.';
+            } else if (err?.name === 'QueryFailedError') {
+                status = _common.HttpStatus.BAD_REQUEST;
+                message = 'Terjadi kesalahan saat memproses data pada database. Silakan coba kembali atau hubungi administrator.';
+            } else {
+                message = err?.message || 'Terjadi kesalahan internal pada server.';
+            }
+        }
         // Filter out 401/403 logs to be less noisy (normal auth events)
         if (status === _common.HttpStatus.UNAUTHORIZED || status === _common.HttpStatus.FORBIDDEN) {
-            this.logger.warn(`[${request.method}] ${request.url} - Status: ${status} - ${message}`);
+            this.logger.warn(`[${request.method}] ${request.url} - Status: ${status} - ${JSON.stringify(message)}`);
         } else {
             console.error(`!!! EXCEPTION CAUGHT !!! [${request.method}] ${request.url}`);
-            console.error(`Status: ${status}, Message: ${message}`);
-            console.error(stack);
-            this.logger.error(`[${request.method}] ${request.url} - Status: ${status} - Error: ${message}`, stack);
+            console.error(`Status: ${status}, Message: ${JSON.stringify(message)}`);
+            if (stack) console.error(stack);
+            this.logger.error(`[${request.method}] ${request.url} - Status: ${status} - Error: ${exception?.message || message}`, stack);
         }
         response.status(status).json({
             statusCode: status,

@@ -717,26 +717,31 @@ export default function EmployeePage() {
         }
     };
 
-    const handleDeleteEmployee = async (idToDelete?: number | string) => {
+    const handleDeleteEmployee = async (idToDelete?: number | string, skipConfirm = false) => {
         const targetId = typeof idToDelete === 'number' || typeof idToDelete === 'string' ? idToDelete : editingEmployee?.id;
         if (!targetId) return;
         
         const targetName = employees.find(e => e.id === targetId)?.name || editingEmployee?.name || 'ini';
 
-        if (
-            !confirm(
-                `Yakin ingin menghapus akun ${targetName}? Semua data penggajian juga akan terhapus.`,
+        if (!skipConfirm) {
+            if (
+                !confirm(
+                    `Yakin ingin menghapus akun ${targetName}? Semua data penggajian juga akan terhapus.`,
+                )
             )
-        )
-            return;
+                return;
+        }
 
         try {
-            await axios.delete(`/users/employees/${targetId}`);
+            const res = await axios.delete(`/users/employees/${targetId}`);
             setShowRegisterModal(false);
             resetRegisterForm();
             fetchData();
+            showToast("Sukses", res.data?.message || `Karyawan ${targetName} berhasil dihapus`, "success");
         } catch (error: any) {
-            alert(error.response?.data?.message || "Gagal menghapus karyawan");
+            const errMsg = error.response?.data?.message || "Gagal menghapus karyawan";
+            showToast("Gagal", errMsg, "error");
+            alert(errMsg);
         }
     };
 

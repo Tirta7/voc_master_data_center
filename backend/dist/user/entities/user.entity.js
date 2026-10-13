@@ -122,14 +122,14 @@ _ts_decorate([
         unique: true,
         nullable: true
     }),
-    _ts_metadata("design:type", String)
+    _ts_metadata("design:type", Object)
 ], User.prototype, "email", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'varchar',
         nullable: true
     }),
-    _ts_metadata("design:type", String)
+    _ts_metadata("design:type", Object)
 ], User.prototype, "phone", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
@@ -152,7 +152,7 @@ _ts_decorate([
         type: 'varchar',
         nullable: true
     }),
-    _ts_metadata("design:type", String)
+    _ts_metadata("design:type", Object)
 ], User.prototype, "pin", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
@@ -160,7 +160,7 @@ _ts_decorate([
         nullable: true,
         unique: true
     }),
-    _ts_metadata("design:type", String)
+    _ts_metadata("design:type", Object)
 ], User.prototype, "rfid", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
@@ -252,6 +252,12 @@ _ts_decorate([
     (0, _typeorm.UpdateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], User.prototype, "updatedAt", void 0);
+_ts_decorate([
+    (0, _typeorm.DeleteDateColumn)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+], User.prototype, "deletedAt", void 0);
 User = _ts_decorate([
     (0, _typeorm.Entity)('users')
 ], User);

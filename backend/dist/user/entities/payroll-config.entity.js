@@ -34,7 +34,9 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], PayrollConfig.prototype, "id", void 0);
 _ts_decorate([
-    (0, _typeorm.OneToOne)('User', (user)=>user.payrollConfig),
+    (0, _typeorm.OneToOne)('User', (user)=>user.payrollConfig, {
+        onDelete: 'CASCADE'
+    }),
     (0, _typeorm.JoinColumn)(),
     _ts_metadata("design:type", Object)
 ], PayrollConfig.prototype, "user", void 0);

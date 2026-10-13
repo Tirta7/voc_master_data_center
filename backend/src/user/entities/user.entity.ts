@@ -5,6 +5,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   OneToOne,
   JoinColumn,
 } from 'typeorm';
@@ -56,10 +57,10 @@ export class User {
 
   // --- Kontak ---
   @Column({ unique: true, nullable: true })
-  email: string;
+  email: string | null;
 
   @Column({ type: 'varchar', nullable: true })
-  phone: string;
+  phone: string | null;
 
   // --- Akses ---
   @Column({ unique: true })
@@ -72,10 +73,10 @@ export class User {
   role: Role;
 
   @Column({ type: 'varchar', nullable: true })
-  pin: string;
+  pin: string | null;
 
   @Column({ type: 'varchar', nullable: true, unique: true })
-  rfid: string;
+  rfid: string | null;
 
   @Column({ type: 'text', nullable: true })
   fingerprintData: string | null;
@@ -125,4 +126,7 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt: Date;
 }

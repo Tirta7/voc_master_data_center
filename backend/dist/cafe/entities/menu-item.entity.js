@@ -43,7 +43,8 @@ _ts_decorate([
 ], MenuItem.prototype, "name", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_categoryentity.Category, (category)=>category.menuItems, {
-        nullable: true
+        nullable: true,
+        onDelete: 'SET NULL'
     }),
     (0, _typeorm.JoinColumn)({
         name: 'categoryId'

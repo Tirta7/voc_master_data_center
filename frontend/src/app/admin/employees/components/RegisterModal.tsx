@@ -606,7 +606,7 @@ export function RegisterModal({
                 const confirmMsg = `Hapus akun ${editingEmployee.name}? Semua data penggajian juga akan terhapus.`;
                 if (window.confirm(confirmMsg)) {
                   // Trigger the delete logic from parent
-                  (window as any).triggerDeleteEmployee?.();
+                  (window as any).triggerDeleteEmployee?.(editingEmployee.id, true);
                 }
               }}
               className="w-full sm:w-auto px-6 py-3 bg-rose-50 text-rose-500 rounded-xl font-black text-[9px] uppercase tracking-widest border border-rose-100 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2"

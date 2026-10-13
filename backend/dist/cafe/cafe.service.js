@@ -137,7 +137,13 @@ let CafeService = class CafeService {
                 categoryId: id
             }
         });
-        if (itemsCount > 0) throw new _common.BadRequestException('Kategori tidak bisa dihapus karena masih digunakan oleh beberapa menu.');
+        if (itemsCount > 0) throw new _common.BadRequestException('Kategori tidak bisa dihapus karena masih digunakan oleh beberapa menu aktif.');
+        // Nullify categoryId for any soft-deleted or archived items to avoid FK constraint errors
+        await this.menuItemRepository.manager.createQueryBuilder().update(_menuitementity.MenuItem).set({
+            categoryId: null
+        }).where('categoryId = :id', {
+            id
+        }).execute();
         await this.categoryRepository.delete(id);
     }
     async getNextSKU() {
@@ -450,19 +456,43 @@ let CafeService = class CafeService {
                 message: 'Menu memiliki riwayat transaksi. Data diarsipkan agar laporan tetap akurat.'
             };
         } else {
-            // Hard delete: clean up related data
-            await this.recipeRepository.delete({
-                menuItemId: id
-            });
-            await this.productFinanceRepository.delete({
-                menuItemId: id
-            });
-            await this.menuItemRepository.delete(id);
-            return {
-                success: true,
-                mode: 'hard',
-                message: 'Menu berhasil dihapus secara permanen.'
-            };
+            // Hard delete: clean up related data safely
+            try {
+                await this.recipeRepository.delete({
+                    menuItemId: id
+                });
+                await this.productFinanceRepository.delete({
+                    menuItemId: id
+                });
+                await this.menuItemRepository.manager.createQueryBuilder().delete().from('ai_upsell_prompts').where('menuItemId = :id', {
+                    id
+                }).execute();
+                await this.menuItemRepository.manager.createQueryBuilder().update('vouchers').set({
+                    freeMenuItemId: null
+                }).where('freeMenuItemId = :id', {
+                    id
+                }).execute();
+                await this.menuItemRepository.delete(id);
+                return {
+                    success: true,
+                    mode: 'hard',
+                    message: 'Menu berhasil dihapus secara permanen.'
+                };
+            } catch (err) {
+                // Fallback to soft delete if referenced by historical shift stock reports or other tables
+                const timestamp = Date.now();
+                await this.menuItemRepository.update(id, {
+                    isActive: false,
+                    name: `${item.name} (DELETED-${timestamp})`,
+                    sku: item.sku ? `${item.sku}-DEL-${timestamp}` : undefined
+                });
+                await this.menuItemRepository.softDelete(id);
+                return {
+                    success: true,
+                    mode: 'soft',
+                    message: 'Menu memiliki riwayat operasional dan berhasil diarsipkan dengan aman.'
+                };
+            }
         }
     }
     async getMenuItemById(id) {

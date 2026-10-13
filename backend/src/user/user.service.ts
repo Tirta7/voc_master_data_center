@@ -5,6 +5,7 @@ import {
   forwardRef,
   Inject,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, IsNull, Not, In } from 'typeorm';
@@ -30,7 +31,7 @@ import * as xlsx from 'xlsx';
 import { DataSource } from 'typeorm';
 
 @Injectable()
-export class UserService {
+export class UserService implements OnModuleInit {
   private readonly logger = new Logger(UserService.name);
 
   constructor(
@@ -74,6 +75,145 @@ export class UserService {
     private readonly settingsService: any,
     private readonly dataSource: DataSource,
   ) {}
+
+  async onModuleInit() {
+    await this.ensureSchemaIntegrity();
+  }
+
+  private async ensureSchemaIntegrity() {
+    try {
+      await this.dataSource.query(`
+        DO $$ 
+        BEGIN
+          -- 1. approval_requests (requestedByUserId nullable + ON DELETE SET NULL)
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='approval_requests' AND column_name='requestedByUserId' AND is_nullable='NO') THEN
+            ALTER TABLE "approval_requests" ALTER COLUMN "requestedByUserId" DROP NOT NULL;
+          END IF;
+          ALTER TABLE "approval_requests" DROP CONSTRAINT IF EXISTS "FK_6d1966b898c9e52ee4487f8cff2";
+          ALTER TABLE "approval_requests" ADD CONSTRAINT "FK_6d1966b898c9e52ee4487f8cff2" 
+            FOREIGN KEY ("requestedByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 2. approval_history (userId nullable + ON DELETE SET NULL)
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='approval_history' AND column_name='userId' AND is_nullable='NO') THEN
+            ALTER TABLE "approval_history" ALTER COLUMN "userId" DROP NOT NULL;
+          END IF;
+          ALTER TABLE "approval_history" DROP CONSTRAINT IF EXISTS "FK_aee01a8e42edc7b82570a03a4eb";
+          ALTER TABLE "approval_history" ADD CONSTRAINT "FK_aee01a8e42edc7b82570a03a4eb" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 3. transactions foreign keys
+          ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "FK_719fbfb8f177c22ce1984a570d7";
+          ALTER TABLE "transactions" ADD CONSTRAINT "FK_719fbfb8f177c22ce1984a570d7" 
+            FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "FK_9639c0f852b113c10fddfb2ef7f";
+          ALTER TABLE "transactions" ADD CONSTRAINT "FK_9639c0f852b113c10fddfb2ef7f" 
+            FOREIGN KEY ("openedByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "FK_427bdbd128fd69328cb8d9cc72e";
+          ALTER TABLE "transactions" ADD CONSTRAINT "FK_427bdbd128fd69328cb8d9cc72e" 
+            FOREIGN KEY ("commissionUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "FK_bf449acefa462b55414811c264a";
+          ALTER TABLE "transactions" ADD CONSTRAINT "FK_bf449acefa462b55414811c264a" 
+            FOREIGN KEY ("paidByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 4. transaction_payments
+          ALTER TABLE "transaction_payments" DROP CONSTRAINT IF EXISTS "FK_510656baf0222fb813b74b577b6";
+          ALTER TABLE "transaction_payments" ADD CONSTRAINT "FK_510656baf0222fb813b74b577b6" 
+            FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 5. order_items
+          ALTER TABLE "order_items" DROP CONSTRAINT IF EXISTS "FK_90f5b79e1f6e8cf7a9b0eaadade";
+          ALTER TABLE "order_items" ADD CONSTRAINT "FK_90f5b79e1f6e8cf7a9b0eaadade" 
+            FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "order_items" DROP CONSTRAINT IF EXISTS "FK_96f6ecd3c02d5de09e76b8b19f0";
+          ALTER TABLE "order_items" ADD CONSTRAINT "FK_96f6ecd3c02d5de09e76b8b19f0" 
+            FOREIGN KEY ("completedByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "order_items" DROP CONSTRAINT IF EXISTS "FK_2e023ac8a7c5f09e431273f5edd";
+          ALTER TABLE "order_items" ADD CONSTRAINT "FK_2e023ac8a7c5f09e431273f5edd" 
+            FOREIGN KEY ("commissionUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 6. shifts
+          ALTER TABLE "shifts" DROP CONSTRAINT IF EXISTS "FK_7862b9a401e0fe7dc5ef96e9116";
+          ALTER TABLE "shifts" ADD CONSTRAINT "FK_7862b9a401e0fe7dc5ef96e9116" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 7. vouchers
+          ALTER TABLE "vouchers" DROP CONSTRAINT IF EXISTS "FK_0492799cd14fae511b856c8984a";
+          ALTER TABLE "vouchers" ADD CONSTRAINT "FK_0492799cd14fae511b856c8984a" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "vouchers" DROP CONSTRAINT IF EXISTS "FK_7931b35135b815f6ccbc9fdc112";
+          ALTER TABLE "vouchers" ADD CONSTRAINT "FK_7931b35135b815f6ccbc9fdc112" 
+            FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 8. inventory_waste
+          ALTER TABLE "inventory_waste" DROP CONSTRAINT IF EXISTS "FK_68060d40e816214cd9171bcdb4f";
+          ALTER TABLE "inventory_waste" ADD CONSTRAINT "FK_68060d40e816214cd9171bcdb4f" 
+            FOREIGN KEY ("recordedByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 9. stock_ins
+          ALTER TABLE "stock_ins" DROP CONSTRAINT IF EXISTS "FK_d2820bb8c5a25b16242582615fe";
+          ALTER TABLE "stock_ins" ADD CONSTRAINT "FK_d2820bb8c5a25b16242582615fe" 
+            FOREIGN KEY ("receivedByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 10. stock_payments
+          ALTER TABLE "stock_payments" DROP CONSTRAINT IF EXISTS "FK_ce220b23135d1cb6fdcc4028623";
+          ALTER TABLE "stock_payments" ADD CONSTRAINT "FK_ce220b23135d1cb6fdcc4028623" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 11. chat_messages
+          ALTER TABLE "chat_messages" DROP CONSTRAINT IF EXISTS "FK_fc6b58e41e9a871dacbe9077def";
+          ALTER TABLE "chat_messages" ADD CONSTRAINT "FK_fc6b58e41e9a871dacbe9077def" 
+            FOREIGN KEY ("senderId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "chat_messages" DROP CONSTRAINT IF EXISTS "FK_9a197c82c9ea44d75bc145a6e2c";
+          ALTER TABLE "chat_messages" ADD CONSTRAINT "FK_9a197c82c9ea44d75bc145a6e2c" 
+            FOREIGN KEY ("receiverId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 12. employee_shift_schedules (swappedWithUserId)
+          ALTER TABLE "employee_shift_schedules" DROP CONSTRAINT IF EXISTS "FK_b533eab7945222a72085ea4b8fb";
+          ALTER TABLE "employee_shift_schedules" ADD CONSTRAINT "FK_b533eab7945222a72085ea4b8fb" 
+            FOREIGN KEY ("swappedWithUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 13. payroll_releases
+          ALTER TABLE "payroll_releases" DROP CONSTRAINT IF EXISTS "FK_01c9c099d46f7a8beb2003ea4ab";
+          ALTER TABLE "payroll_releases" ADD CONSTRAINT "FK_01c9c099d46f7a8beb2003ea4ab" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          ALTER TABLE "payroll_releases" DROP CONSTRAINT IF EXISTS "FK_ea640a4af3773728a9e52fa19b4";
+          ALTER TABLE "payroll_releases" ADD CONSTRAINT "FK_ea640a4af3773728a9e52fa19b4" 
+            FOREIGN KEY ("releasedByUserId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 14. violations
+          ALTER TABLE "violations" DROP CONSTRAINT IF EXISTS "FK_e00861e7c0d904c18fdc2a8cae4";
+          ALTER TABLE "violations" ADD CONSTRAINT "FK_e00861e7c0d904c18fdc2a8cae4" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL;
+
+          -- 15. payroll_configs
+          ALTER TABLE "payroll_configs" DROP CONSTRAINT IF EXISTS "FK_be94d67920f2fda44a925749e4f";
+          ALTER TABLE "payroll_configs" ADD CONSTRAINT "FK_be94d67920f2fda44a925749e4f" 
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE;
+
+          -- 16. menu_items categoryId -> SET NULL
+          ALTER TABLE "menu_items" DROP CONSTRAINT IF EXISTS "FK_d56e5ccc298e8bf721f75a7eb96";
+          ALTER TABLE "menu_items" ADD CONSTRAINT "FK_d56e5ccc298e8bf721f75a7eb96" 
+            FOREIGN KEY ("categoryId") REFERENCES "categories"("id") ON DELETE SET NULL;
+            
+          -- 17. users deletedAt column
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='deletedAt') THEN
+            ALTER TABLE "users" ADD COLUMN "deletedAt" TIMESTAMP;
+          END IF;
+        END $$;
+      `);
+      this.logger.log('Foreign key schema integrity checks verified and applied.');
+    } catch (err: any) {
+      this.logger.warn(`Schema integrity check notice: ${err?.message}`);
+    }
+  }
 
   async findByUsername(username: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { username } });
@@ -330,61 +470,74 @@ export class UserService {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Employee not found');
 
-    // Nullify or delete references in related tables to avoid FK constraint errors
-    // while preserving historical data.
-    await Promise.all([
-      this.violationRepository.update({ userId: id }, { userId: null as any }),
-      this.payrollReleaseRepository.update({ userId: id }, { userId: null as any }),
-      this.payrollReleaseRepository.update(
-        { releasedByUserId: id },
-        { releasedByUserId: null as any },
-      ),
-      this.transactionRepository.update(
-        { createdByUserId: id },
-        { createdByUserId: null as any },
-      ),
-      this.transactionRepository.update(
-        { openedByUserId: id },
-        { openedByUserId: null as any },
-      ),
-      this.transactionRepository.update(
-        { commissionUserId: id },
-        { commissionUserId: null as any },
-      ),
-      this.orderItemRepository.update(
-        { createdByUserId: id },
-        { createdByUserId: null as any },
-      ),
-      this.orderItemRepository.update(
-        { completedByUserId: id },
-        { completedByUserId: null as any },
-      ),
-      this.orderItemRepository.update(
-        { commissionUserId: id },
-        { commissionUserId: null as any },
-      ),
-      this.statusLogRepository.delete({ user: { id } }),
+    const manager = this.userRepository.manager;
 
-      this.userRepository.manager
-        .createQueryBuilder()
-        .update('shifts')
-        .set({ userId: null })
-        .where('userId = :id', { id })
-        .execute(),
+    // 1. Detach or nullify references across all related tables to maintain referential integrity
+    await Promise.allSettled([
+      // Approvals
+      manager.createQueryBuilder().update('approval_requests').set({ requestedByUserId: null }).where('requestedByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('approval_history').set({ userId: null }).where('userId = :id', { id }).execute(),
 
-      // For payments, we use query builder as the entity might not be directly available in service
-      this.userRepository.manager
-        .createQueryBuilder()
-        .update('transaction_payments')
-        .set({ createdByUserId: null })
-        .where('createdByUserId = :id', { id })
-        .execute(),
+      // Transactions & Order items
+      manager.createQueryBuilder().update('transactions').set({ createdByUserId: null }).where('createdByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('transactions').set({ openedByUserId: null }).where('openedByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('transactions').set({ commissionUserId: null }).where('commissionUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('transactions').set({ paidByUserId: null }).where('paidByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('transaction_payments').set({ createdByUserId: null }).where('createdByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('order_items').set({ createdByUserId: null }).where('createdByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('order_items').set({ completedByUserId: null }).where('completedByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('order_items').set({ commissionUserId: null }).where('commissionUserId = :id', { id }).execute(),
+
+      // Shifts & Schedules
+      manager.createQueryBuilder().update('shifts').set({ userId: null }).where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('employee_shift_schedules').set({ swappedWithUserId: null }).where('swappedWithUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().delete().from('employee_shift_schedules').where('userId = :id', { id }).execute(),
+
+      // Inventory & Vouchers
+      manager.createQueryBuilder().update('inventory_waste').set({ recordedByUserId: null }).where('recordedByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('stock_ins').set({ receivedByUserId: null }).where('receivedByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('stock_payments').set({ userId: null }).where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('vouchers').set({ userId: null }).where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('vouchers').set({ createdByUserId: null }).where('createdByUserId = :id', { id }).execute(),
+
+      // Chat Messages
+      manager.createQueryBuilder().update('chat_messages').set({ senderId: null }).where('senderId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('chat_messages').set({ receiverId: null }).where('receiverId = :id', { id }).execute(),
+
+      // Violations & Payroll
+      manager.createQueryBuilder().update('violations').set({ userId: null }).where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('payroll_releases').set({ userId: null }).where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().update('payroll_releases').set({ releasedByUserId: null }).where('releasedByUserId = :id', { id }).execute(),
+      manager.createQueryBuilder().delete().from('payroll_configs').where('userId = :id', { id }).execute(),
+
+      // Ephemeral / Session Logs
+      manager.createQueryBuilder().delete().from('user_status_logs').where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().delete().from('push_subscriptions').where('userId = :id', { id }).execute(),
+      manager.createQueryBuilder().delete().from('access_requests').where('userId = :id', { id }).execute(),
     ]);
 
-    await this.payrollRepository.delete({ user: { id } });
-    const result = await this.userRepository.delete(id);
-    this.eventsGateway.employeeUpdated({ id, action: 'deleted' });
-    return result;
+    // 2. Try hard delete first, or fallback seamlessly to soft delete
+    try {
+      await this.payrollRepository.delete({ user: { id } });
+      const result = await this.userRepository.delete(id);
+      this.eventsGateway.employeeUpdated({ id, action: 'deleted' });
+      return { success: true, message: 'Karyawan berhasil dihapus' };
+    } catch (err: any) {
+      this.logger.warn(`Hard delete failed for user ${id}, applying graceful soft-deactivation: ${err?.message}`);
+      const timestamp = Date.now();
+      await this.userRepository.update(id, {
+        name: `${user.name} (Nonaktif)`,
+        username: `${user.username}_deleted_${timestamp}`,
+        email: (user.email ? `${user.email}_del_${timestamp}` : null) as any,
+        rfid: null as any,
+        pin: null as any,
+        status: UserStatus.OFFLINE,
+        isVerified: false,
+      });
+      await this.userRepository.softDelete(id);
+      this.eventsGateway.employeeUpdated({ id, action: 'deleted' });
+      return { success: true, message: 'Karyawan berhasil dinonaktifkan/dihapus dari sistem' };
+    }
   }
 
   async updateStatus(
