@@ -56,7 +56,7 @@ export class User {
   joinedAt: string;
 
   // --- Kontak ---
-  @Column({ unique: true, nullable: true })
+  @Column({ type: 'varchar', unique: true, nullable: true })
   email: string | null;
 
   @Column({ type: 'varchar', nullable: true })

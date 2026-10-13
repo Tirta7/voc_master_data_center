@@ -14,11 +14,11 @@ export class ChatMessage {
   id: number;
 
   @Index()
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   senderId: number | null;
 
   @Index()
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   receiverId: number | null;
 
   @Column({ type: 'text' })
@@ -31,7 +31,7 @@ export class ChatMessage {
   @Column({ default: false })
   isRead: boolean;
 
-  @Column({ default: 'USER' })
+  @Column({ type: 'varchar', default: 'USER' })
   type: 'USER' | 'SYSTEM' | 'AI_COACH';
 
   @Column({ type: 'simple-json', nullable: true })

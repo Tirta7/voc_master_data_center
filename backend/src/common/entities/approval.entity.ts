@@ -57,7 +57,7 @@ export class ApprovalRequest {
   @Column({ type: 'text', nullable: true })
   metadata?: string; // JSON with source details for display
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   requestedByUserId: number | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
@@ -86,7 +86,7 @@ export class ApprovalHistory {
   @JoinColumn({ name: 'approvalRequestId' })
   approvalRequest: ApprovalRequest;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   userId: number | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
@@ -96,7 +96,7 @@ export class ApprovalHistory {
   @Column()
   level: number;
 
-  @Column()
+  @Column({ type: 'varchar', default: 'APPROVE' })
   action: 'VERIFY' | 'APPROVE' | 'REJECT' | 'BYPASS';
 
   @Column({ type: 'text', nullable: true })

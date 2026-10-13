@@ -22,7 +22,7 @@ export class Session {
   @JoinColumn({ name: 'memberId' })
   member: Member;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   memberId: number | null;
 
   @Column({ type: 'enum', enum: ['prepaid', 'open'] })

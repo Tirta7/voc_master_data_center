@@ -119,6 +119,7 @@ _ts_decorate([
 ], User.prototype, "joinedAt", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         unique: true,
         nullable: true
     }),

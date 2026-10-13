@@ -50,6 +50,7 @@ _ts_decorate([
 ], Session.prototype, "member", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
     _ts_metadata("design:type", Object)
