@@ -666,7 +666,14 @@ let AttendanceService = class AttendanceService {
             throw new _common.BadRequestException('Akun Anda sedang dinonaktifkan (Unverified).');
         }
         const now = new Date();
-        const isAdmin = user.role?.name === 'ADMIN' || user.role?.name === 'CASHIER';
+        const isAdmin = [
+            'ADMIN',
+            'SUPERADMIN',
+            'OWNER',
+            'MANAGER',
+            'ADMINISTRATOR',
+            'CASHIER'
+        ].includes(user.role?.name?.toUpperCase() || '');
         // Get shift for this employee on today's logical date
         const shift = await this.getShiftForEmployee(userId, today);
         const settings = await this.settingsService.getSettings();
@@ -829,7 +836,14 @@ let AttendanceService = class AttendanceService {
                 'role'
             ]
         });
-        const isAdmin = user?.role?.name === 'ADMIN' || user?.role?.name === 'CASHIER';
+        const isAdmin = [
+            'ADMIN',
+            'SUPERADMIN',
+            'OWNER',
+            'MANAGER',
+            'ADMINISTRATOR',
+            'CASHIER'
+        ].includes(user?.role?.name?.toUpperCase() || '');
         record.checkOutTime = now;
         const checkIn = new Date(record.checkInTime);
         record.workDurationMinutes = Math.floor((now.getTime() - checkIn.getTime()) / 60000);

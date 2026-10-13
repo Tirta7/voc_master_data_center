@@ -37,7 +37,7 @@ import { useRouter } from 'next/navigation';
 import FloorPlanMap from './FloorPlanMap';
 import { QRCodeSVG } from 'qrcode.react';
 import { useRotatingQrToken } from '@/lib/hooks/useRotatingQrToken';
-import { QrLifeBar } from './CheckoutQrModal';
+import { QrLifeBar, openCheckoutQr } from './CheckoutQrModal';
 
 export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?: boolean }) {
     const { user, activeShift, refetchShift, refetchProfile, logout, hasPermission } = useAuth();
@@ -59,9 +59,31 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const [isCheckingAttendance, setIsCheckingAttendance] = useState(true);
 
     const isStaff = isWaiter || isCashier;
-    const shouldShow = forcedOpen || isManualOpen || (!!user && (isStaff || hasPermission('SHIFT_START')) && !activeShift && !isProductionRole && !isManagementRole);
+    // Wajib Absensi: Jika aktif (requiresAttendance !== false) dan belum check-in hari ini -> WAJIB scan QR untuk SEMUA role
+    const needsAttendance = user?.requiresAttendance !== false && !checkInTime;
+    // Staf operasional (Kasir / Waiter) yang belum punya shift aktif
+    const needsShift = isStaff && !activeShift;
+
+    const shouldShow = forcedOpen || isManualOpen || (
+        !!user && !isCheckingAttendance && (needsAttendance || needsShift)
+    );
     
     useBodyScrollLock(!!shouldShow);
+
+    const handleLogout = async () => {
+        if (user?.requiresAttendance !== false) {
+            try {
+                const today = await axios.get('/attendance/today');
+                if (today.data?.checkInTime && !today.data?.checkOutTime) {
+                    openCheckoutQr();
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to check attendance before logout', err);
+            }
+        }
+        logout();
+    };
     const [cashStart, setCashStart] = useState<number | string>(isWaiter ? 0 : 500000);
     const [shiftName, setShiftName] = useState<string>('');
     const [availableShifts, setAvailableShifts] = useState<any[]>([]);
@@ -259,13 +281,17 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
 
     // ─── CHECK IF ALREADY CHECKED-IN TODAY (skip QR) ───────────────────────────
     useEffect(() => {
-        if (!shouldShow || !user) return;
+        if (!user) {
+            setIsCheckingAttendance(false);
+            return;
+        }
         // Akun yang tidak wajib absen: langsung ke form, tanpa QR
         if (user.requiresAttendance === false) {
             setSetupStep('FORM');
             setIsCheckingAttendance(false);
             return;
         }
+        setIsCheckingAttendance(true);
         axios.get('/attendance/today').then(res => {
             if (res.data?.checkInTime) {
                 setCheckInTime(new Date(res.data.checkInTime));
@@ -273,7 +299,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
             }
         }).catch(() => {})
         .finally(() => setIsCheckingAttendance(false));
-    }, [shouldShow, user?.id, user?.requiresAttendance]);
+    }, [user?.id, user?.requiresAttendance]);
 
     // ─── LISTEN FOR KIOSK SCAN RESULT ──────────────────────────────────────────
     useEffect(() => {
@@ -511,7 +537,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                 {/* Left: Logout */}
                                 <button
                                     type="button"
-                                    onClick={logout}
+                                    onClick={handleLogout}
                                     className="flex items-center gap-1.5 text-rose-500 active:opacity-60 transition-opacity"
                                 >
                                     <LogOut className="w-4 h-4" strokeWidth={2} />
@@ -591,7 +617,7 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     <span className="text-[14px] font-medium text-slate-500 group-hover:text-slate-800 transition-colors">Sinkronisasi Data</span>
                                 </button>
                                 <button
-                                    onClick={logout}
+                                    onClick={handleLogout}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rose-50 transition-colors group"
                                 >
                                     <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-500 transition-colors" strokeWidth={2} />
@@ -661,16 +687,54 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                                             ⏳ Menunggu verifikasi admin
                                                         </p>
                                                     )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setSetupStep('FORM');
-                                                            setScanResult(null);
-                                                        }}
-                                                        className="mt-6 w-full py-4 bg-white/20 hover:bg-white/30 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/20"
-                                                    >
-                                                        Lanjut Persiapan Shift <ArrowRight className="w-4 h-4" />
-                                                    </button>
+                                                    {isManagementRole ? (
+                                                        <div className="mt-6 flex flex-col gap-2.5 w-full">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setIsManualOpen(false);
+                                                                    setScanResult(null);
+                                                                    if (forcedOpen) router.push('/admin/dashboard');
+                                                                }}
+                                                                className="w-full py-4 bg-white text-slate-900 hover:bg-slate-100 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                            >
+                                                                Masuk ke Dashboard <ArrowRight className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setSetupStep('FORM');
+                                                                    setScanResult(null);
+                                                                }}
+                                                                className="w-full py-2.5 text-white/80 hover:text-white text-[11px] font-bold uppercase tracking-wider transition-colors"
+                                                            >
+                                                                Atur Sesi Kasir / Shift (Opsional)
+                                                            </button>
+                                                        </div>
+                                                    ) : isProductionRole ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsManualOpen(false);
+                                                                setScanResult(null);
+                                                                if (forcedOpen) router.push(userRole.includes('BAR') ? '/bartender' : '/kds');
+                                                            }}
+                                                            className="mt-6 w-full py-4 bg-white text-slate-900 hover:bg-slate-100 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                        >
+                                                            Masuk ke Sistem <ArrowRight className="w-4 h-4" />
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSetupStep('FORM');
+                                                                setScanResult(null);
+                                                            }}
+                                                            className="mt-6 w-full py-4 bg-white/20 hover:bg-white/30 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 border border-white/20"
+                                                        >
+                                                            Lanjut Persiapan Shift <ArrowRight className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                 </>
                                             ) : (
                                                 <>
@@ -704,14 +768,6 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                             QR berganti tiap detik · screenshot tidak berlaku
                                         </p>
                                     </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setSetupStep('FORM')}
-                                        className="mt-6 px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center gap-2"
-                                    >
-                                        Lanjut Persiapan Shift <ArrowRight className="w-4 h-4" />
-                                    </button>
                                     </motion.div>
                                     )}
                                     </AnimatePresence>

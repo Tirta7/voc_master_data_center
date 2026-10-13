@@ -708,7 +708,7 @@ export class AttendanceService implements OnModuleInit {
       throw new BadRequestException('Akun Anda sedang dinonaktifkan (Unverified).');
     }
     const now = new Date();
-    const isAdmin = user.role?.name === 'ADMIN' || user.role?.name === 'CASHIER';
+    const isAdmin = ['ADMIN', 'SUPERADMIN', 'OWNER', 'MANAGER', 'ADMINISTRATOR', 'CASHIER'].includes(user.role?.name?.toUpperCase() || '');
 
     // Get shift for this employee on today's logical date
     const shift = await this.getShiftForEmployee(userId, today);
@@ -858,7 +858,7 @@ export class AttendanceService implements OnModuleInit {
       where: { id: userId },
       relations: ['role'],
     });
-    const isAdmin = user?.role?.name === 'ADMIN' || user?.role?.name === 'CASHIER';
+    const isAdmin = ['ADMIN', 'SUPERADMIN', 'OWNER', 'MANAGER', 'ADMINISTRATOR', 'CASHIER'].includes(user?.role?.name?.toUpperCase() || '');
 
     record.checkOutTime = now;
     const checkIn = new Date(record.checkInTime);

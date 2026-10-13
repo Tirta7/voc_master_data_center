@@ -46,6 +46,7 @@ import { useSidebar } from './SidebarContext';
 import { useAuth } from '@/context/AuthContext';
 import ShiftHandoverModal from './ShiftHandoverModal';
 import ShiftStartModal from './ShiftStartModal';
+import { openCheckoutQr } from './CheckoutQrModal';
 import { useToast } from "@/components/ui/ToastProvider";
 import LoginApprovalCenter from './LoginApprovalCenter';
 import TableApprovalCenter from './TableApprovalCenter';
@@ -63,6 +64,21 @@ export default function Sidebar() {
     const { showToast } = useToast();
     const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
     const [isStartModalOpen, setIsStartModalOpen] = React.useState(false);
+
+    const handleLogout = async () => {
+        if (user?.requiresAttendance !== false) {
+            try {
+                const today = await axios.get('/attendance/today');
+                if (today.data?.checkInTime && !today.data?.checkOutTime) {
+                    openCheckoutQr();
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to check attendance before logout', err);
+            }
+        }
+        logout();
+    };
     const { 
         activeBilliardCount, 
         activeCafeCount, 
@@ -488,7 +504,7 @@ export default function Sidebar() {
                             </button>
                         ) : null}
                         <button
-                            onClick={logout}
+                            onClick={handleLogout}
                             className="p-2 hover:bg-slate-700 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
                             title="Sign Out"
                         >
