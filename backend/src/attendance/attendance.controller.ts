@@ -1,6 +1,8 @@
 import {
   Controller,
   Post,
+  Put,
+  Patch,
   Get,
   Delete,
   Body,
@@ -131,9 +133,54 @@ export class AttendanceController {
   @UseGuards(AuthGuard('jwt'))
   async createManual(
     @Request() req: any,
-    @Body() body: { userId: number; date: string; status: any; note: string },
+    @Body()
+    body: {
+      id?: number;
+      userId: number;
+      date: string;
+      status: any;
+      note?: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+    },
   ) {
     return this.attendanceService.createManual(req.user.id, req.user.name, body);
+  }
+
+  @Put(':id')
+  @UseGuards(AuthGuard('jwt'))
+  async updateAttendance(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      userId?: number;
+      date?: string;
+      status?: any;
+      note?: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+    },
+  ) {
+    return this.attendanceService.updateAttendance(id, req.user.id, req.user.name, body);
+  }
+
+  @Patch(':id')
+  @UseGuards(AuthGuard('jwt'))
+  async patchAttendance(
+    @Request() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    body: {
+      userId?: number;
+      date?: string;
+      status?: any;
+      note?: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+    },
+  ) {
+    return this.attendanceService.updateAttendance(id, req.user.id, req.user.name, body);
   }
 
   @Delete(':id')

@@ -199,11 +199,17 @@ export async function printReceiptBluetooth(
             const name = item?.customName || item?.menuItem?.name || item?.name || 'Item';
             const qty = Number(item?.quantity || 1);
             const price = Number(item?.priceAtOrder || item?.price || 0);
+            const discVal = Number(item?.discountAmount || 0);
             const total = qty * price;
             itemsSubtotalRaw += total;
             
-            encoder.line(name.toUpperCase());
+            const isPromo = discVal > 0;
+            const displayName = isPromo ? `${name.toUpperCase()} [PROMO]` : name.toUpperCase();
+            encoder.line(displayName);
             encoder.line(formatLine(`  ${qty} x ${price.toLocaleString('id-ID')}`, total.toLocaleString('id-ID'), width));
+            if (isPromo) {
+                encoder.line(formatLine(`  * Disc Promo`, `-${discVal.toLocaleString('id-ID')}`, width));
+            }
         });
     }
     encoder.separator(width);

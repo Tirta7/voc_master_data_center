@@ -78,14 +78,14 @@ _ts_decorate([
         type: 'timestamp',
         nullable: true
     }),
-    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+    _ts_metadata("design:type", Object)
 ], Attendance.prototype, "checkInTime", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'timestamp',
         nullable: true
     }),
-    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+    _ts_metadata("design:type", Object)
 ], Attendance.prototype, "checkOutTime", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({

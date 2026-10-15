@@ -1196,16 +1196,19 @@ let UserService = class UserService {
                 createdAt: v.createdAt
             }));
         // 3b. Overtime Pay
+        const pad = (n)=>String(n).padStart(2, '0');
+        const startDay = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`;
+        const endDay = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`;
         const attendances = await this.attendanceRepository.find({
             where: {
                 userId,
-                date: (0, _typeorm1.Between)(startDate, endDate),
+                date: (0, _typeorm1.Between)(startDay, endDay),
                 isApproved: true,
                 payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
             }
         });
         const totalOvertimeMinutes = attendances.reduce((sum, a)=>sum + (a.overtimeMinutes || 0), 0);
-        const totalOvertimePay = totalOvertimeMinutes / 60 * +config.overtimeRate;
+        const totalOvertimePay = Math.round(totalOvertimeMinutes / 60 * +config.overtimeRate);
         // Late attendance stats
         const lateAttendanceCount = attendances.filter((a)=>a.status === 'LATE').length;
         const presentCount = attendances.filter((a)=>a.status === 'PRESENT').length;
@@ -1260,6 +1263,7 @@ let UserService = class UserService {
             penaltyBreakdown,
             // ── Overtime ─────────────────────────────────────────────────────────────
             overtimePay: totalOvertimePay,
+            totalOvertimeMinutes,
             // ── Attendance Stats ──────────────────────────────────────────────────────
             attendancePresent: presentCount,
             attendanceLate: lateAttendanceCount,

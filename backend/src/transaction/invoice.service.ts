@@ -130,6 +130,7 @@ export class InvoiceService {
             const name = item.customName || item.menuItem?.name || 'Item';
             const itemPrice = Number(item.priceAtOrder);
             const qty = Number(item.quantity);
+            const discountAmount = Number(item.discountAmount || 0);
 
             if (item.isPaid) {
               // Already paid via Member Wallet — show item info but price as Rp 0
@@ -138,11 +139,16 @@ export class InvoiceService {
               lines.push(qtyStr + '                  Rp. 0');
             } else {
               // Not yet paid — show normal price
-              lines.push(name.toUpperCase());
+              const isPromo = discountAmount > 0;
+              const displayName = isPromo ? `${name.toUpperCase()} [DISKON PROMO]` : name.toUpperCase();
+              lines.push(displayName);
               const qtyPrice = `${qty} x ${itemPrice.toLocaleString()}`;
               const subtotal = `Rp. ${(itemPrice * qty).toLocaleString()}`;
               const spaces = 32 - qtyPrice.length - subtotal.length;
               lines.push(qtyPrice + ' '.repeat(Math.max(1, spaces)) + subtotal);
+              if (isPromo) {
+                lines.push(` * Diskon Item: -Rp. ${discountAmount.toLocaleString()}`);
+              }
             }
           }
         });
@@ -410,14 +416,29 @@ export class InvoiceService {
     ];
 
     // Items
-    if (payment.itemsSnapshot && Array.isArray(payment.itemsSnapshot)) {
+    const itemsSnapshotToRender =
+      payment.itemsSnapshot &&
+      Array.isArray(payment.itemsSnapshot) &&
+      payment.itemsSnapshot.length > 0
+        ? payment.itemsSnapshot
+        : (transaction.orderItems || []).map((i: any) => ({
+            name: i.menuItem?.name || 'Item',
+            displayName: i.customName || i.menuItem?.name || 'Item',
+            qty: Number(i.quantity || 0),
+            price: Number(i.priceAtOrder || 0),
+            subtotal: Number(i.priceAtOrder || 0) * Number(i.quantity || 0),
+            discountAmount: Number(i.discountAmount || 0),
+            bundleGroupId: i.bundleGroupId || null,
+          }));
+
+    if (itemsSnapshotToRender && Array.isArray(itemsSnapshotToRender)) {
       const processedBundleIds = new Set<string>();
 
-      payment.itemsSnapshot.forEach((item: any) => {
+      itemsSnapshotToRender.forEach((item: any) => {
         if (item.bundleGroupId) {
           if (processedBundleIds.has(item.bundleGroupId)) return;
 
-          const bundleItems = payment.itemsSnapshot.filter(
+          const bundleItems = itemsSnapshotToRender.filter(
             (i: any) => i.bundleGroupId === item.bundleGroupId,
           );
           const bundleName =
@@ -442,7 +463,10 @@ export class InvoiceService {
 
           processedBundleIds.add(item.bundleGroupId);
         } else {
-          lines.push(`${item.displayName || item.name || 'Item'}`);
+          const discountAmount = Number(item.discountAmount || 0);
+          const isPromo = discountAmount > 0;
+          const baseName = (item.displayName || item.name || 'Item').toUpperCase();
+          lines.push(isPromo ? `${baseName} [DISKON PROMO]` : baseName);
           const price = Number(item.price || 0);
           const qty = Number(item.qty || 1);
           const sub = Number(item.subtotal || price * qty);
@@ -451,6 +475,9 @@ export class InvoiceService {
           const subtotalStr = `Rp. ${sub.toLocaleString()}`;
           const spaces = 32 - qtyPrice.length - subtotalStr.length;
           lines.push(qtyPrice + ' '.repeat(Math.max(1, spaces)) + subtotalStr);
+          if (isPromo) {
+            lines.push(` * Diskon Item: -Rp. ${discountAmount.toLocaleString()}`);
+          }
         }
       });
     }
@@ -479,10 +506,10 @@ export class InvoiceService {
     }
 
     summaryItems.push(
-      { label: 'Discount', val: payment.discountAmount || 0 }, // Base discount tracking
-      { label: 'Service', val: payment.serviceAmount },
-      { label: 'PPN', val: payment.taxAmount },
-      { label: 'Rounding', val: payment.roundingAmount }
+      { label: 'Discount', val: payment.discountAmount || transaction.discountAmount || 0 }, // Base discount tracking
+      { label: 'Service', val: payment.serviceAmount || transaction.serviceChargeAmount || 0 },
+      { label: 'PPN', val: payment.taxAmount || transaction.vatAmount || 0 },
+      { label: 'Rounding', val: payment.roundingAmount || transaction.roundingAmount || 0 }
     );
 
     summaryItems.forEach((s) => {

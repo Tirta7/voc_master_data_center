@@ -1130,10 +1130,14 @@ export class UserService implements OnModuleInit {
     }));
 
     // 3b. Overtime Pay
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startDay = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`;
+    const endDay = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`;
+
     const attendances = await this.attendanceRepository.find({
       where: {
         userId,
-        date: Between(startDate as any, endDate as any),
+        date: Between(startDay as any, endDay as any),
         isApproved: true,
         payrollReleaseId: includeReleased ? undefined : IsNull(),
       },
@@ -1142,7 +1146,7 @@ export class UserService implements OnModuleInit {
       (sum, a) => sum + (a.overtimeMinutes || 0),
       0,
     );
-    const totalOvertimePay = (totalOvertimeMinutes / 60) * +config.overtimeRate;
+    const totalOvertimePay = Math.round((totalOvertimeMinutes / 60) * +config.overtimeRate);
 
     // Late attendance stats
     const lateAttendanceCount = attendances.filter(a => a.status === 'LATE').length;
@@ -1213,6 +1217,7 @@ export class UserService implements OnModuleInit {
       penaltyBreakdown,          // List detail semua pelanggaran
       // ── Overtime ─────────────────────────────────────────────────────────────
       overtimePay: totalOvertimePay,
+      totalOvertimeMinutes,
       // ── Attendance Stats ──────────────────────────────────────────────────────
       attendancePresent: presentCount,
       attendanceLate: lateAttendanceCount,

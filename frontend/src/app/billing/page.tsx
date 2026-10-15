@@ -216,8 +216,9 @@ function BillingContent() {
             const key = `${item.menuItemId || item.menuItem?.id}-${item.priceAtOrder}-${item.customName || ''}`;
             if (groups[key]) {
                 groups[key].quantity += Number(item.quantity);
+                groups[key].discountAmount = Number(groups[key].discountAmount || 0) + Number(item.discountAmount || 0);
             } else {
-                groups[key] = { ...item, quantity: Number(item.quantity) };
+                groups[key] = { ...item, quantity: Number(item.quantity), discountAmount: Number(item.discountAmount || 0) };
             }
         });
         return Object.values(groups);
@@ -549,14 +550,33 @@ function BillingContent() {
                                                     {Number(item.quantity)}x
                                                 </div>
                                                 <div className="min-w-0 flex-1">
-                                                    <h4 className="text-[10px] sm:text-[13px] font-black uppercase text-slate-800 leading-tight line-clamp-2">{(item.customName || item.menuItem?.name)}</h4>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <h4 className="text-[10px] sm:text-[13px] font-black uppercase text-slate-800 leading-tight line-clamp-2">{(item.customName || item.menuItem?.name)}</h4>
+                                                        {Number(item.discountAmount) > 0 && (
+                                                            <span className="text-[8px] font-black px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded-md">PROMO</span>
+                                                        )}
+                                                    </div>
                                                     <p className="text-[8px] sm:text-[10px] text-slate-400 mt-0.5 font-bold">@Rp {Number(item.priceAtOrder).toLocaleString('id-ID')}</p>
                                                 </div>
                                             </div>
                                             <div className="text-right w-full mt-auto pt-2 border-t border-slate-50">
-                                                <p className="text-[11px] sm:text-sm font-black text-indigo-600 tabular-nums">
-                                                    Rp {(item.priceAtOrder * item.quantity).toLocaleString()}
-                                                </p>
+                                                {Number(item.discountAmount) > 0 ? (
+                                                    <div>
+                                                        <span className="text-[9px] line-through text-slate-400 font-semibold block">
+                                                            Rp {(item.priceAtOrder * item.quantity).toLocaleString()}
+                                                        </span>
+                                                        <p className="text-[11px] sm:text-sm font-black text-rose-600 tabular-nums">
+                                                            Rp {((item.priceAtOrder * item.quantity) - Number(item.discountAmount)).toLocaleString()}
+                                                        </p>
+                                                        <span className="text-[8px] font-black text-rose-500">
+                                                            -Rp {Number(item.discountAmount).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] sm:text-sm font-black text-indigo-600 tabular-nums">
+                                                        Rp {(item.priceAtOrder * item.quantity).toLocaleString()}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

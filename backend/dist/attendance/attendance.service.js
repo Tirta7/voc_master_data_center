@@ -860,8 +860,9 @@ let AttendanceService = class AttendanceService {
             // Calculate relative duration from shift start (handle circular 24h clock)
             const relativeCheckOut = (checkOutMins - shiftStartMins + 1440) % 1440;
             const relativeShiftEnd = (shiftEndMins - shiftStartMins + 1440) % 1440;
-            const graceMinutes = 30;
-            if (relativeCheckOut > relativeShiftEnd + graceMinutes) {
+            if (record.status === _attendanceentity.AttendanceStatus.OVERTIME) {
+                record.overtimeMinutes = record.workDurationMinutes || 0;
+            } else if (relativeCheckOut > relativeShiftEnd) {
                 record.overtimeMinutes = relativeCheckOut - relativeShiftEnd;
             } else {
                 record.overtimeMinutes = 0;
@@ -914,10 +915,14 @@ let AttendanceService = class AttendanceService {
         const shift = await this.getShiftForEmployee(record.userId, record.date);
         const settings = await this.settingsService.getSettings();
         const tolerance = settings?.lateToleranceMinutes ?? 15;
-        record.status = this.determineStatus(record.checkInTime, shift, tolerance);
-        if (record.checkOutTime) {
+        if (record.status === _attendanceentity.AttendanceStatus.PENDING) {
+            record.status = record.checkInTime ? this.determineStatus(record.checkInTime, shift, tolerance) : _attendanceentity.AttendanceStatus.PRESENT;
+        }
+        if (record.checkOutTime && record.checkInTime) {
             record.workDurationMinutes = Math.floor((record.checkOutTime.getTime() - record.checkInTime.getTime()) / 60000);
-            if (shift) {
+            if (record.status === _attendanceentity.AttendanceStatus.OVERTIME) {
+                record.overtimeMinutes = record.workDurationMinutes || 0;
+            } else if (shift) {
                 const [sh, sm] = shift.startTime.split(':').map(Number);
                 const [eh, em] = shift.endTime.split(':').map(Number);
                 const checkOutDate = new Date(record.checkOutTime);
@@ -928,8 +933,7 @@ let AttendanceService = class AttendanceService {
                 const shiftEndMins = eh * 60 + em;
                 const relativeCheckOut = (checkOutMins - shiftStartMins + 1440) % 1440;
                 const relativeShiftEnd = (shiftEndMins - shiftStartMins + 1440) % 1440;
-                const graceMinutes = 30;
-                if (relativeCheckOut > relativeShiftEnd + graceMinutes) {
+                if (relativeCheckOut > relativeShiftEnd) {
                     record.overtimeMinutes = relativeCheckOut - relativeShiftEnd;
                 } else {
                     record.overtimeMinutes = 0;
@@ -1126,41 +1130,149 @@ let AttendanceService = class AttendanceService {
             records
         };
     }
+    parseAttendanceTime(dateStr, timeInput) {
+        if (!timeInput || !timeInput.trim()) return null;
+        const trimmed = timeInput.trim();
+        if (trimmed.includes('T') || trimmed.includes('Z')) {
+            const d = new Date(trimmed);
+            if (!isNaN(d.getTime())) return d;
+        }
+        const parts = trimmed.split(':');
+        if (parts.length >= 2) {
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const s = parts[2] ? parseInt(parts[2], 10) : 0;
+            if (!isNaN(h) && !isNaN(m)) {
+                const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+                const isoStr = `${cleanDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}+07:00`;
+                const d = new Date(isoStr);
+                if (!isNaN(d.getTime())) return d;
+            }
+        }
+        return null;
+    }
+    async applyAttendanceData(attendance, adminName, data) {
+        if (data.userId) attendance.userId = data.userId;
+        if (data.date) {
+            attendance.date = data.date.includes('T') ? data.date.split('T')[0] : data.date;
+        }
+        if (data.status) attendance.status = data.status;
+        if (data.note !== undefined) {
+            attendance.note = data.note ? data.note.trim() : null;
+        }
+        const checkInDate = this.parseAttendanceTime(attendance.date, data.checkInTime);
+        let checkOutDate = this.parseAttendanceTime(attendance.date, data.checkOutTime);
+        if (checkInDate && checkOutDate && checkOutDate < checkInDate) {
+            checkOutDate = new Date(checkOutDate.getTime() + 24 * 60 * 60 * 1000);
+        }
+        attendance.checkInTime = checkInDate;
+        attendance.checkOutTime = checkOutDate;
+        if (checkInDate && checkOutDate) {
+            attendance.workDurationMinutes = Math.max(0, Math.floor((checkOutDate.getTime() - checkInDate.getTime()) / 60000));
+        } else {
+            attendance.workDurationMinutes = null;
+        }
+        const shift = await this.getShiftForEmployee(attendance.userId, attendance.date);
+        if (shift) {
+            attendance.shiftName = shift.name;
+        }
+        if (attendance.status === _attendanceentity.AttendanceStatus.OVERTIME) {
+            attendance.overtimeMinutes = attendance.workDurationMinutes || 0;
+        } else if (shift && checkOutDate) {
+            const [sh, sm] = shift.startTime.split(':').map(Number);
+            const [eh, em] = shift.endTime.split(':').map(Number);
+            const wibHour = (checkOutDate.getUTCHours() + 7) % 24;
+            const wibMinute = checkOutDate.getUTCMinutes();
+            const checkOutMins = wibHour * 60 + wibMinute;
+            const shiftStartMins = sh * 60 + sm;
+            const shiftEndMins = eh * 60 + em;
+            const relativeCheckOut = (checkOutMins - shiftStartMins + 1440) % 1440;
+            const relativeShiftEnd = (shiftEndMins - shiftStartMins + 1440) % 1440;
+            if (relativeCheckOut > relativeShiftEnd) {
+                attendance.overtimeMinutes = relativeCheckOut - relativeShiftEnd;
+            } else {
+                attendance.overtimeMinutes = 0;
+            }
+        } else {
+            attendance.overtimeMinutes = 0;
+        }
+        attendance.isApproved = true;
+        attendance.approvedBy = adminName;
+        attendance.approvedAt = new Date();
+        attendance.isManual = true;
+        return attendance;
+    }
     // ─────────────────────────────────────────────────────────────────────────────
-    // MANUAL ENTRY
+    // MANUAL ENTRY & UPDATE
     // ─────────────────────────────────────────────────────────────────────────────
     async createManual(adminId, adminName, data) {
-        const existing = await this.attendanceRepository.findOne({
-            where: {
-                userId: data.userId,
-                date: data.date
-            }
-        });
-        if (existing) {
-            existing.status = data.status;
-            existing.note = data.note;
-            existing.isApproved = true;
-            existing.approvedBy = adminName;
-            existing.approvedAt = new Date();
-            existing.isManual = true;
-            const savedExisting = await this.attendanceRepository.save(existing);
+        const cleanDate = data.date.includes('T') ? data.date.split('T')[0] : data.date;
+        let target = null;
+        if (data.id) {
+            target = await this.attendanceRepository.findOne({
+                where: {
+                    id: data.id
+                }
+            });
+        }
+        if (!target) {
+            target = await this.attendanceRepository.findOne({
+                where: {
+                    userId: data.userId,
+                    date: cleanDate
+                }
+            });
+        }
+        if (target) {
+            await this.applyAttendanceData(target, adminName, {
+                ...data,
+                date: cleanDate
+            });
+            const saved = await this.attendanceRepository.save(target);
             this.eventsGateway.attendanceUpdated({
                 type: 'ATTENDANCE_MANUAL',
-                data: savedExisting
+                data: saved
             });
-            return savedExisting;
+            this.eventsGateway.attendanceUpdated({
+                type: 'ATTENDANCE_UPDATE',
+                data: saved
+            });
+            return saved;
         }
         const attendance = this.attendanceRepository.create({
             userId: data.userId,
-            date: data.date,
-            status: data.status,
-            note: data.note,
-            isApproved: true,
-            approvedBy: adminName,
-            approvedAt: new Date(),
-            isManual: true
+            date: cleanDate
+        });
+        await this.applyAttendanceData(attendance, adminName, {
+            ...data,
+            date: cleanDate
         });
         const saved = await this.attendanceRepository.save(attendance);
+        this.eventsGateway.attendanceUpdated({
+            type: 'ATTENDANCE_MANUAL',
+            data: saved
+        });
+        this.eventsGateway.attendanceUpdated({
+            type: 'ATTENDANCE_UPDATE',
+            data: saved
+        });
+        return saved;
+    }
+    async updateAttendance(id, adminId, adminName, data) {
+        const existing = await this.attendanceRepository.findOne({
+            where: {
+                id
+            }
+        });
+        if (!existing) {
+            throw new _common.NotFoundException(`Data absensi dengan ID ${id} tidak ditemukan`);
+        }
+        await this.applyAttendanceData(existing, adminName, data);
+        const saved = await this.attendanceRepository.save(existing);
+        this.eventsGateway.attendanceUpdated({
+            type: 'ATTENDANCE_UPDATE',
+            data: saved
+        });
         this.eventsGateway.attendanceUpdated({
             type: 'ATTENDANCE_MANUAL',
             data: saved

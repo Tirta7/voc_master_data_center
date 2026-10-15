@@ -39,10 +39,10 @@ export class Attendance {
   date: string;
 
   @Column({ type: 'timestamp', nullable: true })
-  checkInTime: Date;
+  checkInTime: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  checkOutTime: Date;
+  checkOutTime: Date | null;
 
   /** Total work duration in minutes, calculated on checkout */
   @Column({ type: 'int', nullable: true })

@@ -164,6 +164,13 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                 sessionTotalDiscount += Math.round((Number(item.priceAtOrder || 0) * Number(item.quantity || 0)) * (percent / 100));
             }
         });
+    } else {
+        // Walk-in / non-member: calculate item-level discounts (Harga Coret / Promo Item)
+        items.forEach((item: any) => {
+            if (Number(item.discountAmount) > 0) {
+                sessionTotalDiscount += Number(item.discountAmount);
+            }
+        });
     }
 
     // Subtotal (Original price before discounts)
@@ -172,9 +179,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         ? (Number(sessionTotals.billiardTotal) + itemsSubtotalRaw)
         : (itemsSubtotal + currentBilliardPortion);
 
-    const totalDiscount = (sessionTotals.discountAmount !== undefined)
+    const totalDiscount = (sessionTotals.discountAmount !== undefined && Number(sessionTotals.discountAmount) > 0)
         ? Number(sessionTotals.discountAmount)
-        : (isSubset ? 0 : Number(tx.discountAmount || sessionTotalDiscount));
+        : (isSubset ? sessionTotalDiscount : Number(tx.discountAmount || sessionTotalDiscount));
 
     const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
 
@@ -612,15 +619,12 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                     // Determine tier discount
                                     let itemDiscPercent = 0;
                                     let discVal = 0;
-
                                     let isPromoCoret = false;
 
                                     if (Number(item.discountAmount) > 0) {
-                                        discVal = Number(item.discountAmount) * Number(item.quantity || 1); // Total discount for this row
+                                        discVal = Number(item.discountAmount); // Total discount for this row
                                         itemDiscPercent = Number(item.discountPercentage) || 0;
-                                        if (itemDiscPercent === 0) {
-                                            isPromoCoret = true;
-                                        }
+                                        isPromoCoret = true;
                                     } else if (tx.member?.tier?.discountConfig) {
                                         const cfg = tx.member.tier.discountConfig as any;
                                         const catName = typeof item.menuItem?.category === 'object' ? item.menuItem?.category?.name : item.menuItem?.category;
@@ -637,23 +641,28 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                     <span className="leading-tight">
                                                         {isBundle && !((item.customName || item.menuItem?.name || '').toUpperCase().includes('[PAKET]')) ? `[PAKET] ` : ''}
                                                         {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
+                                                        {discVal > 0 && <span className="ml-1 text-[8px] bg-red-100 text-red-600 px-1 py-0.5 rounded font-black border border-red-300 inline-block">[PROMO]</span>}
                                                         {isTemporary && (item.isPaid ? ' [LUNAS]' : ' [PENDING]')}
                                                     </span>
                                                     <span className="text-center">{Number(item.quantity)}</span>
                                                     <span className="text-right font-bold min-w-[70px]">
-                                                        {isPromoCoret ? (
+                                                        {discVal > 0 ? (
                                                             <div className="flex flex-col items-end">
-                                                                <span className="text-[9px] line-through text-slate-500 font-normal">Rp{fmt(origTotal)}</span>
-                                                                <span>Rp{fmt(origTotal - discVal)}</span>
+                                                                <span className="text-[9px] line-through text-slate-400 font-normal">Rp{fmt(origTotal)}</span>
+                                                                <span>Rp{fmt(Math.max(0, origTotal - discVal))}</span>
                                                             </div>
                                                         ) : (
-                                                            `Rp${fmt(origTotal)}`
+                                                             `Rp${fmt(origTotal)}`
                                                         )}
                                                     </span>
                                                 </div>
-                                                {discVal > 0 && !isPromoCoret && (
-                                                    <div className="text-[9px] font-bold text-slate-800 pr-1 text-right mt-0.5">
-                                                        {itemDiscPercent > 0 ? (useBirthdayDiscount ? 'Disc Birthday' : `Disc ${tx.member?.tier?.name || 'Member'}`) : 'Disc Promo'} {itemDiscPercent > 0 ? `(${itemDiscPercent}%)` : ''}: -Rp{fmt(discVal)}
+                                                {discVal > 0 && (
+                                                    <div className="text-[9px] font-bold text-red-600 pr-1 text-right mt-0.5">
+                                                        {isPromoCoret ? (
+                                                            `* Diskon Promo Item: -Rp${fmt(discVal)}`
+                                                        ) : (
+                                                            `${itemDiscPercent > 0 ? (useBirthdayDiscount ? 'Disc Birthday' : `Disc ${tx.member?.tier?.name || 'Member'}`) : 'Disc Promo'} ${itemDiscPercent > 0 ? `(${itemDiscPercent}%)` : ''}: -Rp${fmt(discVal)}`
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

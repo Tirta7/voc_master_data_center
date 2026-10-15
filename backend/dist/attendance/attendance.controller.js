@@ -93,6 +93,12 @@ let AttendanceController = class AttendanceController {
     async createManual(req, body) {
         return this.attendanceService.createManual(req.user.id, req.user.name, body);
     }
+    async updateAttendance(req, id, body) {
+        return this.attendanceService.updateAttendance(id, req.user.id, req.user.name, body);
+    }
+    async patchAttendance(req, id, body) {
+        return this.attendanceService.updateAttendance(id, req.user.id, req.user.name, body);
+    }
     async deleteAttendance(id) {
         await this.attendanceService.deleteAttendance(id);
         return {
@@ -319,6 +325,34 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "createManual", null);
+_ts_decorate([
+    (0, _common.Put)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(2, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Number,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "updateAttendance", null);
+_ts_decorate([
+    (0, _common.Patch)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(2, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Number,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "patchAttendance", null);
 _ts_decorate([
     (0, _common.Delete)(':id'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

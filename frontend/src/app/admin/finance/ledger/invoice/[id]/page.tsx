@@ -152,21 +152,40 @@ function StandaloneItemsTable({ items }: { items: any[] }) {
                     </tr>
                 </thead>
                 <tbody>
-                    {items.map((item: any, idx: number) => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? 'white' : '#fafbfc' }}>
-                            <td style={{ padding: '8px 12px', fontSize: 10, color: '#d1d5db', fontWeight: 600 }}>{idx + 1}</td>
-                            <td style={{ padding: '8px 12px' }}>
-                                <p style={{ fontSize: 11, fontWeight: 700, color: '#1f2937' }}>{item.menuItem?.name || item.customName || '—'}</p>
-                                {item.menuItem?.category && (
-                                    <p style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>{typeof item.menuItem.category === 'string' ? item.menuItem.category : item.menuItem.category?.name || ''}</p>
-                                )}
-                            </td>
-                            <td style={{ padding: '8px 12px', fontSize: 10, color: '#6b7280' }}>{item.note || '—'}</td>
-                            <td style={{ padding: '8px 12px', fontSize: 11, color: '#1f2937', fontWeight: 700, textAlign: 'right' }}>×{item.quantity}</td>
-                            <td style={{ padding: '8px 12px', fontSize: 10, color: '#6b7280', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(item.priceAtOrder || 0)}</td>
-                            <td style={{ padding: '8px 12px', fontSize: 11, fontWeight: 800, color: '#111827', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(item.priceAtOrder || 0) * Number(item.quantity || 1))}</td>
-                        </tr>
-                    ))}
+                    {items.map((item: any, idx: number) => {
+                        const itemDisc = Number(item.discountAmount || 0);
+                        const lineTotal = Number(item.priceAtOrder || 0) * Number(item.quantity || 1);
+                        return (
+                            <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6', background: idx % 2 === 0 ? 'white' : '#fafbfc' }}>
+                                <td style={{ padding: '8px 12px', fontSize: 10, color: '#d1d5db', fontWeight: 600 }}>{idx + 1}</td>
+                                <td style={{ padding: '8px 12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <p style={{ fontSize: 11, fontWeight: 700, color: '#1f2937' }}>{item.menuItem?.name || item.customName || '—'}</p>
+                                        {itemDisc > 0 && (
+                                            <span style={{ background: '#fee2e2', color: '#dc2626', fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4 }}>PROMO</span>
+                                        )}
+                                    </div>
+                                    {item.menuItem?.category && (
+                                        <p style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>{typeof item.menuItem.category === 'string' ? item.menuItem.category : item.menuItem.category?.name || ''}</p>
+                                    )}
+                                </td>
+                                <td style={{ padding: '8px 12px', fontSize: 10, color: '#6b7280' }}>{item.note || '—'}</td>
+                                <td style={{ padding: '8px 12px', fontSize: 11, color: '#1f2937', fontWeight: 700, textAlign: 'right' }}>×{item.quantity}</td>
+                                <td style={{ padding: '8px 12px', fontSize: 10, color: '#6b7280', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(item.priceAtOrder || 0)}</td>
+                                <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {itemDisc > 0 ? (
+                                        <div>
+                                            <span style={{ fontSize: 9, textDecoration: 'line-through', color: '#9ca3af' }}>{fmt(lineTotal)}</span>
+                                            <p style={{ fontSize: 11, fontWeight: 800, color: '#dc2626' }}>{fmt(Math.max(0, lineTotal - itemDisc))}</p>
+                                            <span style={{ fontSize: 9, fontWeight: 700, color: '#ef4444' }}>-{fmt(itemDisc)}</span>
+                                        </div>
+                                    ) : (
+                                        <span style={{ fontSize: 11, fontWeight: 800, color: '#111827' }}>{fmt(lineTotal)}</span>
+                                    )}
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
                 <tfoot>
                     <tr style={{ background: '#f1f5f9' }}>
@@ -431,6 +450,7 @@ export default function InvoicePage() {
                             <InfoCard rows={[
                                 ...(Number(tx.billiardTotal || 0) > 0 ? [{ label: 'Tagihan Billiard', value: fmt(tx.billiardTotal || 0) }] : []),
                                 { label: 'Tagihan Café', value: fmt(tx.cafeTotal || 0) },
+                                ...(Number(tx.discountAmount || 0) > 0 ? [{ label: 'Total Diskon / Promo', value: `-${fmt(tx.discountAmount || 0)}` }] : []),
                                 { label: 'PPN / Pajak', value: fmt(tx.vatAmount || 0) },
                                 { label: 'Biaya Layanan', value: fmt(tx.serviceChargeAmount || 0) },
                                 { label: 'Pembulatan', value: fmt(tx.roundingAmount || 0) },

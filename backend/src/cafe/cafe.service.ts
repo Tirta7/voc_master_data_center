@@ -1006,7 +1006,7 @@ export class CafeService {
         // Apply item-level discount (Harga Coret) if active and no manual override
         if (orderItem.priceOverride === undefined && menuItem.isDiscountActive && menuItem.discountPrice !== null) {
             itemPrice = menuItem.price;
-            itemDiscountAmount = menuItem.price - menuItem.discountPrice;
+            itemDiscountAmount = Math.max(0, menuItem.price - menuItem.discountPrice) * orderItem.quantity;
         }
 
         const item = queryRunner.manager.create(OrderItem, {

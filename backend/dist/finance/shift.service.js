@@ -424,7 +424,7 @@ let ShiftService = class ShiftService {
                 });
                 attendanceStillOpen = !!openAttendance;
                 if (attendanceStillOpen) {
-                    this.logger.log(`[startShift] User ${userId} re-opened shift after #${prevShiftToday.id}, attendance still open (check-in ${openAttendance.checkInTime.toISOString()}) → continuation, not COVER.`);
+                    this.logger.log(`[startShift] User ${userId} re-opened shift after #${prevShiftToday.id}, attendance still open (check-in ${openAttendance?.checkInTime ? openAttendance.checkInTime.toISOString() : 'N/A'}) → continuation, not COVER.`);
                 }
             }
             if (prevShiftToday && !attendanceStillOpen) {

@@ -378,50 +378,60 @@ let TransactionService = class TransactionService {
             const n = Number(val);
             return isNaN(n) ? 0 : n;
         };
-        const computeSet = (billPortion, catTotals)=>{
+        const computeSet = (billPortion, catTotals, isRemaining = false)=>{
             const cafeTotal = Object.values(catTotals).reduce((sum, val)=>sum + toNum(val), 0);
             const subtotal = toNum(billPortion) + cafeTotal;
             let discount = 0;
+            // Filter applicable order items for this specific set (session vs remaining unpaid)
+            const setOrderItems = (transaction.orderItems || []).filter((item)=>{
+                if (item.status?.toUpperCase() === 'CANCELLED' || item.status?.toUpperCase() === 'CANCEL_REQUESTED') {
+                    return false;
+                }
+                if (isRemaining && item.isPaid) {
+                    return false;
+                }
+                return true;
+            });
+            let cafeDisc = 0;
+            let billiardDisc = 0;
             const member = transaction.member;
-            if (member && member.tier && member.tier.discountConfig) {
-                const isBirthdayToday = member.birthDate && this.isBirthday(member.birthDate, transaction.createdAt || new Date());
-                const birthdayPct = toNum(member.tier.birthdayDiscountPct);
-                const useBirthdayDiscount = isBirthdayToday && birthdayPct > 0;
-                const cfg = member.tier.discountConfig;
+            const cfg = member?.tier?.discountConfig;
+            const isBirthdayToday = member?.birthDate && this.isBirthday(member.birthDate, transaction.createdAt || new Date());
+            const birthdayPct = toNum(member?.tier?.birthdayDiscountPct);
+            const useBirthdayDiscount = isBirthdayToday && birthdayPct > 0;
+            if (member && member.tier && cfg) {
                 const billiardDiscPercent = useBirthdayDiscount ? birthdayPct : toNum(cfg.billiardOpen || cfg.billiardPackage);
-                const billiardDisc = toNum(billPortion) * (billiardDiscPercent / 100);
-                let cafeDisc = 0;
-                // --- NEW PERSISTENT DISCOUNT LOGIC ---
-                // We sum up the pre-calculated discountAmount from the order items themselves.
-                // This ensures that "locked-in" prices are respected.
-                const totalItemDiscounts = Object.values(transaction.orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED' && item.status?.toUpperCase() !== 'CANCEL_REQUESTED' && !item.isPaid) // Only for current unpaid set
-                .reduce((sum, item)=>sum + toNum(item.discountAmount), 0);
-                // Note: The 'catTotals' passed to computeSet already filters for relevant items (session vs unpaid).
-                // However, the original logic used dynamic calculation. For robustness,
-                // we'll check if the items actually have discountAmount set.
-                const hasPersistentDiscounts = (transaction.orderItems || []).some((i)=>toNum(i.discountAmount) > 0);
-                if (hasPersistentDiscounts) {
-                    // Logic for unpaid/remaining set needs to be careful:
-                    // computeSet is called for both 'session' (all items) and 'remaining' (unpaid items).
-                    // catTotals correctly reflects the set.
-                    // Improved cafe discount calculation:
-                    const setItemIds = new Set((transaction.orderItems || []).filter((i)=>{
-                        const cat = i.menuItem?.category;
+                billiardDisc = toNum(billPortion) * (billiardDiscPercent / 100);
+            }
+            // Check for persistent item-level discounts (Harga Coret / Promo Item)
+            const hasItemDiscounts = setOrderItems.some((i)=>toNum(i.discountAmount) > 0);
+            if (hasItemDiscounts) {
+                // Apply item discounts for all customers (walk-in & member)
+                for (const item of setOrderItems){
+                    const itemDisc = toNum(item.discountAmount);
+                    if (itemDisc > 0) {
+                        cafeDisc += itemDisc;
+                    } else if (member && member.tier && cfg) {
+                        // Items without promo discount can still receive member tier category discount
+                        const cat = item.menuItem?.category;
                         const catName = typeof cat === 'object' ? cat?.name : cat;
                         const catUpper = String(catName || 'LAINNYA').trim().toUpperCase();
-                        return catTotals[catUpper] !== undefined;
-                    }).map((i)=>i.id));
-                    cafeDisc = (transaction.orderItems || []).filter((i)=>setItemIds.has(i.id) && i.status?.toUpperCase() !== 'CANCELLED').reduce((sum, i)=>sum + toNum(i.discountAmount), 0);
-                } else {
-                    // Fallback to dynamic calculation if no persistent discounts found (legacy items)
-                    const cats = Object.keys(catTotals);
-                    for (const catUpper of cats){
                         const percent = useBirthdayDiscount ? birthdayPct : this.getTierDiscountPercentage(cfg, catUpper);
-                        cafeDisc += toNum(catTotals[catUpper]) * (percent / 100);
+                        if (percent > 0) {
+                            const lineTotal = toNum(item.priceAtOrder) * toNum(item.quantity);
+                            cafeDisc += lineTotal * (percent / 100);
+                        }
                     }
                 }
-                discount = Math.round(billiardDisc + cafeDisc);
+            } else if (member && member.tier && cfg) {
+                // Fallback to category totals for member tier discount when no item has discountAmount
+                const cats = Object.keys(catTotals);
+                for (const catUpper of cats){
+                    const percent = useBirthdayDiscount ? birthdayPct : this.getTierDiscountPercentage(cfg, catUpper);
+                    cafeDisc += toNum(catTotals[catUpper]) * (percent / 100);
+                }
             }
+            discount = Math.round(billiardDisc + cafeDisc);
             const discountedSub = Math.max(0, subtotal - discount);
             const sc = Math.round(discountedSub * (toNum(settings.serviceChargePercentage) / 100));
             // VAT applies to (Subtotal - Discount + Service Charge)
@@ -441,9 +451,9 @@ let TransactionService = class TransactionService {
             };
         };
         return {
-            session: computeSet(billiardTotal, sessionCategoryTotals),
+            session: computeSet(billiardTotal, sessionCategoryTotals, false),
             remaining: {
-                ...computeSet(effectiveBilliardTotal, unpaidCategoryTotals),
+                ...computeSet(effectiveBilliardTotal, unpaidCategoryTotals, true),
                 effectiveBilliardTotal
             }
         };
@@ -1147,6 +1157,7 @@ let TransactionService = class TransactionService {
                         qty: Number(i.quantity || 0),
                         price: Number(i.priceAtOrder || 0),
                         subtotal: Number(i.priceAtOrder || 0) * Number(i.quantity || 0),
+                        discountAmount: Number(i.discountAmount || 0),
                         bundleGroupId: i.bundleGroupId || null
                     })),
                 createdByUserId: userId
@@ -1889,7 +1900,16 @@ let TransactionService = class TransactionService {
                 changeAmount: 0,
                 totalPaid: amount,
                 paymentMethod: paymentMethod === 'MEMBERSHIP' ? 'MEMBER' : paymentMethod,
-                itemsSnapshot: [],
+                itemsSnapshot: (transaction.orderItems || []).filter((i)=>i.status !== 'CANCELLED' && i.status !== 'CANCEL_REQUESTED').map((i)=>({
+                        name: i.menuItem?.name || 'Item',
+                        displayName: i.customName || i.menuItem?.name || 'Item',
+                        category: (typeof i.menuItem?.category === 'object' ? i.menuItem?.category?.name : i.menuItem?.category) || 'LAIN-LAIN',
+                        qty: Number(i.quantity || 0),
+                        price: Number(i.priceAtOrder || 0),
+                        subtotal: Number(i.priceAtOrder || 0) * Number(i.quantity || 0),
+                        discountAmount: Number(i.discountAmount || 0),
+                        bundleGroupId: i.bundleGroupId || null
+                    })),
                 createdByUserId: userId
             });
             // Link to shift
@@ -1970,6 +1990,14 @@ let TransactionService = class TransactionService {
                 });
                 this.logger.log(`[processPayment] Corrected overpayment/change. Change: ${change}, Actual Revenue: ${actualRevenue}`);
             }
+            // Populate financial breakdown on savedPayment for receipts & reports
+            savedPayment.discountAmount = Number(savedTx.discountAmount || 0);
+            savedPayment.taxAmount = Number(savedTx.vatAmount || 0);
+            savedPayment.serviceAmount = Number(savedTx.serviceChargeAmount || 0);
+            savedPayment.roundingAmount = Number(savedTx.roundingAmount || 0);
+            savedPayment.itemsSubtotal = Number(savedTx.cafeTotal || 0);
+            savedPayment.billiardPortion = Number(savedTx.billiardTotal || 0);
+            await queryRunner.manager.save(_transactionpaymententity.TransactionPayment, savedPayment);
             // 🛡️ INCREASE TOLERANCE (v17.9)
             // If payment amount is exactly 0 and table is WAITING_PAYMENT, treat as force clear
             // This bypasses any frontend cache issues with idempotencyKey
