@@ -48,6 +48,7 @@ interface SummaryData {
     totalPlaystation?: number;
     billiardOmzet?: number; // fallback for backend naming legacy
     totalCafe?: number;
+    totalCogs?: number;
     cafeOmzet?: number; // fallback for backend naming legacy
     topUpOmzet?: number;
     totalTopUp?: number; // fallback for backend naming legacy
@@ -709,6 +710,7 @@ export default function AdminDashboard() {
     const [selectedPayrollDetail, setSelectedPayrollDetail] = useState<any>(null);
     const [showPayrollDetail, setShowPayrollDetail] = useState(false);
     const [showProfitModal, setShowProfitModal] = useState(false);
+    const [deductHpp, setDeductHpp] = useState(true);
     const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
     const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
     const [selectedAuditStaff, setSelectedAuditStaff] = useState<any | null>(null);
@@ -1141,9 +1143,11 @@ export default function AdminDashboard() {
                                 ring="bg-violet-400" 
                             />
                             {(() => {
+                                const activeCogs = Number(activeSummary?.totalCogs || 0);
+                                const cogsCost = deductHpp ? activeCogs : 0;
                                 const operatingCost = finance?.operatingOut ?? finance?.totalOut ?? 0;
                                 const payrollCost = Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0);
-                                const netProfitEst = totalRevenue - operatingCost - payrollCost;
+                                const netProfitEst = totalRevenue - cogsCost - operatingCost - payrollCost;
                                 const profitMarginPct = totalRevenue > 0 ? ((netProfitEst / totalRevenue) * 100).toFixed(1) : '0';
                                 const payrollCashOut = finance?.payrollOut || 0;
 
@@ -1176,6 +1180,17 @@ export default function AdminDashboard() {
                                                     >
                                                         Omzet {fmtK(totalRevenue)}
                                                     </span>
+                                                    {activeCogs > 0 && deductHpp && (
+                                                        <>
+                                                            <span className="text-white/60 font-black">−</span>
+                                                            <span 
+                                                                className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-500/30 hover:bg-amber-500/40 border border-amber-300/30 text-amber-100 backdrop-blur-xs transition-colors"
+                                                                title={`HPP Makanan/Minuman Terjual: ${fmtK(activeCogs)}`}
+                                                            >
+                                                                HPP F&B {fmtK(activeCogs)}
+                                                            </span>
+                                                        </>
+                                                    )}
                                                     <span className="text-white/60 font-black">−</span>
                                                     <span 
                                                         className="inline-flex items-center px-1.5 py-0.5 rounded bg-black/20 hover:bg-black/30 border border-white/15 text-white backdrop-blur-xs transition-colors"
@@ -1198,7 +1213,9 @@ export default function AdminDashboard() {
                                                             *Gaji kas {fmtK(payrollCashOut)} tdk dihitung ulang
                                                         </span>
                                                     ) : (
-                                                        <span className="opacity-80">Omzet − Biaya − Gaji</span>
+                                                        <span className="opacity-80">
+                                                            {activeCogs > 0 && deductHpp ? 'Laba Bersih Riil (Incl. HPP F&B)' : 'Omzet − Biaya − Gaji'}
+                                                        </span>
                                                     )}
                                                     <span className="inline-flex items-center gap-0.5 font-bold hover:text-white underline decoration-dotted decoration-white/40 cursor-pointer ml-auto shrink-0">
                                                         Rincian <ChevronRight className="w-2.5 h-2.5" />
@@ -3032,10 +3049,14 @@ export default function AdminDashboard() {
 
                 {/* Net Profit Calculation Detail Modal */}
                 {showProfitModal && (() => {
+                    const activeCogs = Number(activeSummary?.totalCogs || 0);
+                    const cogsCost = deductHpp ? activeCogs : 0;
                     const operatingCost = finance?.operatingOut ?? finance?.totalOut ?? 0;
                     const payrollCost = Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0);
-                    const netProfitEst = totalRevenue - operatingCost - payrollCost;
+                    const netProfitEst = totalRevenue - cogsCost - operatingCost - payrollCost;
                     const profitMarginPct = totalRevenue > 0 ? ((netProfitEst / totalRevenue) * 100).toFixed(1) : '0';
+                    const grossProfit = totalRevenue - cogsCost;
+                    const grossMarginPct = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
                     const payrollCashOut = finance?.payrollOut || 0;
 
                     return (
@@ -3059,12 +3080,19 @@ export default function AdminDashboard() {
                                     </button>
                                 </div>
 
-                                <div className="p-6 md:p-8 space-y-6 overflow-y-auto">
+                                <div className="p-6 md:p-8 space-y-5 overflow-y-auto">
                                     {/* Big Metric Banner */}
                                     <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/15 flex items-center justify-between">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100 mb-1">Hasil Estimasi Laba Bersih</p>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100 mb-1">
+                                                {deductHpp && activeCogs > 0 ? 'Laba Bersih Riil (Setelah HPP)' : 'Laba Bersih Operasional'}
+                                            </p>
                                             <p className="text-3xl font-black tracking-tight">{fmt(netProfitEst)}</p>
+                                            {activeCogs > 0 && deductHpp && (
+                                                <p className="text-[10px] text-emerald-100/90 font-bold mt-1">
+                                                    Laba Kotor: {fmt(grossProfit)} ({grossMarginPct}%)
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="text-right">
                                             <span className="inline-block px-3 py-1 rounded-full text-xs font-black bg-white/20 border border-white/25 text-white backdrop-blur-xs">
@@ -3074,47 +3102,102 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
 
+                                    {/* HPP Deduct Toggle Switch */}
+                                    {activeCogs > 0 && (
+                                        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80">
+                                            <div>
+                                                <p className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                                                    <span>Bebankan HPP Makanan Laku</span>
+                                                    <span className="bg-amber-200/80 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded">
+                                                        {fmt(activeCogs)}
+                                                    </span>
+                                                </p>
+                                                <p className="text-[10px] text-amber-700/80 mt-0.5">
+                                                    {deductHpp 
+                                                        ? 'HPP bahan baku dipotong dari Laba Bersih (Standar Akuntansi Riil)' 
+                                                        : 'HPP tidak dipotong (Jika belanja bahan sudah dicatat di Buku Kas)'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeductHpp(!deductHpp)}
+                                                className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 cursor-pointer ${
+                                                    deductHpp ? 'bg-amber-600' : 'bg-slate-300'
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                                                        deductHpp ? 'translate-x-5' : 'translate-x-0'
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Step Breakdown */}
-                                    <div className="space-y-3">
+                                    <div className="space-y-2.5">
                                         <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Rincian Perhitungan</p>
 
                                         {/* Step 1: Omzet */}
-                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                                        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 font-black text-sm flex items-center justify-center">
                                                     +
                                                 </div>
                                                 <div>
                                                     <p className="text-xs font-black text-slate-800">Total Omzet (Gross)</p>
-                                                    <p className="text-[11px] text-slate-400 font-medium">Pendapatan kotor seluruh transaksi</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Pendapatan kotor seluruh transaksi</p>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-black text-indigo-700">{fmt(totalRevenue)}</span>
                                         </div>
 
-                                        {/* Step 2: Biaya */}
-                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                                        {/* Step 2: HPP Makanan Laku */}
+                                        {activeCogs > 0 && (
+                                            <div className={`flex items-center justify-between p-3.5 rounded-2xl border transition-colors ${
+                                                deductHpp ? 'bg-amber-50/40 border-amber-200/60' : 'bg-slate-50 border-slate-100 opacity-50'
+                                            }`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 font-black text-sm flex items-center justify-center">
+                                                        −
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                            HPP Makanan & Minuman Terjual (COGS)
+                                                            {!deductHpp && <span className="text-[9px] text-slate-400 font-bold">(Diabaikan)</span>}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 font-medium">Modal bahan baku dari menu F&B yang laku saja</p>
+                                                    </div>
+                                                </div>
+                                                <span className={`text-sm font-black ${deductHpp ? 'text-amber-700' : 'text-slate-400 line-through'}`}>
+                                                    − {fmt(activeCogs)}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Step 3: Biaya Operasional */}
+                                        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 font-black text-sm flex items-center justify-center">
                                                     −
                                                 </div>
                                                 <div>
                                                     <p className="text-xs font-black text-slate-800">Biaya Operasional (Buku Kas)</p>
-                                                    <p className="text-[11px] text-slate-400 font-medium">Pengeluaran kas operasional outlet</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Pengeluaran kas operasional outlet</p>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-black text-rose-600">− {fmt(operatingCost)}</span>
                                         </div>
 
-                                        {/* Step 3: Beban Gaji */}
-                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                                        {/* Step 4: Beban Gaji */}
+                                        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 font-black text-sm flex items-center justify-center">
                                                     −
                                                 </div>
                                                 <div>
                                                     <p className="text-xs font-black text-slate-800">Beban Gaji Karyawan (Payroll)</p>
-                                                    <p className="text-[11px] text-slate-400 font-medium">Estimasi gaji shift karyawan periode ini</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Estimasi gaji shift karyawan periode ini</p>
                                                 </div>
                                             </div>
                                             <span className="text-sm font-black text-amber-600">− {fmt(payrollCost)}</span>
@@ -3123,11 +3206,11 @@ export default function AdminDashboard() {
 
                                     {/* Double count note */}
                                     {payrollCashOut > 0 && (
-                                        <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-800 flex items-start gap-3">
-                                            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-800 flex items-start gap-2.5">
+                                            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                             <div>
-                                                <p className="font-bold">Perlindungan Double Counting:</p>
-                                                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                                                <p className="font-bold text-[11px]">Perlindungan Double Counting Gaji:</p>
+                                                <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
                                                     Pengeluaran kas tercatat untuk gaji sebesar <span className="font-bold">{fmt(payrollCashOut)}</span> sengaja tidak dikurangkan lagi karena beban gaji shift ({fmt(payrollCost)}) sudah diperhitungkan secara akrual.
                                                 </p>
                                             </div>

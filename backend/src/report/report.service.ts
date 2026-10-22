@@ -97,6 +97,21 @@ export class ReportService {
     return isNaN(date.getTime()) ? defaultDate : date;
   }
 
+  private getConversionFactor(fromUnit: string, toUnit: string): number {
+    const units: Record<string, Record<string, number>> = {
+      Gram: { Kg: 0.001, Gram: 1 },
+      Kg: { Gram: 1000, Kg: 1 },
+      Ml: { Liter: 0.001, Ml: 1 },
+      Liter: { Ml: 1000, Liter: 1 },
+    };
+
+    if (units[fromUnit] && units[fromUnit][toUnit]) {
+      return units[fromUnit][toUnit];
+    }
+
+    return 1;
+  }
+
   async getDailySummary() {
     const settings = await this.settingsService.getSettings();
     const [hours, minutes] = (settings.businessDayOffset || '00:00')
@@ -1043,7 +1058,13 @@ export class ReportService {
         createdAt: Between(start, end),
         status: Not(OrderItemStatus.CANCELLED),
       },
-      relations: ['menuItem', 'menuItem.productFinance', 'transaction'],
+      relations: [
+        'menuItem',
+        'menuItem.productFinance',
+        'menuItem.recipes',
+        'menuItem.recipes.ingredient',
+        'transaction',
+      ],
     });
 
     // 3. Aggregate By Hour
@@ -1242,6 +1263,47 @@ export class ReportService {
       }
     });
 
+    // 4.4 COGS (HPP Bahan Makanan & Minuman Terjual)
+    let totalCogs = 0;
+    orderItems.forEach((item) => {
+      const isActuallyPaid =
+        item.isPaid ||
+        (item.transaction &&
+          item.transaction.status !== TransactionStatus.UNPAID);
+      if (!isActuallyPaid) return;
+
+      const qty = Number(item.quantity || 0);
+      if (qty <= 0) return;
+
+      const menuItem = item.menuItem;
+      if (!menuItem) return;
+
+      let unitHpp = 0;
+      if (menuItem.recipes && menuItem.recipes.length > 0) {
+        unitHpp = menuItem.recipes.reduce((sum: number, r: any) => {
+          if (r.ingredient) {
+            const factor = this.getConversionFactor(r.unit, r.ingredient.unit);
+            const yieldFactor =
+              (Number(r.ingredient.yieldPercentage) || 100) / 100;
+            return (
+              sum +
+              (Number(r.quantity) *
+                Number(r.ingredient.costPrice || 0) *
+                factor) /
+                yieldFactor
+            );
+          }
+          return sum;
+        }, 0);
+      }
+
+      if (unitHpp === 0 && menuItem.productFinance?.baseHpp) {
+        unitHpp = Number(menuItem.productFinance.baseHpp || 0);
+      }
+
+      totalCogs += qty * unitHpp;
+    });
+
     return {
       startTime: start,
       endTime: end,
@@ -1264,6 +1326,7 @@ export class ReportService {
             (s, i) => s + Number(i.quantity) * Number(i.priceAtOrder),
             0,
           ),
+        totalCogs: Math.round(totalCogs),
         totalTopUp: transactions
           .filter((tx) => tx.type === 'TOPUP' && tx.status !== TransactionStatus.UNPAID)
           .reduce((s, t) => s + Number(t.grandTotal || 0), 0),
