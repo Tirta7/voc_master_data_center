@@ -101,6 +101,30 @@ let ReportService = class ReportService {
         const date = new Date(cleanStr);
         return isNaN(date.getTime()) ? defaultDate : date;
     }
+    getConversionFactor(fromUnit, toUnit) {
+        const units = {
+            Gram: {
+                Kg: 0.001,
+                Gram: 1
+            },
+            Kg: {
+                Gram: 1000,
+                Kg: 1
+            },
+            Ml: {
+                Liter: 0.001,
+                Ml: 1
+            },
+            Liter: {
+                Ml: 1000,
+                Liter: 1
+            }
+        };
+        if (units[fromUnit] && units[fromUnit][toUnit]) {
+            return units[fromUnit][toUnit];
+        }
+        return 1;
+    }
     async getDailySummary() {
         const settings = await this.settingsService.getSettings();
         const [hours, minutes] = (settings.businessDayOffset || '00:00').split(':').map(Number);
@@ -974,6 +998,8 @@ let ReportService = class ReportService {
             relations: [
                 'menuItem',
                 'menuItem.productFinance',
+                'menuItem.recipes',
+                'menuItem.recipes.ingredient',
                 'transaction'
             ]
         });
@@ -1143,6 +1169,31 @@ let ReportService = class ReportService {
                 totalRounding += Number(tx.roundingAmount || 0);
             }
         });
+        // 4.4 COGS (HPP Bahan Makanan & Minuman Terjual)
+        let totalCogs = 0;
+        orderItems.forEach((item)=>{
+            const isActuallyPaid = item.isPaid || item.transaction && item.transaction.status !== _transactionentity.TransactionStatus.UNPAID;
+            if (!isActuallyPaid) return;
+            const qty = Number(item.quantity || 0);
+            if (qty <= 0) return;
+            const menuItem = item.menuItem;
+            if (!menuItem) return;
+            let unitHpp = 0;
+            if (menuItem.recipes && menuItem.recipes.length > 0) {
+                unitHpp = menuItem.recipes.reduce((sum, r)=>{
+                    if (r.ingredient) {
+                        const factor = this.getConversionFactor(r.unit, r.ingredient.unit);
+                        const yieldFactor = (Number(r.ingredient.yieldPercentage) || 100) / 100;
+                        return sum + Number(r.quantity) * Number(r.ingredient.costPrice || 0) * factor / yieldFactor;
+                    }
+                    return sum;
+                }, 0);
+            }
+            if (unitHpp === 0 && menuItem.productFinance?.baseHpp) {
+                unitHpp = Number(menuItem.productFinance.baseHpp || 0);
+            }
+            totalCogs += qty * unitHpp;
+        });
         return {
             startTime: start,
             endTime: end,
@@ -1156,6 +1207,7 @@ let ReportService = class ReportService {
                 totalBilliard: transactions.filter((tx)=>tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID && tx.table?.stationType !== 'PLAYSTATION').reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
                 totalPlaystation: transactions.filter((tx)=>tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID && tx.table?.stationType === 'PLAYSTATION').reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
                 totalCafe: orderItems.filter((i)=>i.isPaid || i.transaction && i.transaction.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, i)=>s + Number(i.quantity) * Number(i.priceAtOrder), 0),
+                totalCogs: Math.round(totalCogs),
                 totalTopUp: transactions.filter((tx)=>tx.type === 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
                 taxServiceRevenue: totalTaxService,
                 totalOmzet: totalOmzetCash,

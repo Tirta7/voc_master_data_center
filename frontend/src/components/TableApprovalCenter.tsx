@@ -67,31 +67,31 @@ const TableApprovalCenter = () => {
     if (requests.length === 0 && !isExpanded) return null;
 
     return (
-        <div className="mx-4 mb-4 mt-2">
+        <div className="mx-2 mb-2 mt-1">
             <div
                 onClick={() => setIsExpanded(!isExpanded)}
                 className={`
-                    w-full flex items-center justify-between p-4 rounded-3xl cursor-pointer transition-all duration-300 border
+                    w-full flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all duration-300 border
                     ${requests.length > 0
                         ? 'bg-amber-500/10 border-amber-500/30 text-amber-500 animate-pulse'
-                        : 'bg-slate-800/50 border-slate-700 text-slate-400'}
+                        : 'bg-slate-800/50 border-slate-700/60 text-slate-400'}
                 `}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 min-w-0">
                     <div className={`
-                        w-10 h-10 rounded-xl flex items-center justify-center
-                        ${requests.length > 0 ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : 'bg-slate-700'}
+                        w-7 h-7 rounded-lg flex items-center justify-center shrink-0
+                        ${requests.length > 0 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30' : 'bg-slate-700'}
                     `}>
-                        <Monitor className="w-5 h-5" />
+                        <Monitor className="w-3.5 h-3.5" />
                     </div>
-                    <div>
-                        <p className="text-xs font-black uppercase tracking-widest leading-none mb-1">Izin Akses Meja</p>
-                        <p className="text-[10px] font-bold opacity-70 uppercase tracking-tight">
-                            {requests.length} Permintaan Meja
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[10.5px] font-black uppercase tracking-wider leading-none mb-0.5 truncate">Izin Akses Meja</p>
+                        <p className="text-[9px] font-bold opacity-75 uppercase tracking-tight truncate">
+                            {requests.length} Permintaan
                         </p>
                     </div>
                 </div>
-                <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
+                <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
             </div>
 
             {isExpanded && (

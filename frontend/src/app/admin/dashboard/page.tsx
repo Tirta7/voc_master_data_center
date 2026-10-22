@@ -1180,12 +1180,12 @@ export default function AdminDashboard() {
                                                     >
                                                         Omzet {fmtK(totalRevenue)}
                                                     </span>
-                                                    {activeCogs > 0 && deductHpp && (
+                                                    {deductHpp && (
                                                         <>
                                                             <span className="text-white/60 font-black">−</span>
                                                             <span 
                                                                 className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-500/30 hover:bg-amber-500/40 border border-amber-300/30 text-amber-100 backdrop-blur-xs transition-colors"
-                                                                title={`HPP Makanan/Minuman Terjual: ${fmtK(activeCogs)}`}
+                                                                title={`HPP Makanan/Minuman Terjual: ${fmtK(activeCogs)} (Hanya dihitung dari menu laku)`}
                                                             >
                                                                 HPP F&B {fmtK(activeCogs)}
                                                             </span>
@@ -3085,12 +3085,12 @@ export default function AdminDashboard() {
                                     <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/15 flex items-center justify-between">
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100 mb-1">
-                                                {deductHpp && activeCogs > 0 ? 'Laba Bersih Riil (Setelah HPP)' : 'Laba Bersih Operasional'}
+                                                {deductHpp ? 'Laba Bersih Riil (Setelah HPP)' : 'Laba Bersih Operasional'}
                                             </p>
                                             <p className="text-3xl font-black tracking-tight">{fmt(netProfitEst)}</p>
-                                            {activeCogs > 0 && deductHpp && (
+                                            {deductHpp && (
                                                 <p className="text-[10px] text-emerald-100/90 font-bold mt-1">
-                                                    Laba Kotor: {fmt(grossProfit)} ({grossMarginPct}%)
+                                                    Laba Kotor (Gross Profit): {fmt(grossProfit)} ({grossMarginPct}%)
                                                 </p>
                                             )}
                                         </div>
@@ -3103,36 +3103,34 @@ export default function AdminDashboard() {
                                     </div>
 
                                     {/* HPP Deduct Toggle Switch */}
-                                    {activeCogs > 0 && (
-                                        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80">
-                                            <div>
-                                                <p className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                                                    <span>Bebankan HPP Makanan Laku</span>
-                                                    <span className="bg-amber-200/80 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded">
-                                                        {fmt(activeCogs)}
-                                                    </span>
-                                                </p>
-                                                <p className="text-[10px] text-amber-700/80 mt-0.5">
-                                                    {deductHpp 
-                                                        ? 'HPP bahan baku dipotong dari Laba Bersih (Standar Akuntansi Riil)' 
-                                                        : 'HPP tidak dipotong (Jika belanja bahan sudah dicatat di Buku Kas)'}
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeductHpp(!deductHpp)}
-                                                className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 cursor-pointer ${
-                                                    deductHpp ? 'bg-amber-600' : 'bg-slate-300'
-                                                }`}
-                                            >
-                                                <div
-                                                    className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
-                                                        deductHpp ? 'translate-x-5' : 'translate-x-0'
-                                                    }`}
-                                                />
-                                            </button>
+                                    <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80">
+                                        <div>
+                                            <p className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                                                <span>Bebankan HPP Makanan Laku</span>
+                                                <span className="bg-amber-200/80 text-amber-800 text-[9px] font-black px-1.5 py-0.5 rounded">
+                                                    {fmtK(activeCogs)}
+                                                </span>
+                                            </p>
+                                            <p className="text-[10px] text-amber-700/80 mt-0.5">
+                                                {deductHpp 
+                                                    ? 'HPP bahan baku dipotong dari Laba Bersih (Standar Akuntansi Riil)' 
+                                                    : 'HPP tidak dipotong (Jika belanja bahan sudah dicatat di Buku Kas)'}
+                                            </p>
                                         </div>
-                                    )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeductHpp(!deductHpp)}
+                                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 shrink-0 cursor-pointer ${
+                                                deductHpp ? 'bg-amber-600' : 'bg-slate-300'
+                                            }`}
+                                        >
+                                            <div
+                                                className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+                                                    deductHpp ? 'translate-x-5' : 'translate-x-0'
+                                                }`}
+                                            />
+                                        </button>
+                                    </div>
 
                                     {/* Step Breakdown */}
                                     <div className="space-y-2.5">
@@ -3153,27 +3151,25 @@ export default function AdminDashboard() {
                                         </div>
 
                                         {/* Step 2: HPP Makanan Laku */}
-                                        {activeCogs > 0 && (
-                                            <div className={`flex items-center justify-between p-3.5 rounded-2xl border transition-colors ${
-                                                deductHpp ? 'bg-amber-50/40 border-amber-200/60' : 'bg-slate-50 border-slate-100 opacity-50'
-                                            }`}>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 font-black text-sm flex items-center justify-center">
-                                                        −
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                                                            HPP Makanan & Minuman Terjual (COGS)
-                                                            {!deductHpp && <span className="text-[9px] text-slate-400 font-bold">(Diabaikan)</span>}
-                                                        </p>
-                                                        <p className="text-[10px] text-slate-400 font-medium">Modal bahan baku dari menu F&B yang laku saja</p>
-                                                    </div>
+                                        <div className={`flex items-center justify-between p-3.5 rounded-2xl border transition-colors ${
+                                            deductHpp ? 'bg-amber-50/40 border-amber-200/60' : 'bg-slate-50 border-slate-100 opacity-50'
+                                        }`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 font-black text-sm flex items-center justify-center">
+                                                    −
                                                 </div>
-                                                <span className={`text-sm font-black ${deductHpp ? 'text-amber-700' : 'text-slate-400 line-through'}`}>
-                                                    − {fmt(activeCogs)}
-                                                </span>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                        HPP Makanan & Minuman Terjual (COGS)
+                                                        {!deductHpp && <span className="text-[9px] text-slate-400 font-bold">(Diabaikan)</span>}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Modal bahan baku dari menu F&B yang laku saja</p>
+                                                </div>
                                             </div>
-                                        )}
+                                            <span className={`text-sm font-black ${deductHpp ? 'text-amber-700' : 'text-slate-400 line-through'}`}>
+                                                − {fmt(activeCogs)}
+                                            </span>
+                                        </div>
 
                                         {/* Step 3: Biaya Operasional */}
                                         <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">

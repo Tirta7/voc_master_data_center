@@ -317,21 +317,21 @@ export default function Sidebar() {
             {/* Sidebar Container */}
             <aside
                 className={`fixed inset-y-0 left-0 bg-[#0B0A1C] text-indigo-100 flex flex-col z-[100] shadow-[4px_0_24px_rgba(0,0,0,0.2)] print:hidden transition-all duration-300 ease-in-out
-                    ${isOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full'}
+                    ${isOpen ? 'w-52 translate-x-0' : 'w-52 -translate-x-full'}
                 `}
             >
                 {/* Brand Header */}
                 <div 
-                    className="px-5 pb-4 pt-4 relative shrink-0"
-                    style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
+                    className="px-3 pb-2.5 pt-2.5 relative shrink-0"
+                    style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}
                 >
                     {/* Close Button for Mobile — sits in top-right of safe area */}
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="absolute right-4 top-4 p-1.5 text-slate-500 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-full border border-slate-700/50 transition-all active:scale-90 lg:hidden"
-                        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+                        className="absolute right-2.5 top-2.5 p-1 text-slate-500 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-full border border-slate-700/50 transition-all active:scale-90 lg:hidden"
+                        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}
                     >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" />
                     </button>
 
                     {/* Unified Toggle Button for Desktop - Centered Half-Circle Tab */}
@@ -340,19 +340,19 @@ export default function Sidebar() {
                         aria-label={isOpen ? "Tutup navigasi" : "Buka navigasi"}
                         className={[
                             'absolute left-full top-1/2 -translate-y-1/2 z-[110]',
-                            'w-8 h-16',
+                            'w-7 h-14',
                             'flex items-center justify-center',
                             'bg-[#0F172A] text-slate-400',
                             'rounded-r-full border-y border-r border-slate-700/50',
                             'shadow-[2px_0_12px_rgba(0,0,0,0.5)]',
                             '',
-                            'hover:bg-slate-800 hover:text-white hover:border-indigo-500/50 hover:w-10',
+                            'hover:bg-slate-800 hover:text-white hover:border-indigo-500/50 hover:w-9',
                             'active:scale-95 transition-all duration-300 ease-in-out',
                             'hidden lg:flex'
                         ].join(' ')}
                     >
                         {isOpen ? (
-                            <ChevronLeft className="w-3.5 h-3.5 -ml-1" />
+                            <ChevronLeft className="w-3.5 h-3.5 -ml-0.5" />
                         ) : (
                             <>
                                 <PanelLeftOpen className="w-3.5 h-3.5 -ml-0.5" />
@@ -363,21 +363,21 @@ export default function Sidebar() {
                     </button>
 
                     {/* Brand Identity Row */}
-                    <div className="flex items-center gap-3 mt-2">
-                        <div className={`w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white ring-2 ring-indigo-600/20 shadow-lg shadow-indigo-600/30 shrink-0 ${isLoading ? 'animate-pulse' : ''}`}>
-                            <span className="text-lg font-black">{businessTitle ? businessTitle.charAt(0) : ''}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className={`w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white ring-2 ring-indigo-600/20 shadow-md shadow-indigo-600/30 shrink-0 ${isLoading ? 'animate-pulse' : ''}`}>
+                            <span className="text-sm font-black">{businessTitle ? businessTitle.charAt(0) : ''}</span>
                         </div>
 
                         <div className="min-w-0 flex-1">
                             {isLoading ? (
                                 <div className="space-y-1.5">
-                                    <div className="h-3 w-28 bg-slate-700/50 rounded animate-pulse" />
-                                    <div className="h-2 w-20 bg-slate-700/30 rounded animate-pulse" />
+                                    <div className="h-3 w-20 bg-slate-700/50 rounded animate-pulse" />
+                                    <div className="h-2 w-14 bg-slate-700/30 rounded animate-pulse" />
                                 </div>
                             ) : (
                                 <>
-                                    <h1 className="text-sm font-black text-white tracking-tight uppercase truncate leading-tight">{businessTitle}</h1>
-                                    <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.2em] mt-0.5">{subTitle}</p>
+                                    <h1 className="text-[11.5px] font-black text-white tracking-tight uppercase truncate leading-tight">{businessTitle}</h1>
+                                    <p className="text-[8px] text-indigo-400 font-bold uppercase tracking-[0.14em] mt-0.5 truncate">{subTitle}</p>
                                 </>
                             )}
                         </div>
@@ -393,10 +393,10 @@ export default function Sidebar() {
                 )}
 
                 {/* Navigation Menu */}
-                <nav className="flex-1 px-3 space-y-6 overflow-y-auto overscroll-contain custom-scrollbar transition-all duration-300 py-2">
+                <nav className="flex-1 px-2 space-y-3.5 overflow-y-auto overscroll-contain custom-scrollbar transition-all duration-300 py-1.5">
                     {filteredGroups.map((group, gIdx) => (
                         <div key={gIdx} className="space-y-1">
-                            <p className="px-3 text-[9px] font-bold text-indigo-400/50 uppercase tracking-[0.15em] mb-2">
+                            <p className="px-2 text-[8px] font-bold text-indigo-400/50 uppercase tracking-[0.12em] mb-1">
                                 {group.label}
                             </p>
 
@@ -407,13 +407,13 @@ export default function Sidebar() {
                                     const badge = !isAction ? liveBadges[item.path!] : 0;
                                     
                                     const content = (
-                                        <div className="flex items-center gap-3">
-                                            <item.icon className={`w-[18px] h-[18px] shrink-0 transition-all duration-300 ${isActive ? 'text-white' : 'text-indigo-300/60 group-hover:text-indigo-300'}`} strokeWidth={isActive ? 2.5 : 2} />
-                                            <span className={`text-[13px] font-semibold tracking-tight leading-tight ${isActive ? 'text-white font-bold' : 'text-indigo-200/70 group-hover:text-white'}`}>{item.name}</span>
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <item.icon className={`w-3.5 h-3.5 shrink-0 transition-all duration-300 ${isActive ? 'text-white' : 'text-indigo-300/60 group-hover:text-indigo-300'}`} strokeWidth={isActive ? 2.5 : 2} />
+                                            <span className={`text-[11px] font-semibold tracking-tight leading-tight truncate ${isActive ? 'text-white font-bold' : 'text-indigo-200/70 group-hover:text-white'}`}>{item.name}</span>
                                         </div>
                                     );
 
-                                    const className = `flex items-center group transition-all duration-300 px-3 py-2 rounded-xl justify-between relative w-full border border-transparent
+                                    const className = `flex items-center group transition-all duration-300 px-2 py-1.5 rounded-lg justify-between relative w-full border border-transparent
                                         ${isActive
                                             ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-900/50 active:scale-[0.98]'
                                             : 'hover:bg-white/5 text-indigo-200/70'
@@ -449,14 +449,14 @@ export default function Sidebar() {
                                         >
                                             {content}
 
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center gap-1 shrink-0 ml-1">
                                                 {badge > 0 && (
-                                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none transition-all
+                                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full min-w-[15px] text-center leading-none transition-all
                                                         ${isActive ? 'bg-white/25 text-white' : 'bg-indigo-500 text-white'}`}>
                                                         {badge}
                                                     </span>
                                                 )}
-                                                {isActive && <ChevronRight className="w-4 h-4 text-white/50" />}
+                                                {isActive && <ChevronRight className="w-3 h-3 text-white/50" />}
                                             </div>
                                         </Link>
                                     );
@@ -467,17 +467,17 @@ export default function Sidebar() {
                 </nav>
 
                 {/* Footer / User Profile */}
-                <div className="p-3 border-t border-white/5 bg-white/5 shrink-0 mx-3 mb-6 mt-2 rounded-2xl border transition-all duration-300 shadow-lg relative">
-                    <div className="flex items-center gap-3">
-                        <div className="shrink-0 w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-xs text-white border border-indigo-400 shadow-lg shadow-indigo-600/20">
+                <div className="p-2 border-t border-white/5 bg-white/5 shrink-0 mx-1.5 mb-3 mt-1 rounded-xl border border-white/10 transition-all duration-300 shadow-lg relative">
+                    <div className="flex items-center gap-2">
+                        <div className="shrink-0 w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-black text-[11px] text-white border border-indigo-400 shadow-md shadow-indigo-600/20">
                             {user?.name.charAt(0) || 'U'}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black text-white truncate">{user?.name || 'User'}</p>
-                            <p className="text-[10px] text-indigo-300/70 font-bold uppercase tracking-tight">
+                            <p className="text-[11px] font-bold text-white truncate">{user?.name || 'User'}</p>
+                            <p className="text-[9px] text-indigo-300/70 font-semibold uppercase tracking-tight truncate">
                                 {activeShift ? (
-                                    <span className="text-green-400 flex items-center gap-1">
-                                        <Clock className="w-2.5 h-2.5" /> {activeShift.shiftName || 'Active Shift'}
+                                    <span className="text-green-400 flex items-center gap-1 truncate">
+                                        <Clock className="w-2.5 h-2.5 shrink-0" /> <span className="truncate">{activeShift.shiftName || 'Active Shift'}</span>
                                     </span>
                                 ) : (
                                     user?.role || 'Staff'
@@ -488,27 +488,27 @@ export default function Sidebar() {
                             !['KITCHEN', 'BARTENDER'].includes(user?.role?.toUpperCase() || '') && (
                                 <button
                                     onClick={() => setIsHandoverModalOpen(true)}
-                                    className="p-2 hover:bg-slate-700 rounded-lg text-amber-500 hover:text-amber-400 transition-colors"
+                                    className="p-1 hover:bg-slate-700/80 rounded-md text-amber-400 hover:text-amber-300 transition-colors shrink-0"
                                     title="End Shift"
                                 >
-                                    <Wallet className="w-4 h-4" />
+                                    <Wallet className="w-3 h-3" />
                                 </button>
                             )
                         ) : (hasPermission('SHIFT_START') && !['KITCHEN', 'BARTENDER'].includes(user?.role?.toUpperCase() || '')) ? (
                             <button
                                 onClick={() => setIsStartModalOpen(true)}
-                                className="p-2 hover:bg-slate-700 rounded-lg text-indigo-400 hover:text-white transition-colors"
+                                className="p-1 hover:bg-slate-700/80 rounded-lg text-indigo-300 hover:text-white transition-colors shrink-0"
                                 title="Start Shift"
                             >
-                                <Clock className="w-4 h-4" />
+                                <Clock className="w-3 h-3" />
                             </button>
                         ) : null}
                         <button
                             onClick={handleLogout}
-                            className="p-2 hover:bg-slate-700 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
+                            className="p-1 hover:bg-slate-700/80 rounded-md text-slate-400 hover:text-rose-400 transition-colors shrink-0"
                             title="Sign Out"
                         >
-                            <LogOut className="w-4 h-4" />
+                            <LogOut className="w-3 h-3" />
                         </button>
                     </div>
                 </div>
