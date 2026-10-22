@@ -9,7 +9,8 @@ import {
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
     CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2,
     Trophy, Dices, Zap, AlertCircle, Printer, ShieldCheck, ShieldAlert, CheckCircle2,
-    BarChart2, LineChart, BookOpen, Receipt, Settings, Utensils, Loader2
+    BarChart2, LineChart, BookOpen, Receipt, Settings, Utensils, Loader2,
+    Info, ChevronRight
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
@@ -215,23 +216,42 @@ interface ShiftAudit {
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
 
-function KpiCard({ title, value, sub, icon, grad, ring }: {
-    title: string; value: string; sub: string;
+function KpiCard({ title, value, sub, icon, grad, ring, badge, onClick }: {
+    title: string; value: string; sub: React.ReactNode;
     icon: React.ReactNode; grad: string; ring: string;
+    badge?: React.ReactNode;
+    onClick?: () => void;
 }) {
     return (
-        <div className={`relative overflow-hidden rounded-xl md:rounded-2xl p-3 md:p-4 text-white shadow-lg flex flex-col justify-between ${grad}`}>
-            <div className="relative z-10 w-full">
-                <div className={`w-8 h-8 md:w-9 md:h-9 rounded-lg bg-white/15 flex items-center justify-center mb-2 md:mb-2.5 border border-white/20 shadow-sm shrink-0`}>
-                    <div className="scale-75 md:scale-100">{icon}</div>
+        <div 
+            onClick={onClick}
+            className={`relative overflow-hidden rounded-2xl p-4 md:p-5 text-white shadow-lg flex flex-col justify-between transition-all duration-200 ${
+                onClick ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 select-none' : ''
+            } ${grad}`}
+        >
+            <div className="relative z-10 w-full flex flex-col justify-between h-full space-y-3">
+                <div>
+                    <div className="flex items-center justify-between mb-2 md:mb-2.5 gap-2">
+                        <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-sm shrink-0">
+                            <div className="scale-75 md:scale-100">{icon}</div>
+                        </div>
+                        {badge && <div className="shrink-0">{badge}</div>}
+                    </div>
+                    <div className="w-full">
+                        <p className="text-[8px] md:text-[9.5px] font-black uppercase tracking-wider text-white/75 mb-1">{title}</p>
+                        <p className="text-xl md:text-2xl font-black leading-tight tracking-tight drop-shadow-xs">{value}</p>
+                    </div>
                 </div>
-                <div className="w-full">
-                    <p className="text-[7px] md:text-[9px] font-black uppercase tracking-widest text-white/50 mb-1 truncate">{title}</p>
-                    <p className="text-base md:text-2xl font-black leading-none mb-1.5 truncate">{value}</p>
-                    <p className="text-[8px] md:text-[10px] text-white/60 font-semibold truncate">{sub}</p>
+
+                <div className="pt-2 border-t border-white/15">
+                    {typeof sub === 'string' ? (
+                        <p className="text-[8.5px] md:text-[10px] text-white/80 font-semibold leading-relaxed break-words">{sub}</p>
+                    ) : (
+                        sub
+                    )}
                 </div>
             </div>
-            <div className={`absolute -bottom-6 -right-6 w-20 h-20 rounded-full ${ring} blur-2xl opacity-40`} />
+            <div className={`absolute -bottom-6 -right-6 w-24 h-24 rounded-full ${ring} blur-2xl opacity-40 pointer-events-none`} />
         </div>
     );
 }
@@ -688,6 +708,7 @@ export default function AdminDashboard() {
     const router = useRouter();
     const [selectedPayrollDetail, setSelectedPayrollDetail] = useState<any>(null);
     const [showPayrollDetail, setShowPayrollDetail] = useState(false);
+    const [showProfitModal, setShowProfitModal] = useState(false);
     const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
     const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
     const [selectedAuditStaff, setSelectedAuditStaff] = useState<any | null>(null);
@@ -1098,29 +1119,153 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     {hasPermission('DASHBOARD_STATS_VIEW') ? (
                         <>
-                            <KpiCard title="Total Omzet (Gross)" value={fmtK(totalRevenue)}
-                                sub={`${activeSummary?.transactionCount || 0} Transaksi`}
+                            <KpiCard 
+                                title="Total Omzet (Gross)" 
+                                value={fmtK(totalRevenue)}
+                                badge={
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-white/20 border border-white/20 text-white shadow-xs">
+                                        Gross
+                                    </span>
+                                }
+                                sub={
+                                    <div className="flex items-center justify-between text-[8.5px] md:text-[9.5px] font-semibold text-white/90">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                            {activeSummary?.transactionCount || 0} Transaksi
+                                        </span>
+                                        <span className="text-white/60 text-[8px] md:text-[9px]">Selesai</span>
+                                    </div>
+                                }
                                 icon={<DollarSign className="w-5 h-5" />}
-                                grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
-                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.operatingOut ?? finance?.totalOut ?? 0) - Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}
-                                sub={`Omzet ${fmtK(totalRevenue)} − Biaya ${fmtK(finance?.operatingOut ?? finance?.totalOut ?? 0)} − Beban gaji ${fmtK(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}${(finance?.payrollOut || 0) > 0 ? ` · Gaji dibayar (kas) ${fmtK(finance?.payrollOut || 0)} tidak dihitung ulang` : ''}`}
-                                icon={<TrendingUp className="w-5 h-5" />}
-                                grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
-                            <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(activeSummary?.unpaidAmount || 0))}
-                                sub="Perlu ditagih"
+                                grad="bg-gradient-to-br from-indigo-600 to-violet-600" 
+                                ring="bg-violet-400" 
+                            />
+                            {(() => {
+                                const operatingCost = finance?.operatingOut ?? finance?.totalOut ?? 0;
+                                const payrollCost = Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0);
+                                const netProfitEst = totalRevenue - operatingCost - payrollCost;
+                                const profitMarginPct = totalRevenue > 0 ? ((netProfitEst / totalRevenue) * 100).toFixed(1) : '0';
+                                const payrollCashOut = finance?.payrollOut || 0;
+
+                                return (
+                                    <KpiCard
+                                        title="Laba Bersih (Est.)"
+                                        value={fmtK(netProfitEst)}
+                                        onClick={() => setShowProfitModal(true)}
+                                        badge={
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowProfitModal(true);
+                                                }}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-white/20 hover:bg-white/30 border border-white/25 text-white transition-all shadow-xs cursor-pointer active:scale-95"
+                                                title="Klik untuk melihat rincian kalkulasi laba bersih"
+                                            >
+                                                <span>Margin {profitMarginPct}%</span>
+                                                <Info className="w-3 h-3 text-emerald-200" />
+                                            </button>
+                                        }
+                                        sub={
+                                            <div className="space-y-1.5">
+                                                {/* Breakdown Formula Pills - Wraps naturally without truncation */}
+                                                <div className="flex flex-wrap items-center gap-1 text-[8.5px] md:text-[9.5px] font-semibold">
+                                                    <span 
+                                                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-black/20 hover:bg-black/30 border border-white/15 text-white backdrop-blur-xs transition-colors"
+                                                        title={`Omzet: ${fmtK(totalRevenue)}`}
+                                                    >
+                                                        Omzet {fmtK(totalRevenue)}
+                                                    </span>
+                                                    <span className="text-white/60 font-black">−</span>
+                                                    <span 
+                                                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-black/20 hover:bg-black/30 border border-white/15 text-white backdrop-blur-xs transition-colors"
+                                                        title={`Biaya Operasional: ${fmtK(operatingCost)}`}
+                                                    >
+                                                        Biaya {fmtK(operatingCost)}
+                                                    </span>
+                                                    <span className="text-white/60 font-black">−</span>
+                                                    <span 
+                                                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-black/20 hover:bg-black/30 border border-white/15 text-white backdrop-blur-xs transition-colors"
+                                                        title={`Beban Gaji Karyawan: ${fmtK(payrollCost)}`}
+                                                    >
+                                                        Gaji {fmtK(payrollCost)}
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-[8px] md:text-[9px] text-emerald-100/90 pt-0.5">
+                                                    {payrollCashOut > 0 ? (
+                                                        <span className="italic truncate" title={`Gaji dibayar (kas) ${fmtK(payrollCashOut)} tidak dihitung ulang`}>
+                                                            *Gaji kas {fmtK(payrollCashOut)} tdk dihitung ulang
+                                                        </span>
+                                                    ) : (
+                                                        <span className="opacity-80">Omzet − Biaya − Gaji</span>
+                                                    )}
+                                                    <span className="inline-flex items-center gap-0.5 font-bold hover:text-white underline decoration-dotted decoration-white/40 cursor-pointer ml-auto shrink-0">
+                                                        Rincian <ChevronRight className="w-2.5 h-2.5" />
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        }
+                                        icon={<TrendingUp className="w-5 h-5" />}
+                                        grad="bg-gradient-to-br from-emerald-500 to-teal-600"
+                                        ring="bg-emerald-300"
+                                    />
+                                );
+                            })()}
+                            <KpiCard
+                                title="Piutang Belum Lunas"
+                                value={fmtK(Number(activeSummary?.unpaidAmount || 0))}
+                                badge={
+                                    Number(activeSummary?.unpaidAmount || 0) > 0 ? (
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-950/40 border border-white/20 text-rose-100 animate-pulse">
+                                            Tertunda
+                                        </span>
+                                    ) : (
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-white/20 border border-white/20 text-white">
+                                            Lunas
+                                        </span>
+                                    )
+                                }
+                                sub={
+                                    <div className="flex items-center justify-between text-[8.5px] md:text-[9.5px] font-semibold text-white/90">
+                                        <span>{Number(activeSummary?.unpaidAmount || 0) > 0 ? 'Perlu ditagih ke member' : 'Semua tagihan lunas'}</span>
+                                        <span className="text-white/60 text-[8px] md:text-[9px]">Customer</span>
+                                    </div>
+                                }
                                 icon={<AlertTriangle className="w-5 h-5" />}
-                                grad="bg-gradient-to-br from-rose-500 to-pink-600" ring="bg-rose-300" />
+                                grad="bg-gradient-to-br from-rose-500 to-pink-600"
+                                ring="bg-rose-300"
+                            />
                         </>
                     ) : (
                         <div className="col-span-1 sm:col-span-2 lg:col-span-3 bg-white/50 border border-slate-200 border-dashed rounded-2xl flex items-center justify-center p-10 text-slate-400 font-bold italic text-sm">
                             <Lock className="w-4 h-4 mr-2" /> Detail Finansial Terbatas
                         </div>
                     )}
-                    <KpiCard title="Stok Kritis" value={`${criticalCount} Item`}
-                        sub={`${(allStock || []).length} Total bahan`}
+                    <KpiCard
+                        title="Stok Kritis"
+                        value={`${criticalCount} Item`}
+                        badge={
+                            criticalCount > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-950/40 border border-white/20 text-amber-100 animate-pulse">
+                                    Perhatian
+                                </span>
+                            ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-white/20 border border-white/20 text-white">
+                                    Aman
+                                </span>
+                            )
+                        }
+                        sub={
+                            <div className="flex items-center justify-between text-[8.5px] md:text-[9.5px] font-semibold text-white/90">
+                                <span>{criticalCount > 0 ? `${criticalCount} bahan di bawah batas` : 'Stok dalam batas aman'}</span>
+                                <span className="text-white/60 text-[8px] md:text-[9px]">{(allStock || []).length} Total</span>
+                            </div>
+                        }
                         icon={<Package className="w-5 h-5" />}
                         grad={criticalCount > 0 ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-gradient-to-br from-slate-500 to-slate-600"}
-                        ring="bg-amber-300" />
+                        ring="bg-amber-300"
+                    />
                 </div>
 
                 {/* ── Revenue Breakdown ── */}
@@ -2884,6 +3029,126 @@ export default function AdminDashboard() {
                         </div>
                     )}
                 </div>
+
+                {/* Net Profit Calculation Detail Modal */}
+                {showProfitModal && (() => {
+                    const operatingCost = finance?.operatingOut ?? finance?.totalOut ?? 0;
+                    const payrollCost = Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0);
+                    const netProfitEst = totalRevenue - operatingCost - payrollCost;
+                    const profitMarginPct = totalRevenue > 0 ? ((netProfitEst / totalRevenue) * 100).toFixed(1) : '0';
+                    const payrollCashOut = finance?.payrollOut || 0;
+
+                    return (
+                        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xs" onClick={() => setShowProfitModal(false)} />
+                            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                                <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                                            <TrendingUp className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 tracking-tight">Kalkulasi Laba Bersih (Est.)</h3>
+                                            <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                                                Estimasi keuntungan operasional riil
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setShowProfitModal(false)} className="p-2.5 hover:bg-slate-100 rounded-2xl transition-all text-slate-400 hover:text-slate-600">
+                                        <XCircle className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <div className="p-6 md:p-8 space-y-6 overflow-y-auto">
+                                    {/* Big Metric Banner */}
+                                    <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/15 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100 mb-1">Hasil Estimasi Laba Bersih</p>
+                                            <p className="text-3xl font-black tracking-tight">{fmt(netProfitEst)}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="inline-block px-3 py-1 rounded-full text-xs font-black bg-white/20 border border-white/25 text-white backdrop-blur-xs">
+                                                Margin {profitMarginPct}%
+                                            </span>
+                                            <p className="text-[10px] text-emerald-100 font-semibold mt-1">dari Total Omzet</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Step Breakdown */}
+                                    <div className="space-y-3">
+                                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Rincian Perhitungan</p>
+
+                                        {/* Step 1: Omzet */}
+                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 font-black text-sm flex items-center justify-center">
+                                                    +
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800">Total Omzet (Gross)</p>
+                                                    <p className="text-[11px] text-slate-400 font-medium">Pendapatan kotor seluruh transaksi</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-black text-indigo-700">{fmt(totalRevenue)}</span>
+                                        </div>
+
+                                        {/* Step 2: Biaya */}
+                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 font-black text-sm flex items-center justify-center">
+                                                    −
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800">Biaya Operasional (Buku Kas)</p>
+                                                    <p className="text-[11px] text-slate-400 font-medium">Pengeluaran kas operasional outlet</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-black text-rose-600">− {fmt(operatingCost)}</span>
+                                        </div>
+
+                                        {/* Step 3: Beban Gaji */}
+                                        <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 font-black text-sm flex items-center justify-center">
+                                                    −
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-800">Beban Gaji Karyawan (Payroll)</p>
+                                                    <p className="text-[11px] text-slate-400 font-medium">Estimasi gaji shift karyawan periode ini</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-sm font-black text-amber-600">− {fmt(payrollCost)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Double count note */}
+                                    {payrollCashOut > 0 && (
+                                        <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-800 flex items-start gap-3">
+                                            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="font-bold">Perlindungan Double Counting:</p>
+                                                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                                                    Pengeluaran kas tercatat untuk gaji sebesar <span className="font-bold">{fmt(payrollCashOut)}</span> sengaja tidak dikurangkan lagi karena beban gaji shift ({fmt(payrollCost)}) sudah diperhitungkan secara akrual.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action button */}
+                                    <div className="pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowProfitModal(false)}
+                                            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-slate-900/10 cursor-pointer"
+                                        >
+                                            Tutup Rincian
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Payroll Detail Modal */}
                 {showPayrollDetail && selectedPayrollDetail && (
