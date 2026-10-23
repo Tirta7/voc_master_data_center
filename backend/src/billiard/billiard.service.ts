@@ -1269,10 +1269,25 @@ export class BilliardService implements OnModuleInit {
     const pkg = await this.packageRepository.findOne({ where: { id } });
     if (!pkg) throw new NotFoundException('Package not found');
 
-    // Soft-delete: set isActive=false agar referensi historis di transaksi tidak rusak
-    pkg.isActive = false;
-    await this.packageRepository.save(pkg);
+    // Cek apakah paket sedang aktif digunakan di meja yang sedang berjalan
+    const inUseTable = await this.tableRepository.findOne({
+      where: { packageId: id, status: Not(TableStatus.AVAILABLE) },
+    });
+    if (inUseTable) {
+      throw new BadRequestException(
+        `Paket sedang aktif digunakan di Meja ${inUseTable.tableName}. Harap selesaikan sesi meja sebelum menghapus.`,
+      );
+    }
+
+    // Bersihkan relasi battle_plan_items jika ada
+    await this.dataSource
+      .query('DELETE FROM battle_plan_items WHERE "packageId" = $1', [id])
+      .catch(() => {});
+
+    // Hapus paket dari database
+    await this.packageRepository.delete(id);
     this.packagesCache = null;
+    await this.clearAllTablesCache();
   }
 
   /**

@@ -14,6 +14,7 @@ import {
   UploadedFile,
   UseInterceptors,
   Res,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
@@ -122,13 +123,13 @@ export class BilliardController {
 
   @Delete('packages/:id')
   @UseGuards(AuthGuard('jwt'))
-  async deletePackage(@Param('id') id: number) {
+  async deletePackage(@Param('id', ParseIntPipe) id: number) {
     return this.billiardService.deletePackage(id);
   }
 
   @Patch('packages/:id')
   @UseGuards(AuthGuard('jwt'))
-  async updatePackage(@Param('id') id: number, @Body() data: any) {
+  async updatePackage(@Param('id', ParseIntPipe) id: number, @Body() data: any) {
     return this.billiardService.updatePackage(id, data);
   }
 
