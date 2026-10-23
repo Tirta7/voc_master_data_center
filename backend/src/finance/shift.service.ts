@@ -2170,8 +2170,9 @@ export class ShiftService {
         resolvedPaymentDetails = [];
       }
 
-      // Strip circular relations and back-references
+      // Strip circular relations and back-references, but preserve essential table display info
       const cleanTx = { ...tx };
+      const tableName = tx.table?.tableName || (tx.table as any)?.name || tx.cafeTable?.tableName || null;
       delete (cleanTx as any).table;
       delete (cleanTx as any).cafeTable;
       if (cleanTx.orderItems) {
@@ -2183,6 +2184,8 @@ export class ShiftService {
 
       return {
         ...cleanTx,
+        tableName,
+        table: tableName ? { tableName } : null,
         paymentDetails: resolvedPaymentDetails,
       };
     });

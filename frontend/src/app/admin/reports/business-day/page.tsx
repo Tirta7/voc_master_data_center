@@ -34,7 +34,8 @@ import {
     PackageSearch,
     TrendingDown,
     ArrowDownCircle,
-    Ticket
+    Ticket,
+    Trash2
 } from 'lucide-react';
 
 import {
@@ -173,6 +174,66 @@ export default function BusinessDayDashboard() {
 
     const [auditingDayId, setAuditingDayId] = useState<number | null>(null);
 
+    // Admin Settle & Void states
+    const [settleModalTx, setSettleModalTx] = useState<any | null>(null);
+    const [settleMethod, setSettleMethod] = useState<string>('QRIS');
+    const [settleManagerPin, setSettleManagerPin] = useState<string>('');
+    const [settleNotes, setSettleNotes] = useState<string>('');
+    const [isSubmittingSettle, setIsSubmittingSettle] = useState(false);
+
+    const [voidModalTx, setVoidModalTx] = useState<any | null>(null);
+    const [voidManagerPin, setVoidManagerPin] = useState<string>('');
+    const [voidReason, setVoidReason] = useState<string>('');
+    const [isSubmittingVoid, setIsSubmittingVoid] = useState(false);
+
+    const handleSettleSubmit = async () => {
+        if (!settleModalTx || !settleManagerPin) {
+            alert('PIN Manajer wajib diisi.');
+            return;
+        }
+        setIsSubmittingSettle(true);
+        try {
+            await axios.post(`/transactions/${settleModalTx.id}/admin-settle`, {
+                paymentMethod: settleMethod,
+                managerPin: settleManagerPin,
+                notes: settleNotes || 'Pelunasan Manual via Admin'
+            });
+            alert('Transaksi berhasil dilunaskan!');
+            setSettleModalTx(null);
+            setSettleManagerPin('');
+            setSettleNotes('');
+            mutateReport();
+            mutateList();
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Gagal melunaskan transaksi.');
+        } finally {
+            setIsSubmittingSettle(false);
+        }
+    };
+
+    const handleVoidSubmit = async () => {
+        if (!voidModalTx || !voidManagerPin) {
+            alert('PIN Manajer wajib diisi.');
+            return;
+        }
+        setIsSubmittingVoid(true);
+        try {
+            await axios.post(`/transactions/${voidModalTx.id}/admin-void`, {
+                managerPin: voidManagerPin,
+                reason: voidReason || 'Pembatalan Manual via Admin'
+            });
+            alert('Transaksi berhasil dibatalkan (VOID)!');
+            setVoidModalTx(null);
+            setVoidManagerPin('');
+            setVoidReason('');
+            mutateReport();
+            mutateList();
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Gagal membatalkan transaksi.');
+        } finally {
+            setIsSubmittingVoid(false);
+        }
+    };
 
     useEffect(() => {
         setIsMounted(true);
@@ -1063,7 +1124,7 @@ export default function BusinessDayDashboard() {
                                                             {tx.member && <CheckCircle2 className="w-3 h-3 text-indigo-500" />}
                                                         </span>
                                                         <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 bg-slate-50 px-1.5 py-0.5 rounded w-fit italic">
-                                                            {tx.table?.tableName || tx.cafeTable?.tableName || tx.sessionType || 'Area Cafe'}
+                                                            {tx.tableName || tx.table?.tableName || tx.cafeTable?.tableName || (tx.tableId ? `Meja ${tx.tableId}` : (tx.sessionType ? `Billiard (${tx.sessionType})` : 'Area Cafe'))}
                                                         </span>
                                                         {tx.createdBy && (
                                                             <div className="mt-2 text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 bg-white border border-slate-100 rounded-md px-1.5 py-1 w-fit shadow-sm">
@@ -1082,7 +1143,7 @@ export default function BusinessDayDashboard() {
                                                                     <LayoutDashboard className="w-2.5 h-2.5" /> Session Detail
                                                                 </p>
                                                                 <div className="flex items-center justify-between font-bold text-[9px] text-indigo-800">
-                                                                    <span>{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}</span>
+                                                                    <span>{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (tx.status === 'PAID' || tx.status === 'CANCELLED' ? (tx.updatedAt ? new Date(tx.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Selesai') : (tx.table?.status === 'in_use' || tx.table?.status === 'warning' ? 'NOW' : 'Selesai'))}</span>
                                                                     <span className="bg-white px-1 rounded">{tx.sessionDuration || '-'}</span>
                                                                 </div>
                                                                 {/* Detailed Segments Breakdown */}
@@ -1202,9 +1263,30 @@ export default function BusinessDayDashboard() {
                                                     })()}
                                                 </td>
                                                 <td className="px-6 py-5 align-top text-right">
-                                                    <button onClick={() => setReprintTxId(tx.id)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-slate-100 shadow-sm active:scale-90">
-                                                        <Printer className="w-4 h-4" />
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <button onClick={() => setReprintTxId(tx.id)} title="Cetak Ulang Nota" className="p-2.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-slate-100 shadow-sm active:scale-90">
+                                                            <Printer className="w-4 h-4" />
+                                                        </button>
+                                                        {(tx.status === 'UNPAID' || tx.status === 'PARTIAL') && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => { setSettleModalTx(tx); setSettleMethod('QRIS'); setSettleManagerPin(''); setSettleNotes(''); }}
+                                                                    title="Pelunasan Manual (Manajer)"
+                                                                    className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-200 shadow-sm active:scale-90 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider"
+                                                                >
+                                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                    <span>Lunaskan</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { setVoidModalTx(tx); setVoidManagerPin(''); setVoidReason(''); }}
+                                                                    title="Batalkan / Void Transaksi (Manajer)"
+                                                                    className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl transition-all border border-rose-200 shadow-sm active:scale-90"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -1238,10 +1320,10 @@ export default function BusinessDayDashboard() {
                                             </div>
                                             <div className="flex-1 bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex flex-col justify-center text-right">
                                                 <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Area / Table</p>
-                                                <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{tx.table?.tableName || tx.cafeTable?.tableName || tx.sessionType || 'Area Cafe'}</p>
+                                                <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{tx.tableName || tx.table?.tableName || tx.cafeTable?.tableName || (tx.tableId ? `Meja ${tx.tableId}` : (tx.sessionType ? `Billiard (${tx.sessionType})` : 'Area Cafe'))}</p>
                                                 {tx.startTime && (
                                                     <p className="text-[7px] font-bold text-indigo-500 truncate mt-0.5">
-                                                        {new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}
+                                                        {new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (tx.status === 'PAID' || tx.status === 'CANCELLED' ? (tx.updatedAt ? new Date(tx.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Selesai') : (tx.table?.status === 'in_use' || tx.table?.status === 'warning' ? 'NOW' : 'Selesai'))}
                                                         {tx.sessionDuration && <span className="text-slate-400 font-black ml-1">({tx.sessionDuration})</span>}
                                                     </p>
                                                 )}
@@ -1342,6 +1424,24 @@ export default function BusinessDayDashboard() {
                                                 <p className="text-sm font-black text-slate-900 leading-none">{fmtK(tx.grandTotal || 0)}</p>
                                             </div>
                                         </div>
+                                        {(tx.status === 'UNPAID' || tx.status === 'PARTIAL') && (
+                                            <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                                <button
+                                                    onClick={() => { setSettleModalTx(tx); setSettleMethod('QRIS'); setSettleManagerPin(''); setSettleNotes(''); }}
+                                                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm"
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                    <span>Lunaskan (Admin)</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => { setVoidModalTx(tx); setVoidManagerPin(''); setVoidReason(''); }}
+                                                    className="px-3 py-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border border-rose-200 shadow-sm"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    <span>Void</span>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -2068,6 +2168,179 @@ export default function BusinessDayDashboard() {
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Settle Modal (Pelunasan Manual) */}
+            {settleModalTx && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                    Pelunasan Manual Transaksi
+                                </h3>
+                                <p className="text-xs text-slate-400 font-bold mt-0.5">
+                                    #{settleModalTx.invoiceNumber || settleModalTx.id} • {settleModalTx.customerName || 'Customer'}
+                                </p>
+                            </div>
+                            <button onClick={() => setSettleModalTx(null)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
+                                <X className="w-4 h-4 text-slate-400" />
+                            </button>
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-400">Total Tagihan:</span>
+                                <span className="font-black text-slate-900 text-sm">Rp {Number(settleModalTx.grandTotal || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-400">Sudah Dibayar:</span>
+                                <span className="font-bold text-emerald-600">Rp {Number(settleModalTx.paidAmount || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="border-t border-slate-200 pt-2 flex justify-between items-center">
+                                <span className="font-black text-slate-700 text-xs uppercase tracking-wider">Sisa Pelunasan:</span>
+                                <span className="font-black text-emerald-700 text-base">
+                                    Rp {Math.max(0, Number(settleModalTx.grandTotal || 0) - Number(settleModalTx.paidAmount || 0)).toLocaleString()}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Metode Pembayaran</label>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {['QRIS', 'CASH', 'BCA', 'TRANSFER'].map((m) => (
+                                        <button
+                                            key={m}
+                                            type="button"
+                                            onClick={() => setSettleMethod(m)}
+                                            className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                                settleMethod === m
+                                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200'
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            {m}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">PIN Manajer / Supervisor *</label>
+                                <input
+                                    type="password"
+                                    value={settleManagerPin}
+                                    onChange={(e) => setSettleManagerPin(e.target.value)}
+                                    placeholder="Masukkan PIN Manajer"
+                                    maxLength={6}
+                                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 tracking-widest focus:border-emerald-600 focus:outline-none transition-all"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Catatan Pelunasan (Opsional)</label>
+                                <input
+                                    type="text"
+                                    value={settleNotes}
+                                    onChange={(e) => setSettleNotes(e.target.value)}
+                                    placeholder="Contoh: Sudah bayar QRIS di kasir tapi belum terlunaskan"
+                                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-700 focus:border-emerald-600 focus:outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setSettleModalTx(null)}
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSubmittingSettle || !settleManagerPin}
+                                onClick={handleSettleSubmit}
+                                className="flex-[2] py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isSubmittingSettle ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                {isSubmittingSettle ? 'Memproses...' : 'Konfirmasi Lunas'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Void Modal (Pembatalan Transaksi) */}
+            {voidModalTx && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h3 className="text-base font-black text-rose-600 uppercase tracking-tight flex items-center gap-2">
+                                    <Trash2 className="w-5 h-5 text-rose-600" />
+                                    Batalkan Transaksi (VOID)
+                                </h3>
+                                <p className="text-xs text-slate-400 font-bold mt-0.5">
+                                    #{voidModalTx.invoiceNumber || voidModalTx.id} • {voidModalTx.customerName || 'Customer'}
+                                </p>
+                            </div>
+                            <button onClick={() => setVoidModalTx(null)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
+                                <X className="w-4 h-4 text-slate-400" />
+                            </button>
+                        </div>
+
+                        <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-xs text-rose-800 font-medium leading-relaxed">
+                            Peringatan: Tindakan ini akan membatalkan tagihan sebesar <strong className="font-black text-rose-900">Rp {Number(voidModalTx.grandTotal || 0).toLocaleString()}</strong> secara permanen dan menghapusnya dari daftar tagihan aktif.
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Alasan Pembatalan *</label>
+                                <input
+                                    type="text"
+                                    value={voidReason}
+                                    onChange={(e) => setVoidReason(e.target.value)}
+                                    placeholder="Contoh: Kesalahan input kasir / Meja di-cancel"
+                                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-700 focus:border-rose-600 focus:outline-none transition-all"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">PIN Manajer / Supervisor *</label>
+                                <input
+                                    type="password"
+                                    value={voidManagerPin}
+                                    onChange={(e) => setVoidManagerPin(e.target.value)}
+                                    placeholder="Masukkan PIN Manajer"
+                                    maxLength={6}
+                                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 tracking-widest focus:border-rose-600 focus:outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setVoidModalTx(null)}
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSubmittingVoid || !voidManagerPin || !voidReason}
+                                onClick={handleVoidSubmit}
+                                className="flex-[2] py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                {isSubmittingVoid ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                {isSubmittingVoid ? 'Membatalkan...' : 'Batalkan Transaksi'}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -233,9 +233,11 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     // Billiard Session Times
     const startTime = tx.startTime || tx.table?.startTime || tx.createdAt;
-    // Detect ongoing open session: No persisted endTime AND no prepaid endTime AND it's a billiard transaction/table
-    const isOngoing = !tx.endTime && !tx.table?.endTime && (tx.tableId || tx.type === 'BILLIARD');
-    const endTime = isOngoing ? null : (tx.endTime || tx.table?.endTime || tx.updatedAt || new Date());
+    // Detect ongoing open session: ONLY if NOT a reprint, AND table is actively IN_USE/WARNING, and no persisted endTime
+    const tableStatus = String(tx.table?.status || '').toLowerCase();
+    const isTableActive = tableStatus === 'in_use' || tableStatus === 'warning';
+    const isOngoing = !isReprint && !tx.endTime && !tx.table?.endTime && isTableActive;
+    const endTime = isOngoing ? null : (tx.endTime || tx.table?.endTime || tx.updatedAt || tx.createdAt || new Date());
 
     const formatTime = (date: any) => {
         if (!date) return '--.--';
@@ -254,7 +256,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     const calculatedDuration = () => {
         if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
             const totalMins = tx.billingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.duration) || 0), 0);
-            if (totalMins > 0 && tx.status === 'PAID') { 
+            if (totalMins > 0) { 
                 const h = Math.floor(totalMins / 60);
                 const m = totalMins % 60;
                 return `${h} Hour : ${m} Minute : 00 Second`;
@@ -423,8 +425,8 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     </span>
                     <span className="pl-3"></span>
                     <span className="font-bold text-right">
-                        {/* Prioritas: nama table dari relasi, lalu fallback ke ID */}
-                        {(tx.table?.tableName || tx.cafeTable?.tableName
+                        {/* Prioritas: nama table dari relasi/snapshot, lalu fallback ke ID */}
+                        {(tx.tableName || tx.table?.tableName || tx.cafeTable?.tableName
                             || (tx.tableId ? `MEJA ${tx.tableId}` : (tx.cafeTableId ? `MEJA CAFE-${tx.cafeTableId}` : 'WALK-IN'))).toUpperCase()}
                     </span>
                 </div>

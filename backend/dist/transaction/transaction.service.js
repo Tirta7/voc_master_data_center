@@ -14,6 +14,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _redisservice = require("../redis/redis.service");
 const _transactionentity = require("./entities/transaction.entity");
+const _userentity = require("../user/entities/user.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _axios = /*#__PURE__*/ _interop_require_default(require("axios"));
 const _tableentity = require("../billiard/entities/table.entity");
@@ -502,7 +503,8 @@ let TransactionService = class TransactionService {
         let billiardMins = 0;
         const isSessionFinished = transaction.status === _transactionentity.TransactionStatus.PAID || transaction.status === _transactionentity.TransactionStatus.CANCELLED || transaction.status === _transactionentity.TransactionStatus.DEBT || !!transaction.endTime;
         const calcStart = isSessionFinished ? transaction.startTime : transaction.table?.startTime || transaction.startTime;
-        const calcEnd = isSessionFinished ? transaction.endTime : transaction.table?.status && transaction.table.status !== _tableentity.TableStatus.AVAILABLE ? new Date() : transaction.endTime || new Date();
+        const isTableActive = transaction.table && (transaction.table.status === _tableentity.TableStatus.IN_USE || transaction.table.status === _tableentity.TableStatus.WARNING);
+        const calcEnd = isSessionFinished ? transaction.endTime || transaction.updatedAt || new Date() : isTableActive ? new Date() : transaction.endTime || transaction.table?.endTime || transaction.updatedAt || transaction.createdAt || new Date();
         if (calcStart && calcEnd) {
             billiardMins = Math.round((new Date(calcEnd).getTime() - new Date(calcStart).getTime()) / 60000);
             if (isNaN(billiardMins)) billiardMins = 0;
@@ -650,7 +652,11 @@ let TransactionService = class TransactionService {
             return;
         }
         const startTime = isFinalized ? transaction.startTime ? new Date(transaction.startTime) : null : table?.startTime || (transaction.startTime ? new Date(transaction.startTime) : null);
-        const endTime = isFinalized ? transaction.endTime ? new Date(transaction.endTime) : new Date() : new Date(table?.status && (table.status === _tableentity.TableStatus.IN_USE || table.status === _tableentity.TableStatus.WARNING) ? table.endTime || new Date() : transaction.endTime || new Date());
+        const isTableActive = table && (table.status === _tableentity.TableStatus.IN_USE || table.status === _tableentity.TableStatus.WARNING);
+        const endTime = isFinalized ? transaction.endTime ? new Date(transaction.endTime) : transaction.updatedAt ? new Date(transaction.updatedAt) : new Date() : isTableActive ? table.endTime || new Date() : transaction.endTime ? new Date(transaction.endTime) : table?.endTime ? new Date(table.endTime) : transaction.updatedAt ? new Date(transaction.updatedAt) : transaction.createdAt ? new Date(transaction.createdAt) : new Date();
+        if (!isTableActive && !transaction.endTime) {
+            transaction.endTime = endTime;
+        }
         const sessionType = table?.sessionType || transaction.sessionType || 'open';
         // Essential: If no start time or invalid dates, we can't calculate anything
         if (!startTime || isNaN(new Date(startTime).getTime()) || isNaN(endTime.getTime())) return;
@@ -1465,10 +1471,11 @@ let TransactionService = class TransactionService {
         const isFinalized = txObj?.status === _transactionentity.TransactionStatus.PAID || txObj?.status === _transactionentity.TransactionStatus.CANCELLED || !!txObj?.endTime;
         if (isFinalized && txObj?.startTime && txObj?.endTime) {
             billiardMins = Math.round((new Date(txObj.endTime).getTime() - new Date(txObj.startTime).getTime()) / 60000);
-        } else if (txObj?.table?.startTime && txObj?.table?.status !== _tableentity.TableStatus.AVAILABLE) {
+        } else if (txObj?.table?.startTime && (txObj?.table?.status === _tableentity.TableStatus.IN_USE || txObj?.table?.status === _tableentity.TableStatus.WARNING)) {
             billiardMins = Math.round((new Date().getTime() - new Date(txObj.table.startTime).getTime()) / 60000);
-        } else if (txObj?.startTime && txObj?.endTime) {
-            billiardMins = Math.round((new Date(txObj.endTime).getTime() - new Date(txObj.startTime).getTime()) / 60000);
+        } else if (txObj?.startTime && (txObj?.endTime || txObj?.table?.endTime || txObj?.updatedAt)) {
+            const snapEnd = txObj.endTime || txObj.table?.endTime || txObj.updatedAt;
+            billiardMins = Math.round((new Date(snapEnd).getTime() - new Date(txObj.startTime).getTime()) / 60000);
         }
         // Resolve session type for promo guard (Open Table should not be affected by fixed-price bundle promos)
         const txSessionType = txObj?.table?.sessionType || txObj?.sessionType || null;
@@ -2501,6 +2508,118 @@ let TransactionService = class TransactionService {
             success: true,
             message: 'Rating submitted successfully'
         };
+    }
+    async adminSettleTransaction(id, paymentMethod, managerPin, notes, staffUserId) {
+        if (!managerPin) {
+            throw new _common.BadRequestException('PIN Manajer wajib diisi.');
+        }
+        const userRepository = this.dataSource.getRepository(_userentity.User);
+        const manager = await userRepository.findOne({
+            where: {
+                pin: managerPin
+            },
+            relations: [
+                'role'
+            ]
+        });
+        if (!manager) {
+            throw new _common.BadRequestException('PIN Manajer tidak valid.');
+        }
+        const roleName = manager.role?.name?.toUpperCase() || '';
+        if (![
+            'MANAGER',
+            'SUPERVISOR',
+            'ADMIN',
+            'OWNER',
+            'SUPERADMIN'
+        ].includes(roleName)) {
+            throw new _common.BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+        }
+        const transaction = await this.transactionRepository.findOne({
+            where: {
+                id
+            },
+            relations: [
+                'table',
+                'orderItems',
+                'payments'
+            ]
+        });
+        if (!transaction) throw new _common.NotFoundException('Transaksi tidak ditemukan.');
+        if (transaction.status === _transactionentity.TransactionStatus.PAID) {
+            throw new _common.BadRequestException('Transaksi sudah lunas.');
+        }
+        // Freeze endTime if not set
+        if (!transaction.endTime) {
+            transaction.endTime = transaction.table?.endTime || transaction.updatedAt || new Date();
+        }
+        // Ensure transient totals are calculated and frozen
+        await this.calculateTransientTotals(transaction);
+        await this.transactionRepository.save(transaction);
+        await this.updateTotals(transaction.id);
+        const freshTx = await this.getTransactionById(id);
+        const remainingBalance = Math.max(0, Number(freshTx.grandTotal || 0) - Number(freshTx.paidAmount || 0));
+        // Process payment with specified method (e.g. QRIS, CASH, etc.)
+        const paymentResult = await this.processPayment(id, {
+            amount: remainingBalance,
+            method: (paymentMethod || 'QRIS').toUpperCase(),
+            payer: freshTx.customerName || 'Customer'
+        }, staffUserId || manager.id);
+        await this.reportService.logAction('ADMIN_SETTLE_TRANSACTION', manager.username || manager.name || 'Manager', `Pelunasan Manual Transaksi #${freshTx.invoiceNumber} via ${paymentMethod.toUpperCase()} (Rp ${remainingBalance.toLocaleString()}). Catatan: ${notes || 'Pelunasan oleh Manager'}${transaction.tableId ? ` Meja ${transaction.tableId}` : ''}`, transaction.tableId ?? undefined, freshTx.invoiceNumber);
+        return paymentResult;
+    }
+    async adminVoidTransaction(id, managerPin, reason, staffUserId) {
+        if (!managerPin) {
+            throw new _common.BadRequestException('PIN Manajer wajib diisi.');
+        }
+        const userRepository = this.dataSource.getRepository(_userentity.User);
+        const manager = await userRepository.findOne({
+            where: {
+                pin: managerPin
+            },
+            relations: [
+                'role'
+            ]
+        });
+        if (!manager) {
+            throw new _common.BadRequestException('PIN Manajer tidak valid.');
+        }
+        const roleName = manager.role?.name?.toUpperCase() || '';
+        if (![
+            'MANAGER',
+            'SUPERVISOR',
+            'ADMIN',
+            'OWNER',
+            'SUPERADMIN'
+        ].includes(roleName)) {
+            throw new _common.BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+        }
+        const transaction = await this.transactionRepository.findOne({
+            where: {
+                id
+            },
+            relations: [
+                'table',
+                'orderItems'
+            ]
+        });
+        if (!transaction) throw new _common.NotFoundException('Transaksi tidak ditemukan.');
+        transaction.status = _transactionentity.TransactionStatus.CANCELLED;
+        transaction.remarks = `DIBATALKAN OLEH MANAJER: ${reason || 'Pembatalan Manual'}`;
+        if (!transaction.endTime) {
+            transaction.endTime = transaction.table?.endTime || transaction.updatedAt || new Date();
+        }
+        const prevTableId = transaction.tableId;
+        transaction.tableId = null;
+        if (transaction.orderItems) {
+            for (const item of transaction.orderItems){
+                item.status = _orderitementity.OrderItemStatus.CANCELLED;
+                await this.dataSource.getRepository(_orderitementity.OrderItem).save(item);
+            }
+        }
+        const saved = await this.transactionRepository.save(transaction);
+        await this.reportService.logAction('ADMIN_VOID_TRANSACTION', manager.username || manager.name || 'Manager', `Pembatalan Transaksi #${transaction.invoiceNumber} oleh Manajer. Alasan: ${reason}`, prevTableId ?? undefined, transaction.invoiceNumber);
+        return saved;
     }
     constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService, eventEmitter, voucherService){
         this.transactionRepository = transactionRepository;

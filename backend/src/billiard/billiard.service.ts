@@ -1816,7 +1816,12 @@ export class BilliardService implements OnModuleInit {
       for (const st of stuckTransactions) {
         if (st.id !== transaction?.id) {
           this.logger.log(`[CRITICAL FIX] Detaching ghost transaction (id: ${st.id}) from Table ${tableId}.`);
-          await this.transactionService.updateTransaction(st.id, { tableId: null as any });
+          const snapEnd = st.endTime || st.updatedAt || new Date();
+          await this.transactionService.updateTransaction(st.id, {
+            tableId: null as any,
+            endTime: snapEnd,
+            remarks: st.remarks ? `${st.remarks} (Detached from Table ${tableId})` : `Detached from Table ${tableId}`,
+          });
         }
       }
 
@@ -1824,9 +1829,12 @@ export class BilliardService implements OnModuleInit {
         this.logger.log(
           `[CRITICAL FIX] Table ${tableId} has an old UNPAID/PARTIAL transaction (id: ${transaction.id}). Detaching it to prevent shadowing the new session.`,
         );
+        const snapEnd = transaction.endTime || transaction.updatedAt || new Date();
         // DETACH the old transaction from the table so it doesn't shadow the new active one
         await this.transactionService.updateTransaction(transaction.id, {
           tableId: null as any,
+          endTime: snapEnd,
+          remarks: transaction.remarks ? `${transaction.remarks} (Detached from Table ${tableId})` : `Detached from Table ${tableId}`,
         });
         transaction = null as any;
       }
@@ -3849,11 +3857,15 @@ export class BilliardService implements OnModuleInit {
 
     // GRACE PERIOD VOUCHER LOGIC & TRANSACTION CANCELLATION
     let voucherVoidMessage = '';
-    let activeTxId = null;
+    const stuckTxs = await this.dataSource.getRepository(Transaction).find({
+      where: {
+        tableId: table.id,
+        status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+      },
+    });
+
     try {
-      const activeTx = await this.transactionService.getActiveTransactionByTable(table.id, false);
-      if (activeTx) {
-        activeTxId = activeTx.id;
+      for (const activeTx of stuckTxs) {
         if (table.startTime) {
           const now = new Date();
           const startTime = new Date(table.startTime);
@@ -3863,9 +3875,9 @@ export class BilliardService implements OnModuleInit {
           if (activeTx.voucherId) {
             if (minutesPlayed <= GRACE_PERIOD_MINUTES) {
               await this.voucherService.atomicDecrementUsage(activeTx.voucherId);
-              voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
+              voucherVoidMessage += ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
             } else {
-              voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
+              voucherVoidMessage += ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
             }
           }
         }
@@ -3943,17 +3955,18 @@ export class BilliardService implements OnModuleInit {
       );
     }
 
-    // Mark transaction as CANCELLED to remove it from UNPAID Business Day Logic
-    if (activeTxId) {
+    // Mark ALL stuck transactions on this table as CANCELLED to remove from UNPAID Business Day Logic
+    for (const stuckTx of stuckTxs) {
       try {
-        // Need to import TransactionStatus or update via string 'CANCELLED'
-        await this.transactionService.updateTransaction(activeTxId, {
-          status: 'CANCELLED' as any,
+        await this.transactionService.updateTransaction(stuckTx.id, {
+          status: TransactionStatus.CANCELLED,
           remarks: 'CANCEL ORDER (RESET MEJA)',
           tableId: null as any,
+          endTime: stuckTx.endTime || new Date(),
         });
+        this.logger.log(`[resetTable] Cancelled stuck transaction ${stuckTx.id} on table ${id}`);
       } catch (e) {
-        this.logger.error(`Failed to cancel transaction during resetTable for table ${id}: ${e.message}`);
+        this.logger.error(`Failed to cancel transaction ${stuckTx.id} during resetTable for table ${id}: ${e.message}`);
       }
     }
 

@@ -247,6 +247,35 @@ export class TransactionController {
     return this.transactionService.removeVoucher(id);
   }
 
+  @Post(':id/admin-settle')
+  async adminSettle(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { paymentMethod: string; managerPin: string; notes?: string },
+    @Request() req: any,
+  ) {
+    return this.transactionService.adminSettleTransaction(
+      id,
+      body.paymentMethod,
+      body.managerPin,
+      body.notes,
+      req.user?.id,
+    );
+  }
+
+  @Post(':id/admin-void')
+  async adminVoid(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { managerPin: string; reason: string },
+    @Request() req: any,
+  ) {
+    return this.transactionService.adminVoidTransaction(
+      id,
+      body.managerPin,
+      body.reason,
+      req.user?.id,
+    );
+  }
+
 }
 
 @Controller('public-transactions')

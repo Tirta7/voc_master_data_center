@@ -1603,16 +1603,22 @@ let BilliardService = class BilliardService {
             for (const st of stuckTransactions){
                 if (st.id !== transaction?.id) {
                     this.logger.log(`[CRITICAL FIX] Detaching ghost transaction (id: ${st.id}) from Table ${tableId}.`);
+                    const snapEnd = st.endTime || st.updatedAt || new Date();
                     await this.transactionService.updateTransaction(st.id, {
-                        tableId: null
+                        tableId: null,
+                        endTime: snapEnd,
+                        remarks: st.remarks ? `${st.remarks} (Detached from Table ${tableId})` : `Detached from Table ${tableId}`
                     });
                 }
             }
             if (transaction) {
                 this.logger.log(`[CRITICAL FIX] Table ${tableId} has an old UNPAID/PARTIAL transaction (id: ${transaction.id}). Detaching it to prevent shadowing the new session.`);
+                const snapEnd = transaction.endTime || transaction.updatedAt || new Date();
                 // DETACH the old transaction from the table so it doesn't shadow the new active one
                 await this.transactionService.updateTransaction(transaction.id, {
-                    tableId: null
+                    tableId: null,
+                    endTime: snapEnd,
+                    remarks: transaction.remarks ? `${transaction.remarks} (Detached from Table ${tableId})` : `Detached from Table ${tableId}`
                 });
                 transaction = null;
             }
@@ -3087,11 +3093,17 @@ let BilliardService = class BilliardService {
         if (!table) throw new _common.NotFoundException('Table not found');
         // GRACE PERIOD VOUCHER LOGIC & TRANSACTION CANCELLATION
         let voucherVoidMessage = '';
-        let activeTxId = null;
+        const stuckTxs = await this.dataSource.getRepository(_transactionentity.Transaction).find({
+            where: {
+                tableId: table.id,
+                status: (0, _typeorm1.In)([
+                    _transactionentity.TransactionStatus.UNPAID,
+                    _transactionentity.TransactionStatus.PARTIAL
+                ])
+            }
+        });
         try {
-            const activeTx = await this.transactionService.getActiveTransactionByTable(table.id, false);
-            if (activeTx) {
-                activeTxId = activeTx.id;
+            for (const activeTx of stuckTxs){
                 if (table.startTime) {
                     const now = new Date();
                     const startTime = new Date(table.startTime);
@@ -3100,9 +3112,9 @@ let BilliardService = class BilliardService {
                     if (activeTx.voucherId) {
                         if (minutesPlayed <= GRACE_PERIOD_MINUTES) {
                             await this.voucherService.atomicDecrementUsage(activeTx.voucherId);
-                            voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
+                            voucherVoidMessage += ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
                         } else {
-                            voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
+                            voucherVoidMessage += ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
                         }
                     }
                 }
@@ -3157,17 +3169,18 @@ let BilliardService = class BilliardService {
         if (userName) {
             await this.reportService.logAction('FORCE_RESET_TABLE', userName || 'Sistem', `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE. (Diotorisasi oleh: ${managerName})${voucherVoidMessage}`, id);
         }
-        // Mark transaction as CANCELLED to remove it from UNPAID Business Day Logic
-        if (activeTxId) {
+        // Mark ALL stuck transactions on this table as CANCELLED to remove from UNPAID Business Day Logic
+        for (const stuckTx of stuckTxs){
             try {
-                // Need to import TransactionStatus or update via string 'CANCELLED'
-                await this.transactionService.updateTransaction(activeTxId, {
-                    status: 'CANCELLED',
+                await this.transactionService.updateTransaction(stuckTx.id, {
+                    status: _transactionentity.TransactionStatus.CANCELLED,
                     remarks: 'CANCEL ORDER (RESET MEJA)',
-                    tableId: null
+                    tableId: null,
+                    endTime: stuckTx.endTime || new Date()
                 });
+                this.logger.log(`[resetTable] Cancelled stuck transaction ${stuckTx.id} on table ${id}`);
             } catch (e) {
-                this.logger.error(`Failed to cancel transaction during resetTable for table ${id}: ${e.message}`);
+                this.logger.error(`Failed to cancel transaction ${stuckTx.id} during resetTable for table ${id}: ${e.message}`);
             }
         }
         // 🛡️ CRITICAL UI FIX: Clear Redis cache to remove ghost transaction instantly from UI

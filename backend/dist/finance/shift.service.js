@@ -1959,10 +1959,11 @@ let ShiftService = class ShiftService {
             } else {
                 resolvedPaymentDetails = [];
             }
-            // Strip circular relations and back-references
+            // Strip circular relations and back-references, but preserve essential table display info
             const cleanTx = {
                 ...tx
             };
+            const tableName = tx.table?.tableName || tx.table?.name || tx.cafeTable?.tableName || null;
             delete cleanTx.table;
             delete cleanTx.cafeTable;
             if (cleanTx.orderItems) {
@@ -1973,6 +1974,10 @@ let ShiftService = class ShiftService {
             }
             return {
                 ...cleanTx,
+                tableName,
+                table: tableName ? {
+                    tableName
+                } : null,
                 paymentDetails: resolvedPaymentDetails
             };
         });

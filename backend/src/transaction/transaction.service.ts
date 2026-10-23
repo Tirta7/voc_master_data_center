@@ -24,6 +24,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from './entities/transaction.entity';
+import { User } from '../user/entities/user.entity';
 import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import axios from 'axios';
 import { TableStatus, Table, StationType } from '../billiard/entities/table.entity';
@@ -734,12 +735,16 @@ export class TransactionService {
     const calcStart = isSessionFinished
       ? transaction.startTime
       : (transaction.table?.startTime || transaction.startTime);
+    const isTableActive =
+      transaction.table &&
+      (transaction.table.status === TableStatus.IN_USE ||
+        transaction.table.status === TableStatus.WARNING);
+
     const calcEnd = isSessionFinished
-      ? transaction.endTime
-      : (transaction.table?.status &&
-        transaction.table.status !== TableStatus.AVAILABLE
-          ? new Date()
-          : transaction.endTime || new Date());
+      ? (transaction.endTime || transaction.updatedAt || new Date())
+      : isTableActive
+        ? new Date()
+        : (transaction.endTime || transaction.table?.endTime || transaction.updatedAt || transaction.createdAt || new Date());
 
     if (calcStart && calcEnd) {
       billiardMins = Math.round(
@@ -950,15 +955,26 @@ export class TransactionService {
       ? (transaction.startTime ? new Date(transaction.startTime) : null)
       : (table?.startTime || (transaction.startTime ? new Date(transaction.startTime) : null));
 
+    const isTableActive =
+      table &&
+      (table.status === TableStatus.IN_USE ||
+        table.status === TableStatus.WARNING);
+
     const endTime = isFinalized
-      ? (transaction.endTime ? new Date(transaction.endTime) : new Date())
-      : new Date(
-          table?.status &&
-            (table.status === TableStatus.IN_USE ||
-              table.status === TableStatus.WARNING)
-            ? table.endTime || new Date()
-            : transaction.endTime || new Date(),
-        );
+      ? (transaction.endTime ? new Date(transaction.endTime) : (transaction.updatedAt ? new Date(transaction.updatedAt) : new Date()))
+      : isTableActive
+        ? (table.endTime || new Date())
+        : (transaction.endTime
+          ? new Date(transaction.endTime)
+          : table?.endTime
+            ? new Date(table.endTime)
+            : transaction.updatedAt
+              ? new Date(transaction.updatedAt)
+              : (transaction.createdAt ? new Date(transaction.createdAt) : new Date()));
+
+    if (!isTableActive && !transaction.endTime) {
+      transaction.endTime = endTime;
+    }
     const sessionType = table?.sessionType || transaction.sessionType || 'open';
 
     // Essential: If no start time or invalid dates, we can't calculate anything
@@ -1972,15 +1988,16 @@ export class TransactionService {
       );
     } else if (
       txObj?.table?.startTime &&
-      txObj?.table?.status !== TableStatus.AVAILABLE
+      (txObj?.table?.status === TableStatus.IN_USE || txObj?.table?.status === TableStatus.WARNING)
     ) {
       billiardMins = Math.round(
         (new Date().getTime() - new Date(txObj.table.startTime).getTime()) /
           60000,
       );
-    } else if (txObj?.startTime && txObj?.endTime) {
+    } else if (txObj?.startTime && (txObj?.endTime || txObj?.table?.endTime || txObj?.updatedAt)) {
+      const snapEnd = txObj.endTime || txObj.table?.endTime || txObj.updatedAt;
       billiardMins = Math.round(
-        (new Date(txObj.endTime).getTime() -
+        (new Date(snapEnd).getTime() -
           new Date(txObj.startTime).getTime()) /
           60000,
       );
@@ -3241,5 +3258,129 @@ export class TransactionService {
     await this.transactionRepository.save(transaction);
     this.billiardGateway.server.emit('rating_submitted', { transactionId: id, waiterRating, kasirRating, ratingMessage: ratingMessage || '' });
     return { success: true, message: 'Rating submitted successfully' };
+  }
+
+  async adminSettleTransaction(
+    id: number,
+    paymentMethod: string,
+    managerPin: string,
+    notes?: string,
+    staffUserId?: number,
+  ): Promise<Transaction> {
+    if (!managerPin) {
+      throw new BadRequestException('PIN Manajer wajib diisi.');
+    }
+    const userRepository = this.dataSource.getRepository(User);
+    const manager = await userRepository.findOne({
+      where: { pin: managerPin },
+      relations: ['role'],
+    });
+    if (!manager) {
+      throw new BadRequestException('PIN Manajer tidak valid.');
+    }
+    const roleName = manager.role?.name?.toUpperCase() || '';
+    if (!['MANAGER', 'SUPERVISOR', 'ADMIN', 'OWNER', 'SUPERADMIN'].includes(roleName)) {
+      throw new BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+    }
+
+    const transaction = await this.transactionRepository.findOne({
+      where: { id },
+      relations: ['table', 'orderItems', 'payments'],
+    });
+    if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan.');
+
+    if (transaction.status === TransactionStatus.PAID) {
+      throw new BadRequestException('Transaksi sudah lunas.');
+    }
+
+    // Freeze endTime if not set
+    if (!transaction.endTime) {
+      transaction.endTime = transaction.table?.endTime || transaction.updatedAt || new Date();
+    }
+
+    // Ensure transient totals are calculated and frozen
+    await this.calculateTransientTotals(transaction);
+    await this.transactionRepository.save(transaction);
+    await this.updateTotals(transaction.id);
+
+    const freshTx = await this.getTransactionById(id);
+    const remainingBalance = Math.max(0, Number(freshTx.grandTotal || 0) - Number(freshTx.paidAmount || 0));
+
+    // Process payment with specified method (e.g. QRIS, CASH, etc.)
+    const paymentResult = await this.processPayment(
+      id,
+      {
+        amount: remainingBalance,
+        method: (paymentMethod || 'QRIS').toUpperCase(),
+        payer: freshTx.customerName || 'Customer',
+      },
+      staffUserId || manager.id,
+    );
+
+    await this.reportService.logAction(
+      'ADMIN_SETTLE_TRANSACTION',
+      manager.username || manager.name || 'Manager',
+      `Pelunasan Manual Transaksi #${freshTx.invoiceNumber} via ${paymentMethod.toUpperCase()} (Rp ${remainingBalance.toLocaleString()}). Catatan: ${notes || 'Pelunasan oleh Manager'}${transaction.tableId ? ` Meja ${transaction.tableId}` : ''}`,
+      transaction.tableId ?? undefined,
+      freshTx.invoiceNumber,
+    );
+
+    return paymentResult;
+  }
+
+  async adminVoidTransaction(
+    id: number,
+    managerPin: string,
+    reason: string,
+    staffUserId?: number,
+  ): Promise<Transaction> {
+    if (!managerPin) {
+      throw new BadRequestException('PIN Manajer wajib diisi.');
+    }
+    const userRepository = this.dataSource.getRepository(User);
+    const manager = await userRepository.findOne({
+      where: { pin: managerPin },
+      relations: ['role'],
+    });
+    if (!manager) {
+      throw new BadRequestException('PIN Manajer tidak valid.');
+    }
+    const roleName = manager.role?.name?.toUpperCase() || '';
+    if (!['MANAGER', 'SUPERVISOR', 'ADMIN', 'OWNER', 'SUPERADMIN'].includes(roleName)) {
+      throw new BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+    }
+
+    const transaction = await this.transactionRepository.findOne({
+      where: { id },
+      relations: ['table', 'orderItems'],
+    });
+    if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan.');
+
+    transaction.status = TransactionStatus.CANCELLED;
+    transaction.remarks = `DIBATALKAN OLEH MANAJER: ${reason || 'Pembatalan Manual'}`;
+    if (!transaction.endTime) {
+      transaction.endTime = transaction.table?.endTime || transaction.updatedAt || new Date();
+    }
+    const prevTableId = transaction.tableId;
+    transaction.tableId = null as any;
+
+    if (transaction.orderItems) {
+      for (const item of transaction.orderItems) {
+        item.status = OrderItemStatus.CANCELLED;
+        await this.dataSource.getRepository(OrderItem).save(item);
+      }
+    }
+
+    const saved = await this.transactionRepository.save(transaction);
+
+    await this.reportService.logAction(
+      'ADMIN_VOID_TRANSACTION',
+      manager.username || manager.name || 'Manager',
+      `Pembatalan Transaksi #${transaction.invoiceNumber} oleh Manajer. Alasan: ${reason}`,
+      prevTableId ?? undefined,
+      transaction.invoiceNumber,
+    );
+
+    return saved;
   }
 }

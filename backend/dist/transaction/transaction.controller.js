@@ -146,6 +146,12 @@ let TransactionController = class TransactionController {
     async removeVoucher(id) {
         return this.transactionService.removeVoucher(id);
     }
+    async adminSettle(id, body, req) {
+        return this.transactionService.adminSettleTransaction(id, body.paymentMethod, body.managerPin, body.notes, req.user?.id);
+    }
+    async adminVoid(id, body, req) {
+        return this.transactionService.adminVoidTransaction(id, body.managerPin, body.reason, req.user?.id);
+    }
     constructor(transactionService, invoiceService, hardwareService){
         this.transactionService = transactionService;
         this.invoiceService = invoiceService;
@@ -324,6 +330,32 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], TransactionController.prototype, "removeVoucher", null);
+_ts_decorate([
+    (0, _common.Post)(':id/admin-settle'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_param(2, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], TransactionController.prototype, "adminSettle", null);
+_ts_decorate([
+    (0, _common.Post)(':id/admin-void'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_param(2, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], TransactionController.prototype, "adminVoid", null);
 TransactionController = _ts_decorate([
     (0, _common.Controller)('transactions'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
