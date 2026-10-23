@@ -100,9 +100,17 @@ export class TransactionController {
     if (type === 'cafe') {
       transaction =
         await this.transactionService.getActiveTransactionByCafeTable(tableId);
+      if (!transaction) {
+        transaction =
+          await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'cafe');
+      }
     } else if (type === 'billiard') {
       transaction =
         await this.transactionService.getActiveTransactionByTable(tableId);
+      if (!transaction) {
+        transaction =
+          await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'billiard');
+      }
     } else {
       // Original fallback logic for backward compatibility
       transaction =
@@ -112,6 +120,11 @@ export class TransactionController {
           await this.transactionService.getActiveTransactionByCafeTable(
             tableId,
           );
+      }
+      if (!transaction) {
+        transaction =
+          (await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'billiard')) ||
+          (await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'cafe'));
       }
     }
 

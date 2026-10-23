@@ -142,6 +142,35 @@ let TransactionService = class TransactionService {
         await this.redisService.set(cacheKey, cleanResult, 60);
         return result;
     }
+    async getRecentUnpaidTransactionByTable(tableId, type = 'billiard') {
+        const whereField = type === 'cafe' ? 'cafeTableId' : 'tableId';
+        const tx = await this.transactionRepository.findOne({
+            where: {
+                [whereField]: tableId,
+                status: (0, _typeorm1.In)([
+                    _transactionentity.TransactionStatus.UNPAID,
+                    _transactionentity.TransactionStatus.PARTIAL
+                ])
+            },
+            relations: [
+                'orderItems',
+                'orderItems.menuItem',
+                'orderItems.menuItem.category',
+                'table',
+                'cafeTable',
+                'payments',
+                'openedBy',
+                'commissionUser',
+                'createdBy',
+                'member',
+                'member.tier'
+            ],
+            order: {
+                id: 'DESC'
+            }
+        });
+        return tx;
+    }
     async getActiveTransactionsByTableIds(tableIds, options = {
         loadDeepRelations: true
     }) {
@@ -976,10 +1005,45 @@ let TransactionService = class TransactionService {
         };
     }
     async moveTable(fromTableId, toTableId) {
-        const transaction = await this.getActiveTransactionByTable(fromTableId);
+        // 1. Detach stale transactions on target table to avoid collision
+        const stuck = await this.transactionRepository.find({
+            where: {
+                tableId: toTableId,
+                status: (0, _typeorm1.In)([
+                    _transactionentity.TransactionStatus.UNPAID,
+                    _transactionentity.TransactionStatus.PARTIAL
+                ])
+            }
+        });
+        for (const st of stuck){
+            await this.transactionRepository.update(st.id, {
+                tableId: null,
+                endTime: st.endTime || new Date(),
+                remarks: st.remarks ? `${st.remarks} (Detached during moveTable)` : 'Detached during moveTable'
+            });
+        }
+        let transaction = await this.getActiveTransactionByTable(fromTableId, true);
+        if (!transaction) {
+            transaction = await this.transactionRepository.findOne({
+                where: {
+                    tableId: fromTableId,
+                    status: (0, _typeorm1.In)([
+                        _transactionentity.TransactionStatus.UNPAID,
+                        _transactionentity.TransactionStatus.PARTIAL
+                    ])
+                },
+                order: {
+                    id: 'DESC'
+                }
+            });
+        }
         if (!transaction) throw new _common.NotFoundException('No active transaction on source table');
         transaction.tableId = toTableId;
         await this.transactionRepository.save(transaction);
+        await this.redisService.del(`bill_preview_${fromTableId}`).catch(()=>{});
+        await this.redisService.del(`bill_preview_${fromTableId}_light`).catch(()=>{});
+        await this.redisService.del(`bill_preview_${toTableId}`).catch(()=>{});
+        await this.redisService.del(`bill_preview_${toTableId}_light`).catch(()=>{});
     }
     async mergeTransactions(sourceTableId, targetTableId, type = 'billiard') {
         const tableIdField = type === 'cafe' ? 'cafeTableId' : 'tableId';
@@ -2099,6 +2163,8 @@ let TransactionService = class TransactionService {
                                 lastSessionData: null
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
+                            await this.redisService.del(`bill_preview_${table.id}`).catch(()=>{});
+                            await this.redisService.del(`bill_preview_${table.id}_light`).catch(()=>{});
                             this.billiardGateway.broadcastTableUpdate(savedTable);
                             if (savedTable.stationType === _tableentity.StationType.PLAYSTATION && savedTable.ipAddress) {
                                 _axios.default.get(`http://${savedTable.ipAddress}:1717/sleep`, {
@@ -2122,6 +2188,8 @@ let TransactionService = class TransactionService {
                                 lastSessionData: null
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
+                            await this.redisService.del(`bill_preview_${table.id}`).catch(()=>{});
+                            await this.redisService.del(`bill_preview_${table.id}_light`).catch(()=>{});
                             this.billiardGateway.broadcastTableUpdate(savedTable);
                             if (savedTable.stationType === _tableentity.StationType.PLAYSTATION && savedTable.ipAddress) {
                                 _axios.default.get(`http://${savedTable.ipAddress}:1717/sleep`, {
@@ -2149,6 +2217,7 @@ let TransactionService = class TransactionService {
                             currentCustomer: null
                         });
                         await queryRunner.manager.save(_cafetableentity.CafeTable, ct);
+                        await this.redisService.del(`cafe_bill_preview_${ct.id}`).catch(()=>{});
                         this.billiardGateway.broadcastTableUpdate({
                             ...ct,
                             type: 'cafe',

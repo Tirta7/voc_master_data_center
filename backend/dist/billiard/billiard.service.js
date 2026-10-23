@@ -2124,10 +2124,35 @@ let BilliardService = class BilliardService {
             let finalTrans = null;
             if (table.status !== _tableentity.TableStatus.AVAILABLE) {
                 finalTrans = await this.transactionService.getActiveTransactionByTable(tableId, true);
+                if (!finalTrans) {
+                    // Fallback: search Transaction repository directly in case table status was already modified
+                    finalTrans = await this.dataSource.getRepository(_transactionentity.Transaction).findOne({
+                        where: {
+                            tableId: tableId,
+                            status: (0, _typeorm1.In)([
+                                _transactionentity.TransactionStatus.UNPAID,
+                                _transactionentity.TransactionStatus.PARTIAL
+                            ])
+                        },
+                        relations: [
+                            'orderItems',
+                            'table',
+                            'payments',
+                            'member'
+                        ],
+                        order: {
+                            id: 'DESC'
+                        }
+                    });
+                }
                 if (finalTrans) {
-                    // Use a 1-IDR tolerance for floating point / rounding issues
-                    const unpaidAmount = Number(finalTrans.grandTotal || 0) - Number(finalTrans.paidAmount || 0);
-                    if (unpaidAmount <= 1 || finalTrans.status === _transactionentity.TransactionStatus.PAID) {
+                    const paidAmount = Number(finalTrans.paidAmount || 0);
+                    const grandTotal = Number(finalTrans.grandTotal || 0);
+                    const unpaidAmount = grandTotal - paidAmount;
+                    // 🛡️ CRITICAL FIX: Only treat as fully paid if explicitly marked PAID
+                    // OR if money was actually paid (paidAmount > 0) and remaining is <= 1.
+                    // Never treat an unpaid session with grandTotal=0 and paidAmount=0 as fully paid!
+                    if (finalTrans.status === _transactionentity.TransactionStatus.PAID || paidAmount > 0 && unpaidAmount <= 1) {
                         isFullyPaid = true;
                     }
                 }
@@ -2740,6 +2765,17 @@ let BilliardService = class BilliardService {
             table.status = _tableentity.TableStatus.IN_USE; // Always IN_USE for open sessions
         }
         const savedTable = await this.tableRepository.save(table);
+        // Sync sessionType to active transaction
+        try {
+            const activeTx = await this.transactionService.getActiveTransactionByTable(tableId, true);
+            if (activeTx) {
+                await this.transactionService.updateTransaction(activeTx.id, {
+                    sessionType: type
+                });
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to sync sessionType to transaction on switchSession: ${e.message}`);
+        }
         await this.attachTransactionData(savedTable);
         // Update IoT
         const topicMac = this.getEffectiveMqttMac(table);
@@ -2990,15 +3026,26 @@ let BilliardService = class BilliardService {
             if (!fromTable || !toTable) throw new _common.NotFoundException('Source or target table not found');
             if (fromTable.status === _tableentity.TableStatus.AVAILABLE) throw new Error('Source table has no active session');
             if (toTable.status !== _tableentity.TableStatus.AVAILABLE) throw new Error('Target table is not available');
-            // 1. Move Transaction
-            const transaction = await this.transactionService.getActiveTransactionByTable(fromTableId, true);
-            if (transaction) {
-                transaction.tableId = toTableId;
-                await this.transactionService.updateTransaction(transaction.id, {
-                    tableId: toTableId
+            // 1. Detach ANY stale UNPAID/PARTIAL transactions on toTableId to prevent collision/shadowing
+            const stuckTransactions = await this.dataSource.getRepository(_transactionentity.Transaction).find({
+                where: {
+                    tableId: toTableId,
+                    status: (0, _typeorm1.In)([
+                        _transactionentity.TransactionStatus.UNPAID,
+                        _transactionentity.TransactionStatus.PARTIAL
+                    ])
+                }
+            });
+            for (const st of stuckTransactions){
+                this.logger.log(`[moveTable] Detaching stale transaction (id: ${st.id}) from Target Table ${toTableId}`);
+                const snapEnd = st.endTime || st.updatedAt || new Date();
+                await this.transactionService.updateTransaction(st.id, {
+                    tableId: null,
+                    endTime: snapEnd,
+                    remarks: st.remarks ? `${st.remarks} (Detached during moveTable to Table ${toTableId})` : `Detached during moveTable to Table ${toTableId}`
                 });
             }
-            // 2. Transfer Session Data
+            // 2. Transfer Session Data to toTable FIRST so DB reflects IN_USE before updateTotals
             toTable.status = fromTable.status;
             toTable.sessionType = fromTable.sessionType;
             toTable.startTime = fromTable.startTime;
@@ -3008,6 +3055,7 @@ let BilliardService = class BilliardService {
             toTable.memberId = fromTable.memberId;
             toTable.packageId = fromTable.packageId;
             toTable.activePackagePrice = fromTable.activePackagePrice;
+            toTable.grandTotal = fromTable.grandTotal; // 🛡️ CRITICAL: Transfer grand total
             toTable.lastSessionData = fromTable.lastSessionData; // <--- SINKRONISASI VOUCHER
             // 3. Reset Source Table
             fromTable.status = _tableentity.TableStatus.AVAILABLE;
@@ -3019,12 +3067,39 @@ let BilliardService = class BilliardService {
             fromTable.memberId = null;
             fromTable.packageId = null;
             fromTable.activePackagePrice = null;
+            fromTable.grandTotal = 0; // 🛡️ CRITICAL: Reset source grand total
             fromTable.lastSessionData = null; // <--- PEMBERSIHAN
             const savedFrom = await this.tableRepository.save(fromTable);
             const savedTo = await this.tableRepository.save(toTable);
-            // Invalidate caches for both tables
+            // 4. Move Transaction to toTableId AFTER toTable is saved as IN_USE
+            let transaction = await this.transactionService.getActiveTransactionByTable(fromTableId, true);
+            if (!transaction) {
+                // Fallback: search Transaction repository directly
+                transaction = await this.dataSource.getRepository(_transactionentity.Transaction).findOne({
+                    where: {
+                        tableId: fromTableId,
+                        status: (0, _typeorm1.In)([
+                            _transactionentity.TransactionStatus.UNPAID,
+                            _transactionentity.TransactionStatus.PARTIAL
+                        ])
+                    },
+                    order: {
+                        id: 'DESC'
+                    }
+                });
+            }
+            if (transaction) {
+                transaction.tableId = toTableId;
+                await this.transactionService.updateTransaction(transaction.id, {
+                    tableId: toTableId,
+                    updatedAt: new Date()
+                });
+            }
+            // Invalidate caches for both tables (both regular and _light)
             await this.redisService.del(`bill_preview_${fromTableId}`).catch(()=>{});
+            await this.redisService.del(`bill_preview_${fromTableId}_light`).catch(()=>{});
             await this.redisService.del(`bill_preview_${toTableId}`).catch(()=>{});
+            await this.redisService.del(`bill_preview_${toTableId}_light`).catch(()=>{});
             // 4. IoT Coordination
             // Turn OFF source table - force:true bypasses ESP32 30s race condition protection
             if (fromTable.macAddress) {

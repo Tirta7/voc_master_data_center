@@ -209,6 +209,34 @@ export class TransactionService {
     return result;
   }
 
+  async getRecentUnpaidTransactionByTable(
+    tableId: number,
+    type: 'billiard' | 'cafe' = 'billiard',
+  ): Promise<Transaction | null> {
+    const whereField = type === 'cafe' ? 'cafeTableId' : 'tableId';
+    const tx = await this.transactionRepository.findOne({
+      where: {
+        [whereField]: tableId,
+        status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+      },
+      relations: [
+        'orderItems',
+        'orderItems.menuItem',
+        'orderItems.menuItem.category',
+        'table',
+        'cafeTable',
+        'payments',
+        'openedBy',
+        'commissionUser',
+        'createdBy',
+        'member',
+        'member.tier',
+      ],
+      order: { id: 'DESC' },
+    });
+    return tx;
+  }
+
   async getActiveTransactionsByTableIds(
     tableIds: number[],
     options: { loadDeepRelations?: boolean } = { loadDeepRelations: true },
@@ -1379,12 +1407,40 @@ export class TransactionService {
   }
 
   async moveTable(fromTableId: number, toTableId: number): Promise<void> {
-    const transaction = await this.getActiveTransactionByTable(fromTableId);
+    // 1. Detach stale transactions on target table to avoid collision
+    const stuck = await this.transactionRepository.find({
+      where: {
+        tableId: toTableId,
+        status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+      },
+    });
+    for (const st of stuck) {
+      await this.transactionRepository.update(st.id, {
+        tableId: null as any,
+        endTime: st.endTime || new Date(),
+        remarks: st.remarks ? `${st.remarks} (Detached during moveTable)` : 'Detached during moveTable',
+      });
+    }
+
+    let transaction = await this.getActiveTransactionByTable(fromTableId, true);
+    if (!transaction) {
+      transaction = await this.transactionRepository.findOne({
+        where: {
+          tableId: fromTableId,
+          status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+        },
+        order: { id: 'DESC' },
+      });
+    }
     if (!transaction)
       throw new NotFoundException('No active transaction on source table');
 
     transaction.tableId = toTableId;
     await this.transactionRepository.save(transaction);
+    await this.redisService.del(`bill_preview_${fromTableId}`).catch(() => {});
+    await this.redisService.del(`bill_preview_${fromTableId}_light`).catch(() => {});
+    await this.redisService.del(`bill_preview_${toTableId}`).catch(() => {});
+    await this.redisService.del(`bill_preview_${toTableId}_light`).catch(() => {});
   }
 
   async mergeTransactions(
@@ -2777,6 +2833,8 @@ export class TransactionService {
                 lastSessionData: null,
               });
               const savedTable = await queryRunner.manager.save(Table, table);
+              await this.redisService.del(`bill_preview_${table.id}`).catch(() => {});
+              await this.redisService.del(`bill_preview_${table.id}_light`).catch(() => {});
               this.billiardGateway.broadcastTableUpdate(savedTable);
 
               if (savedTable.stationType === StationType.PLAYSTATION && savedTable.ipAddress) {
@@ -2800,6 +2858,8 @@ export class TransactionService {
                 lastSessionData: null,
               });
               const savedTable = await queryRunner.manager.save(Table, table);
+              await this.redisService.del(`bill_preview_${table.id}`).catch(() => {});
+              await this.redisService.del(`bill_preview_${table.id}_light`).catch(() => {});
               this.billiardGateway.broadcastTableUpdate(savedTable);
 
               if (savedTable.stationType === StationType.PLAYSTATION && savedTable.ipAddress) {
@@ -2825,6 +2885,7 @@ export class TransactionService {
               currentCustomer: null,
             });
             await queryRunner.manager.save(CafeTable, ct);
+            await this.redisService.del(`cafe_bill_preview_${ct.id}`).catch(() => {});
             this.billiardGateway.broadcastTableUpdate({
               ...ct,
               type: 'cafe',

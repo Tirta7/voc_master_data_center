@@ -75,13 +75,22 @@ let TransactionController = class TransactionController {
         let transaction;
         if (type === 'cafe') {
             transaction = await this.transactionService.getActiveTransactionByCafeTable(tableId);
+            if (!transaction) {
+                transaction = await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'cafe');
+            }
         } else if (type === 'billiard') {
             transaction = await this.transactionService.getActiveTransactionByTable(tableId);
+            if (!transaction) {
+                transaction = await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'billiard');
+            }
         } else {
             // Original fallback logic for backward compatibility
             transaction = await this.transactionService.getActiveTransactionByTable(tableId);
             if (!transaction) {
                 transaction = await this.transactionService.getActiveTransactionByCafeTable(tableId);
+            }
+            if (!transaction) {
+                transaction = await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'billiard') || await this.transactionService.getRecentUnpaidTransactionByTable(tableId, 'cafe');
             }
         }
         if (!transaction) throw new _common.NotFoundException('No active transaction found for this table');

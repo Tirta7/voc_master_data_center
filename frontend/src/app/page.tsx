@@ -369,8 +369,11 @@ export default function Dashboard() {
     }
   }, [showConfirm, user?.id, optimisticUpdateTable, showAlert, refetchBilliard]);
 
-  const handleBilling = React.useCallback((id: number) => {
-    router.push(`/billing?tableId=${id}&type=billiard`);
+  const handleBilling = React.useCallback((id: number, txId?: number) => {
+    const query = txId
+      ? `?tableId=${id}&type=billiard&transactionId=${txId}`
+      : `?tableId=${id}&type=billiard`;
+    router.push(`/billing${query}`);
   }, [router]);
 
   const handleForceReset = React.useCallback(async (id: number) => {

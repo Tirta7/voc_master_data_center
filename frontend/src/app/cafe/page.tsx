@@ -475,6 +475,7 @@ export default function CafeDashboardPage() {
         }
 
         let url = `/billing?tableId=${id}&type=cafe`;
+        if (targetTable?.activeTransaction?.id) url += `&transactionId=${targetTable.activeTransaction.id}`;
         if (selectedIds.length > 0) url += `&selectedItems=${selectedIds.join(',')}`;
         router.push(url);
     };

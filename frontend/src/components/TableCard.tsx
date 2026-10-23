@@ -305,7 +305,7 @@ interface TableProps {
     onToggleLight: (id: number, isOn: boolean) => void;
     onStartSession: (id: number) => void;
     onStopSession: (id: number) => void;
-    onBilling: (id: number) => void;
+    onBilling: (id: number, txId?: number) => void;
     onExtend: (id: number) => void;
     onMove?: (id: number) => void;
     onOrder: (id: number) => void;
@@ -919,7 +919,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                             if (unpaid <= 1 && (table.activeTransaction?.paidAmount ?? 0) > 0) {
                                                 return (
                                                     <button
-                                                        onClick={() => onBilling(table.id)}
+                                                        onClick={() => onBilling(table.id, table.activeTransaction?.id)}
                                                         className="col-span-2 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold text-[10px] sm:text-[12px] active:scale-[0.97] transition-all flex items-center justify-center gap-1.5 animate-pulse"
                                                     >
                                                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -930,7 +930,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
 
                                             return (
                                                 <button
-                                                    onClick={() => onBilling(table.id)}
+                                                    onClick={() => onBilling(table.id, table.activeTransaction?.id)}
                                                     className="col-span-2 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-xl font-bold text-[10px] sm:text-[12px] active:scale-[0.97] transition-all flex items-center justify-center gap-1.5"
                                                 >
                                                     <CreditCard className="w-3.5 h-3.5" />
