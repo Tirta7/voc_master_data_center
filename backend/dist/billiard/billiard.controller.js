@@ -358,7 +358,7 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Delete)('packages/:id'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
-    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number
@@ -368,7 +368,7 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Patch)('packages/:id'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
-    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [

@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
@@ -714,6 +716,13 @@ export default function AdminDashboard() {
     const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
     const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
     const [selectedAuditStaff, setSelectedAuditStaff] = useState<any | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useBodyScrollLock(Boolean(mounted && (showProfitModal || showPayrollDetail || selectedAuditStaff)));
 
     // Filter states
     const [startDate, setStartDate] = useState(() => {
@@ -3058,11 +3067,10 @@ export default function AdminDashboard() {
                     const grossProfit = totalRevenue - cogsCost;
                     const grossMarginPct = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : '0';
                     const payrollCashOut = finance?.payrollOut || 0;
-
-                    return (
+                    const modalContent = (
                         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xs" onClick={() => setShowProfitModal(false)} />
-                            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                            <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity" onClick={() => setShowProfitModal(false)} />
+                            <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 z-10">
                                 <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white">
                                     <div className="flex items-center gap-3.5">
                                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
@@ -3227,13 +3235,15 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     );
+
+                    return mounted && typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
                 })()}
 
                 {/* Payroll Detail Modal */}
-                {showPayrollDetail && selectedPayrollDetail && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowPayrollDetail(false)} />
-                        <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
+                {showPayrollDetail && selectedPayrollDetail && mounted && typeof document !== 'undefined' && createPortal(
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity" onClick={() => setShowPayrollDetail(false)} />
+                        <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 z-10">
                             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
                                 <div>
                                     <h3 className="text-2xl font-black text-slate-900 tracking-tight">Detail Penggajian</h3>
@@ -3314,14 +3324,15 @@ export default function AdminDashboard() {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
 
                 {/* Staff Sales Detail Drill-down Modal */}
-                {selectedAuditStaff && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/40 " onClick={() => setSelectedAuditStaff(null)} />
-                        <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300">
+                {selectedAuditStaff && mounted && typeof document !== 'undefined' && createPortal(
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity" onClick={() => setSelectedAuditStaff(null)} />
+                        <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300 z-10">
                             <div className="p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
                                 <div className="flex justify-between items-start">
                                     <div>
@@ -3393,7 +3404,8 @@ export default function AdminDashboard() {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </div>
         </div>
