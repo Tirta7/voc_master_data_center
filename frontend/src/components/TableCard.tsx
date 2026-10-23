@@ -276,6 +276,7 @@ interface TableProps {
         isBooked?: boolean;
         bookedByName?: string;
         activeTransaction?: {
+            id?: number;
             customerName?: string;
             fareName?: string;
             billiardTotal?: number;
