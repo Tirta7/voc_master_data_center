@@ -3725,6 +3725,33 @@ export default function BusinessSettings() {
                                                                     <Tv className="w-4 h-4" /> Buka Layar TV Iklan
                                                                 </button>
                                                             </div>
+
+                                                            {/* LEGACY STB / ANDROID TV LAMA LINK */}
+                                                            <div className="pt-3 border-t border-slate-200/80">
+                                                                <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-3">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-2 text-emerald-800 font-black text-xs uppercase tracking-wider">
+                                                                            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                                                            Link Khusus STB TV / Chrome 69 Lama (Anti Macet)
+                                                                        </div>
+                                                                        <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[8px] font-black uppercase">Ultra Ringan</span>
+                                                                    </div>
+                                                                    <p className="text-[11px] text-emerald-950 font-medium">
+                                                                        Gunakan link ini jika STB TV Anda memakai Chrome versi lama (Chrome 69 ke bawah) yang tidak bisa di-update. Langsung jalan lancar tanpa perlu install aplikasi apapun!
+                                                                    </p>
+                                                                    <div 
+                                                                        onClick={() => {
+                                                                            const url = `${window.location.protocol}//${window.location.host}/videotron.html`;
+                                                                            navigator.clipboard.writeText(url);
+                                                                            alert('Link STB Lama (/videotron.html) berhasil disalin!');
+                                                                        }}
+                                                                        className="bg-white border-2 border-emerald-200 hover:border-emerald-400 rounded-xl p-3 font-mono text-xs break-all cursor-pointer transition-all text-emerald-700 font-bold flex items-center justify-between shadow-sm"
+                                                                    >
+                                                                        <span>{typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/videotron.html` : 'Loading...'}</span>
+                                                                        <span className="px-2.5 py-1 bg-emerald-700 text-white text-[8px] font-black uppercase rounded">Copy Link STB</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <div className="space-y-4">
