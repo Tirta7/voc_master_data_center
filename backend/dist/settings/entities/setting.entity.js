@@ -358,6 +358,12 @@ _ts_decorate([
 ], Setting.prototype, "displayPromotions", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "displayHideInteractive", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         nullable: true
     }),
     _ts_metadata("design:type", String)

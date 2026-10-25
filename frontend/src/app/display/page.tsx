@@ -86,20 +86,69 @@ function SmartDisplayContent() {
  const { billiardTables, cafeTables } = useRealtimeData();
  const searchParams = useSearchParams();
  const urlTerminalId = searchParams.get('terminalId');
+ const urlMode = searchParams.get('mode');
  const [terminalId, setTerminalId] = useState<string | null>(null);
+ const [displayMode, setDisplayMode] = useState<'videotron' | 'kiosk'>('videotron');
+ const [settings, setSettings] = useState<any>(null);
 
  // Persistence Logic
  useEffect(() => {
  if (urlTerminalId) {
  localStorage.setItem('display_terminal_id', urlTerminalId);
  setTerminalId(urlTerminalId);
- // Clean up URL without reload (optional, but cleaner)
- window.history.replaceState({}, '', window.location.pathname);
  } else {
  const saved = localStorage.getItem('display_terminal_id');
  if (saved) setTerminalId(saved);
  }
- }, [urlTerminalId]);
+
+ if (urlMode === 'videotron' || urlMode === 'ads' || urlMode === 'iklan') {
+ localStorage.setItem('display_mode', 'videotron');
+ setDisplayMode('videotron');
+ } else if (urlMode === 'kiosk') {
+ localStorage.setItem('display_mode', 'kiosk');
+ setDisplayMode('kiosk');
+ } else {
+ const savedMode = localStorage.getItem('display_mode');
+ if (savedMode === 'kiosk') {
+ setDisplayMode('kiosk');
+ } else if (savedMode === 'videotron') {
+ setDisplayMode('videotron');
+ } else if (urlTerminalId && (urlTerminalId.toLowerCase().includes('iklan') || urlTerminalId.toLowerCase().includes('videotron') || urlTerminalId.toLowerCase().includes('tv'))) {
+ setDisplayMode('videotron');
+ } else if (settings?.displayHideInteractive) {
+ setDisplayMode('videotron');
+ } else {
+ // Default to videotron mode for pure ad/signage presentation
+ setDisplayMode('videotron');
+ }
+ }
+
+ const handleKeyDown = (e: KeyboardEvent) => {
+ if (e.key === 'v' || e.key === 'V') {
+ setDisplayMode(prev => {
+ const next = prev === 'videotron' ? 'kiosk' : 'videotron';
+ localStorage.setItem('display_mode', next);
+ return next;
+ });
+ }
+ if (e.key === 'f' || e.key === 'F') {
+ if (!document.fullscreenElement) {
+ document.documentElement.requestFullscreen().catch(() => {});
+ } else {
+ document.exitFullscreen().catch(() => {});
+ }
+ }
+ };
+ window.addEventListener('keydown', handleKeyDown);
+
+ if (urlTerminalId || urlMode) {
+ window.history.replaceState({}, '', window.location.pathname);
+ }
+
+ return () => {
+ window.removeEventListener('keydown', handleKeyDown);
+ };
+ }, [urlTerminalId, urlMode, settings?.displayHideInteractive]);
 
  const [focusedTableInfo, setFocusedTableInfo] = useState<{ tableId: number, type: string } | null>(null);
  const [table, setTable] = useState<any>(null);
@@ -137,7 +186,6 @@ function SmartDisplayContent() {
  const [isSubmittingWaiting, setIsSubmittingWaiting] = useState(false);
  const [regSuccess, setRegSuccess] = useState(false);
  const { waitingList } = useRealtimeData();
- const [settings, setSettings] = useState<any>(null);
 
  // ─── Camera Scanner ────────────────────────────────────────────────────────
  // QR tokens live only ~3s, so we submit IMMEDIATELY on decode (no manual tap).
@@ -1926,25 +1974,208 @@ function SmartDisplayContent() {
  </div>
  )}
 
- {emptyView === 'PROMO' && (
- <motion.div
- initial={{ opacity: 0 }}
- animate={{ opacity: 1 }}
- exit={{ opacity: 0 }}
- className="relative z-10 w-full h-full flex flex-col p-10 sm:p-20"
+ {/* ==================== 1. MODE VIDEOTRON / IKLAN LAYAR PENUH (100% FULL BLEED) ==================== */}
+ {emptyView === 'PROMO' && displayMode === 'videotron' && (
+ <div 
+ onDoubleClick={() => {
+ if (!document.fullscreenElement) {
+ document.documentElement.requestFullscreen().catch(() => {});
+ } else {
+ document.exitFullscreen().catch(() => {});
+ }
+ }}
+ className="fixed inset-0 w-screen h-screen overflow-hidden select-none bg-black z-30"
  >
- {/* TOP-RIGHT: BRANDING */}
- <div className="absolute top-10 right-10 sm:top-16 sm:right-16 flex items-center gap-4 flex-row-reverse">
- <div className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-500 rounded-full flex items-center justify-center p-1.5 shadow-2xl">
+ {/* 100% FULLSCREEN VISUAL BACKGROUND (WITH AMBIENT BACKDROP) */}
+ <div className="absolute inset-0 w-full h-full overflow-hidden">
+ <AnimatePresence mode="wait">
+ <motion.div
+ key={`videotron-bg-${promoIndex}`}
+ initial={{ opacity: 0, scale: 1.05 }}
+ animate={{ opacity: 1, scale: 1 }}
+ exit={{ opacity: 0, scale: 0.98 }}
+ transition={{ duration: 1.2, ease: [0.25, 1, 0.5, 1] }}
+ className="absolute inset-0 w-full h-full"
+ >
+ {currentPromo?.image ? (
+ <>
+ {/* Blurred ambient backdrop */}
+ <img
+ src={getFullImageUrl(currentPromo.image)}
+ alt=""
+ className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-50 scale-125 pointer-events-none"
+ />
+ {/* Main 100% full screen visual */}
+ <img
+ src={getFullImageUrl(currentPromo.image)}
+ alt={currentPromo.title}
+ className="relative z-10 w-full h-full object-cover sm:object-contain md:object-cover transition-transform duration-[20s] ease-linear hover:scale-105"
+ onError={(e) => {
+ (e.target as any).src = 'https://images.unsplash.com/photo-1544178178-50348c32d847?auto=format&fit=crop&q=80&w=1920';
+ }}
+ />
+ </>
+ ) : (
+ <div className="w-full h-full bg-gradient-to-br from-indigo-950 via-slate-900 to-black flex flex-col items-center justify-center p-8 text-center">
+ <Zap className="w-32 h-32 text-indigo-400 mb-6 animate-pulse opacity-40" />
+ <h2 className="text-4xl sm:text-6xl font-black text-white uppercase tracking-wider">{currentPromo?.title || settings?.businessName || 'COSMO POOL'}</h2>
+ <p className="text-xl text-slate-300 max-w-lg mt-3">{currentPromo?.desc || 'Tempat nongkrong & bermain billiard terbaik'}</p>
+ </div>
+ )}
+ </motion.div>
+ </AnimatePresence>
+ </div>
+
+ {/* CINEMATIC VIGNETTE OVERLAYS */}
+ <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/30 to-transparent pointer-events-none z-10"></div>
+ <div className="absolute bottom-0 inset-x-0 h-80 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10"></div>
+
+ {/* TOP BAR: LIVE BADGE & BRANDING */}
+ <div className="absolute top-6 left-6 right-6 sm:top-10 sm:left-12 sm:right-12 flex items-center justify-between z-20 pointer-events-none">
+ <div className="flex items-center gap-3">
+ <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+ <div className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white font-black text-xs uppercase tracking-[0.25em] flex items-center gap-2 shadow-2xl">
+ <Sparkles className="w-4 h-4 text-amber-400" />
+ <span>{currentPromo?.tag || 'OFFICIAL PROMOTION'}</span>
+ </div>
+ </div>
+
+ <div className="flex items-center gap-3.5">
+ <div className="text-right">
+ <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tight drop-shadow-lg leading-none">
+ {settings?.businessName || "COSMO POOL"}
+ </h2>
+ <span className="text-[9px] font-black text-indigo-300 tracking-[0.3em] uppercase">DIGITAL BILLBOARD</span>
+ </div>
+ <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center p-2.5 shadow-2xl border border-white/20">
  {settings?.logoPath ? (
  <img src={getFullImageUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain filter brightness-0 invert" />
  ) : (
  <Zap className="w-full h-full text-white fill-white" />
  )}
  </div>
- <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tight text-right">
- {settings?.businessName || "PAKTEKA 88"}
+ </div>
+ </div>
+
+ {/* BOTTOM LOWER-THIRD: PROMO HEADLINE & DESC */}
+ <div className="absolute bottom-8 left-6 sm:bottom-12 sm:left-12 max-w-4xl z-20 text-left pointer-events-none">
+ <AnimatePresence mode="wait">
+ {currentPromo && (
+ <motion.div
+ key={`caption-${promoIndex}`}
+ initial={{ opacity: 0, y: 20 }}
+ animate={{ opacity: 1, y: 0 }}
+ exit={{ opacity: 0, y: -20 }}
+ transition={{ duration: 0.6 }}
+ className="space-y-2"
+ >
+ <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white uppercase tracking-tight leading-none drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
+ {currentPromo.title}
+ </h1>
+ {currentPromo.desc && (
+ <p className="text-base sm:text-xl md:text-2xl text-slate-200 font-bold tracking-wide drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] max-w-3xl">
+ {currentPromo.desc}
+ </p>
+ )}
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+
+ {/* BOTTOM-RIGHT: DIGITAL CLOCK */}
+ <div className="absolute bottom-8 right-6 sm:bottom-12 sm:right-12 z-20 flex items-baseline gap-3 text-right pointer-events-none">
+ <span className="text-2xl sm:text-4xl font-black text-white font-mono tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+ {new Date(currentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+ </span>
+ <span className="text-xs sm:text-base font-black text-indigo-400 uppercase tracking-[0.25em] drop-shadow-md">
+ {new Date(currentTime).toLocaleDateString([], { weekday: 'short' })}
+ </span>
+ </div>
+
+ {/* PROGRESS BAR AT VERY BOTTOM EDGE */}
+ {activePromos.length > 1 && (
+ <div className="absolute bottom-0 inset-x-0 h-1.5 bg-white/10 z-30 flex">
+ {activePromos.map((_: any, idx: number) => {
+ const isActive = idx === (promoIndex % activePromos.length);
+ return (
+ <div key={idx} className="flex-1 h-full overflow-hidden px-0.5">
+ <div
+ className={`h-full rounded-full transition-all ${
+ isActive
+ ? 'bg-indigo-500 shadow-[0_0_12px_#6366f1]'
+ : idx < (promoIndex % activePromos.length)
+ ? 'bg-white/40'
+ : 'bg-white/10'
+ }`}
+ />
+ </div>
+ );
+ })}
+ </div>
+ )}
+
+ {/* FLOATING CONTROLS (AUTO-HIDE: Appears on hover / touch) */}
+ <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 py-2 px-4 rounded-full bg-black/85 backdrop-blur-xl border border-white/20 shadow-2xl flex items-center gap-3">
+ <button
+ onClick={() => {
+ localStorage.setItem('display_mode', 'kiosk');
+ setDisplayMode('kiosk');
+ }}
+ className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-all flex items-center gap-1.5"
+ >
+ <Users className="w-3 h-3 text-indigo-400" /> Mode Kiosk Tablet
+ </button>
+
+ <button
+ onClick={() => {
+ if (!document.fullscreenElement) {
+ document.documentElement.requestFullscreen().catch(() => {});
+ } else {
+ document.exitFullscreen().catch(() => {});
+ }
+ }}
+ className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-all flex items-center gap-1.5"
+ >
+ <Monitor className="w-3 h-3 text-emerald-400" /> Fullscreen (F)
+ </button>
+
+ <button
+ onClick={() => {
+ localStorage.removeItem('display_terminal_id');
+ localStorage.removeItem('display_mode');
+ window.location.reload();
+ }}
+ className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 transition-all"
+ >
+ Reset
+ </button>
+ </div>
+ </div>
+ )}
+
+ {/* ==================== 2. MODE KIOSK TABLET INTERAKTIF ==================== */}
+ {emptyView === 'PROMO' && displayMode === 'kiosk' && (
+ <motion.div
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ className="relative z-10 w-full h-full flex flex-col p-6 sm:p-12 md:p-16 select-none"
+ >
+ {/* TOP-RIGHT: BRANDING */}
+ <div className="absolute top-8 right-8 sm:top-12 sm:right-12 flex items-center gap-4 flex-row-reverse z-20">
+ <div className="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-600/80 backdrop-blur-md rounded-2xl flex items-center justify-center p-2 shadow-2xl border border-white/20">
+ {settings?.logoPath ? (
+ <img src={getFullImageUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain filter brightness-0 invert" />
+ ) : (
+ <Zap className="w-full h-full text-white fill-white" />
+ )}
+ </div>
+ <div className="text-right">
+ <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tight">
+ {settings?.businessName || "COSMO POOL"}
  </h2>
+ <span className="text-[9px] font-black text-indigo-400 tracking-[0.25em] uppercase">Customer Display</span>
+ </div>
  </div>
 
  <div className="flex-1 flex flex-col md:flex-row items-center justify-between gap-12 sm:gap-20">
@@ -1991,7 +2222,6 @@ function SmartDisplayContent() {
  alt={currentPromo.title}
  className="w-full h-full object-cover transition-transform duration-[20s] ease-linear group-hover:scale-110"
  onError={(e) => {
- // If dynamic image fails, try a fallback unsplash image
  (e.target as any).src = 'https://images.unsplash.com/photo-1544178178-50348c32d847?auto=format&fit=crop&q=80&w=1920';
  }}
  />
@@ -2070,13 +2300,11 @@ function SmartDisplayContent() {
  </button>
  </div>
  </div>
-
-
  </div>
  </div>
 
- {/* BOTTOM-RIGHT: DIGITAL CLOCK - SUBTLE */}
- <div className="absolute bottom-10 right-10 flex items-baseline gap-3 opacity-30">
+ {/* BOTTOM-RIGHT: DIGITAL CLOCK */}
+ <div className="absolute bottom-8 right-8 sm:bottom-12 sm:right-12 flex items-baseline gap-3 opacity-40">
  <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight">
  {new Date(currentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
  </span>
@@ -2086,28 +2314,41 @@ function SmartDisplayContent() {
  </div>
  </motion.div>
  )}
-
  {emptyView === 'TABLES' && renderTableStatus()}
  {emptyView === 'WAITING_LIST' && renderWaitingListView()}
  {emptyView === 'WAITING_FORM' && renderWaitingListForm()}
  {emptyView === 'ATTENDANCE' && renderAttendanceView()}
 
- {emptyView === 'PROMO' && (
- <div className="px-6 py-4 flex flex-col sm:flex-row justify-between items-center bg-[#000000] border-t border-white/10 relative z-50 gap-4">
- <p className="text-[7px] font-black text-slate-700 tracking-[0.3em] sm:tracking-[0.5em] uppercase">VOC System Integrated Display v3.5</p>
- <div className="flex items-center gap-6">
+ {emptyView === 'PROMO' && displayMode === 'kiosk' && (
+ <div className="px-6 py-3.5 flex flex-col sm:flex-row justify-between items-center bg-[#000000]/90 backdrop-blur-md border-t border-white/10 relative z-50 gap-4 opacity-75 hover:opacity-100 transition-opacity">
+ <p className="text-[7px] font-black text-slate-600 tracking-[0.3em] sm:tracking-[0.5em] uppercase">VOC System Integrated Display v3.5</p>
+ <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center">
+ <button
+ onClick={() => {
+ localStorage.setItem('display_mode', 'videotron');
+ setDisplayMode('videotron');
+ }}
+ className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all border flex items-center gap-1.5 bg-indigo-600/20 text-indigo-400 border-indigo-500/30 hover:bg-indigo-600/30"
+ title="Beralih ke Mode Videotron Layar Penuh (Bisa juga tekan tombol 'V' di keyboard)"
+ >
+ <Monitor className="w-3 h-3 text-indigo-400" />
+ Beralih ke Mode Videotron (Full Iklan)
+ </button>
+
  <button
  onClick={() => {
  localStorage.removeItem('display_terminal_id');
+ localStorage.removeItem('display_mode');
  window.location.reload();
  }}
- className="px-4 py-2 bg-white/5 hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/20 rounded-lg text-[8px] font-black text-slate-700 hover:text-rose-500 uppercase tracking-widest transition-all"
+ className="px-3 py-1.5 bg-white/5 hover:bg-rose-500/10 border border-white/10 hover:border-rose-500/20 rounded-lg text-[8px] font-black text-slate-500 hover:text-rose-500 uppercase tracking-widest transition-all"
  >
- Reset Terminal Configuration
+ Reset Terminal
  </button>
- <div className="flex items-center gap-2">
- <div className="w-1.5 h-1.5 bg-[#30D158] rounded-full shadow-2xl"></div>
- <span className="text-[7px] font-black text-slate-700 uppercase ">{terminalId} Connected</span>
+
+ <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/5">
+ <div className="w-1.5 h-1.5 bg-[#30D158] rounded-full shadow-[0_0_8px_#30D158]"></div>
+ <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">{terminalId || 'ONLINE'} Connected</span>
  </div>
  </div>
  </div>

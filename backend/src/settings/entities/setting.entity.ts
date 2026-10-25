@@ -162,6 +162,9 @@ export class Setting {
     image: string;
   }[];
 
+  @Column({ default: false })
+  displayHideInteractive: boolean;
+
   @Column({ nullable: true })
   ownerPhone: string;
 

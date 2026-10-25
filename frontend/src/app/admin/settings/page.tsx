@@ -9,7 +9,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 
-import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Tv, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus } from 'lucide-react';
 import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 import { QRCodeCanvas } from 'qrcode.react';
@@ -105,6 +105,7 @@ export default function BusinessSettings() {
 
     // AI Gamification Analytics State
 
+    const [displayEndpointType, setDisplayEndpointType] = useState<'tv' | 'tablet'>('tv');
     const [gamificationStats, setGamificationStats] = useState<any>(null);
 
     const [gamiStatsLoading, setGamiStatsLoading] = useState(false);
@@ -3639,11 +3640,11 @@ export default function BusinessSettings() {
 
                                                 {/* INTERACTION SIDE: Connectivity */}
 
-                                                <div className="p-10 md:p-14 flex flex-col justify-center">
+                                                <div className="p-8 md:p-12 flex flex-col justify-center">
 
-                                                    <div className="mb-8">
+                                                    <div className="mb-6">
 
-                                                        <div className="flex items-center gap-3 mb-4">
+                                                        <div className="flex items-center gap-3 mb-3">
 
                                                             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
 
@@ -3651,70 +3652,137 @@ export default function BusinessSettings() {
 
                                                         </div>
 
-                                                        <h5 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Target Device Endpoint</h5>
+                                                        <h5 className="text-xl font-black text-slate-800 uppercase tracking-tighter italic">Target Device Endpoint</h5>
 
-                                                        <p className="text-sm text-slate-400 font-medium mt-1">Salin link di bawah dan buka di Browser Tablet / TV</p>
+                                                        <p className="text-sm text-slate-400 font-medium mt-1">Pilih tipe perangkat dan salin link untuk dibuka di Browser Smart TV / Tablet</p>
 
                                                     </div>
 
-
-
-                                                    <div className="space-y-6">
-
-                                                        <div 
-
-                                                            onClick={() => {
-
-                                                                const url = `${window.location.protocol}//${window.location.host}/display?terminalId=${terminalId || 'KSR-XX'}`;
-
-                                                                navigator.clipboard.writeText(url);
-
-                                                                alert('Link berhasil disalin!');
-
-                                                            }}
-
-                                                            className="bg-slate-50 hover:bg-indigo-50 border-2 border-slate-100 hover:border-indigo-100 rounded-[1.5rem] p-6 font-mono text-sm break-all cursor-pointer transition-all active:scale-[0.98] text-indigo-600 group/url relative shadow-inner"
-
+                                                    {/* DEVICE TYPE TABS */}
+                                                    <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl mb-6">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDisplayEndpointType('tv')}
+                                                            className={`py-3 px-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                                                                displayEndpointType === 'tv'
+                                                                    ? 'bg-white text-indigo-600 shadow-md shadow-indigo-100 scale-[1.02]'
+                                                                    : 'text-slate-500 hover:text-slate-800'
+                                                            }`}
                                                         >
+                                                            <Tv className="w-4 h-4" />
+                                                            Layar TV Iklan (Videotron)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDisplayEndpointType('tablet')}
+                                                            className={`py-3 px-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                                                                displayEndpointType === 'tablet'
+                                                                    ? 'bg-white text-indigo-600 shadow-md shadow-indigo-100 scale-[1.02]'
+                                                                    : 'text-slate-500 hover:text-slate-800'
+                                                            }`}
+                                                        >
+                                                            <Monitor className="w-4 h-4" />
+                                                            Tablet Kasir (Interaktif)
+                                                        </button>
+                                                    </div>
 
-                                                            {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/display?terminalId=${terminalId || 'KSR-XX'}` : 'Loading...'}
-
-                                                            <div className="absolute right-4 top-4 opacity-0 group-hover/url:opacity-100 transition-opacity">
-
-                                                                <span className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-lg">Copy URL</span>
-
+                                                    {/* TAB CONTENT: TV VIDEOTRON */}
+                                                    {displayEndpointType === 'tv' ? (
+                                                        <div className="space-y-4">
+                                                            <div className="p-4 bg-indigo-50/80 border border-indigo-100 rounded-2xl">
+                                                                <div className="flex items-center gap-2 text-indigo-700 font-black text-xs uppercase tracking-wider mb-1">
+                                                                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                                                    Mode Iklan Penuh (Videotron Signage)
+                                                                </div>
+                                                                <p className="text-xs text-indigo-950 font-medium">
+                                                                    Khusus Smart TV gantung / standing videotron. Menampilkan promosi layar penuh secara otomatis tanpa tombol interaktif kasir.
+                                                                </p>
                                                             </div>
 
-                                                        </div>
-
-
-
-                                                        <div className="flex gap-4">
-
-                                                            <button 
-
-                                                                type="button"
-
-                                                                onClick={(e) => {
-
-                                                                    e.preventDefault();
-
-                                                                    if (terminalId) window.open(`/display?terminalId=${terminalId}`, '_blank');
-
-                                                                    else alert('Isi ID Terminal dahulu');
-
+                                                            <div 
+                                                                onClick={() => {
+                                                                    const url = `${window.location.protocol}//${window.location.host}/display?terminalId=TV-IKLAN&mode=videotron`;
+                                                                    navigator.clipboard.writeText(url);
+                                                                    alert('Link TV Videotron berhasil disalin!');
                                                                 }}
-
-                                                                className="flex-1 py-5 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] transition-all hover:bg-black active:scale-95 flex items-center justify-center gap-3 shadow-xl shadow-slate-200"
-
+                                                                className="bg-slate-50 hover:bg-indigo-50 border-2 border-slate-100 hover:border-indigo-100 rounded-[1.5rem] p-5 font-mono text-xs break-all cursor-pointer transition-all active:scale-[0.98] text-indigo-600 group/url relative shadow-inner"
                                                             >
+                                                                {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/display?terminalId=TV-IKLAN&mode=videotron` : 'Loading...'}
+                                                                <div className="absolute right-4 top-4 opacity-0 group-hover/url:opacity-100 transition-opacity">
+                                                                    <span className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-lg">Copy URL TV</span>
+                                                                </div>
+                                                            </div>
 
-                                                                <Monitor className="w-4 h-4 text-indigo-400" /> Launch Local Display
-
-                                                            </button>
-
+                                                            <div className="flex gap-3">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        window.open(`/display?terminalId=TV-IKLAN&mode=videotron`, '_blank');
+                                                                    }}
+                                                                    className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] transition-all active:scale-95 flex items-center justify-center gap-2.5 shadow-xl shadow-indigo-100"
+                                                                >
+                                                                    <Tv className="w-4 h-4" /> Buka Layar TV Iklan
+                                                                </button>
+                                                            </div>
                                                         </div>
+                                                    ) : (
+                                                        <div className="space-y-4">
+                                                            <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl">
+                                                                <div className="flex items-center gap-2 text-slate-800 font-black text-xs uppercase tracking-wider mb-1">
+                                                                    <Monitor className="w-3.5 h-3.5 text-indigo-500" />
+                                                                    Mode Tablet Pelanggan (Dual Display POS)
+                                                                </div>
+                                                                <p className="text-xs text-slate-500 font-medium">
+                                                                    Khusus tablet di meja kasir. Menampilkan rincian struk pembayaran kasir, rating kasir, dan menu pelanggan (Cek Meja, Absensi).
+                                                                </p>
+                                                            </div>
 
+                                                            <div 
+                                                                onClick={() => {
+                                                                    const url = `${window.location.protocol}//${window.location.host}/display?terminalId=${terminalId || 'KSR-XX'}&mode=kiosk`;
+                                                                    navigator.clipboard.writeText(url);
+                                                                    alert('Link Tablet Pelanggan berhasil disalin!');
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-indigo-50 border-2 border-slate-100 hover:border-indigo-100 rounded-[1.5rem] p-5 font-mono text-xs break-all cursor-pointer transition-all active:scale-[0.98] text-indigo-600 group/url relative shadow-inner"
+                                                            >
+                                                                {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/display?terminalId=${terminalId || 'KSR-XX'}&mode=kiosk` : 'Loading...'}
+                                                                <div className="absolute right-4 top-4 opacity-0 group-hover/url:opacity-100 transition-opacity">
+                                                                    <span className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-lg">Copy URL Tablet</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex gap-3">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        if (terminalId) window.open(`/display?terminalId=${terminalId}&mode=kiosk`, '_blank');
+                                                                        else alert('Isi ID Terminal dahulu');
+                                                                    }}
+                                                                    className="flex-1 py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] transition-all active:scale-95 flex items-center justify-center gap-2.5 shadow-xl shadow-slate-200"
+                                                                >
+                                                                    <Monitor className="w-4 h-4 text-indigo-400" /> Buka Layar Tablet
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* GLOBAL TOGGLE */}
+                                                    <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-4">
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-800 uppercase tracking-tight">Sembunyikan Menu Interaktif Global</p>
+                                                            <p className="text-[11px] text-slate-400 font-medium">Defaultkan seluruh layar display sebagai TV Iklan (Videotron) murni</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={settings?.displayHideInteractive || false}
+                                                                onChange={(e) => setSettings({ ...settings, displayHideInteractive: e.target.checked })}
+                                                                className="sr-only peer"
+                                                            />
+                                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                        </label>
                                                     </div>
 
                                                 </div>
@@ -3725,9 +3793,7 @@ export default function BusinessSettings() {
 
                                     </div>
 
-
-
-                                    {/* SECTION 2: ADVERTISING & CAMPAIGN MANAGEMENT */}
+{/* SECTION 2: ADVERTISING & CAMPAIGN MANAGEMENT */}
 
                                     <div className="space-y-8">
 
