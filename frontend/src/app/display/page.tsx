@@ -2026,9 +2026,7 @@ function SmartDisplayContent() {
  </AnimatePresence>
  </div>
 
- {/* CINEMATIC VIGNETTE OVERLAYS */}
- <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/30 to-transparent pointer-events-none z-10"></div>
- <div className="absolute bottom-0 inset-x-0 h-80 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10"></div>
+
 
  {/* TOP BAR: LIVE BADGE & BRANDING */}
  <div className="absolute top-6 left-6 right-6 sm:top-10 sm:left-12 sm:right-12 flex items-center justify-between z-20 pointer-events-none">
@@ -2040,21 +2038,7 @@ function SmartDisplayContent() {
  </div>
  </div>
 
- <div className="flex items-center gap-3.5">
- <div className="text-right">
- <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tight drop-shadow-lg leading-none">
- {settings?.businessName || "COSMO POOL"}
- </h2>
- <span className="text-[9px] font-black text-indigo-300 tracking-[0.3em] uppercase">DIGITAL BILLBOARD</span>
- </div>
- <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center p-2.5 shadow-2xl border border-white/20">
- {settings?.logoPath ? (
- <img src={getFullImageUrl(settings.logoPath)} alt="Logo" className="w-full h-full object-contain filter brightness-0 invert" />
- ) : (
- <Zap className="w-full h-full text-white fill-white" />
- )}
- </div>
- </div>
+
  </div>
 
  {/* BOTTOM LOWER-THIRD: PROMO HEADLINE & DESC */}
@@ -2082,37 +2066,9 @@ function SmartDisplayContent() {
  </AnimatePresence>
  </div>
 
- {/* BOTTOM-RIGHT: DIGITAL CLOCK */}
- <div className="absolute bottom-8 right-6 sm:bottom-12 sm:right-12 z-20 flex items-baseline gap-3 text-right pointer-events-none">
- <span className="text-2xl sm:text-4xl font-black text-white font-mono tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
- {new Date(currentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
- </span>
- <span className="text-xs sm:text-base font-black text-indigo-400 uppercase tracking-[0.25em] drop-shadow-md">
- {new Date(currentTime).toLocaleDateString([], { weekday: 'short' })}
- </span>
- </div>
 
- {/* PROGRESS BAR AT VERY BOTTOM EDGE */}
- {activePromos.length > 1 && (
- <div className="absolute bottom-0 inset-x-0 h-1.5 bg-white/10 z-30 flex">
- {activePromos.map((_: any, idx: number) => {
- const isActive = idx === (promoIndex % activePromos.length);
- return (
- <div key={idx} className="flex-1 h-full overflow-hidden px-0.5">
- <div
- className={`h-full rounded-full transition-all ${
- isActive
- ? 'bg-indigo-500 shadow-[0_0_12px_#6366f1]'
- : idx < (promoIndex % activePromos.length)
- ? 'bg-white/40'
- : 'bg-white/10'
- }`}
- />
- </div>
- );
- })}
- </div>
- )}
+
+
 
  {/* FLOATING CONTROLS (AUTO-HIDE: Appears on hover / touch) */}
  <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 py-2 px-4 rounded-full bg-black/85 backdrop-blur-xl border border-white/20 shadow-2xl flex items-center gap-3">

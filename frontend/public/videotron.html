@@ -62,28 +62,8 @@
       height: 100%;
       object-fit: cover;
     }
-    /* GRADIENT VIGNETTES */
-    .vignette-top {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 160px;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 60%, transparent 100%);
-      z-index: 10;
-      pointer-events: none;
-    }
-    .vignette-bottom {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 320px;
-      background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 60%, transparent 100%);
-      z-index: 10;
-      pointer-events: none;
-    }
-    /* TOP HEADER */
+
+    /* TOP HEADER (CLEAN - NO TOP-RIGHT LOGO) */
     .header-bar {
       position: absolute;
       top: 36px;
@@ -117,53 +97,13 @@
       border-radius: 50%;
       box-shadow: 0 0 12px #ef4444;
     }
-    .brand-box {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      text-align: right;
-    }
-    .brand-name {
-      font-size: 22px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      text-shadow: 0 4px 16px rgba(0,0,0,0.8);
-    }
-    .brand-sub {
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: 0.35em;
-      color: #818cf8;
-      text-transform: uppercase;
-      margin-top: 4px;
-    }
-    .brand-logo {
-      width: 50px;
-      height: 50px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      backdrop-filter: blur(12px);
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    .brand-logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      filter: brightness(0) invert(1);
-    }
+
     /* LOWER-THIRD CAPTION */
     .caption-box {
       position: absolute;
-      bottom: 48px;
+      bottom: 40px;
       left: 48px;
-      max-width: 65%;
+      max-width: 70%;
       z-index: 20;
       pointer-events: none;
       transition: all 0.5s ease;
@@ -171,9 +111,9 @@
     .promo-tag {
       display: inline-block;
       padding: 4px 14px;
-      background: rgba(99, 102, 241, 0.25);
-      border: 1px solid rgba(99, 102, 241, 0.5);
-      color: #a5b4fc;
+      background: rgba(99, 102, 241, 0.3);
+      border: 1px solid rgba(99, 102, 241, 0.6);
+      color: #c7d2fe;
       border-radius: 9999px;
       font-size: 10px;
       font-weight: 900;
@@ -181,76 +121,26 @@
       text-transform: uppercase;
       margin-bottom: 8px;
       backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
     .promo-title {
-      font-size: 52px;
+      font-size: 48px;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: -0.02em;
       line-height: 1.05;
-      text-shadow: 0 4px 20px rgba(0,0,0,0.95);
-      margin-bottom: 8px;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8);
+      margin-bottom: 6px;
     }
     .promo-desc {
-      font-size: 19px;
+      font-size: 18px;
       font-weight: 700;
-      color: #e2e8f0;
+      color: #f1f5f9;
       line-height: 1.35;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+      text-shadow: 0 2px 10px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.8);
       max-width: 90%;
     }
-    /* DIGITAL CLOCK */
-    .clock-box {
-      position: absolute;
-      bottom: 48px;
-      right: 48px;
-      text-align: right;
-      z-index: 20;
-      pointer-events: none;
-    }
-    .clock-time {
-      font-size: 42px;
-      font-weight: 900;
-      font-family: monospace;
-      letter-spacing: -0.03em;
-      line-height: 1;
-      text-shadow: 0 4px 20px rgba(0,0,0,0.95);
-    }
-    .clock-day {
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0.3em;
-      color: #818cf8;
-      text-transform: uppercase;
-      margin-top: 6px;
-    }
-    /* BOTTOM PROGRESS BAR */
-    .progress-track {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.15);
-      z-index: 30;
-      display: flex;
-    }
-    .progress-segment {
-      flex: 1;
-      height: 100%;
-      margin: 0 2px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 9999px;
-      overflow: hidden;
-      position: relative;
-    }
-    .progress-bar-fill {
-      width: 0%;
-      height: 100%;
-      background: #6366f1;
-      box-shadow: 0 0 12px #6366f1;
-      transition: width 0.1s linear;
-    }
+
     /* AUTO-HIDE FLOATING CONTROLS */
     .floating-bar {
       position: absolute;
@@ -290,14 +180,13 @@
     .ctrl-btn:hover {
       background: #6366f1;
     }
+
     /* RESPONSIVE SCALING */
     @media (max-width: 1024px) {
-      .promo-title { font-size: 36px; }
+      .promo-title { font-size: 34px; }
       .promo-desc { font-size: 15px; }
-      .clock-time { font-size: 32px; }
       .header-bar { top: 20px; left: 24px; right: 24px; }
-      .caption-box { bottom: 28px; left: 24px; }
-      .clock-box { bottom: 28px; right: 24px; }
+      .caption-box { bottom: 24px; left: 24px; }
     }
   </style>
 </head>
@@ -306,46 +195,25 @@
     <!-- SLIDES CONTAINER -->
     <div id="slides-wrapper"></div>
 
-    <!-- VIGNETTES -->
-    <div class="vignette-top"></div>
-    <div class="vignette-bottom"></div>
-
     <!-- TOP HEADER -->
-    <div class="header-bar">
+    <div class="header-bar" id="header-bar">
       <div class="live-badge">
         <span class="ping-dot"></span>
         <span id="live-tag">OFFICIAL PROMO</span>
       </div>
-      <div class="brand-box">
-        <div>
-          <div class="brand-name" id="brand-name">COSMO POOL</div>
-          <div class="brand-sub">DIGITAL BILLBOARD</div>
-        </div>
-        <div class="brand-logo" id="brand-logo-container">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        </div>
-      </div>
     </div>
 
     <!-- LOWER-THIRD CAPTION -->
-    <div class="caption-box">
+    <div class="caption-box" id="caption-box">
       <div class="promo-tag" id="promo-tag">SPECIAL PROMO</div>
       <div class="promo-title" id="promo-title">MEMUAT IKLAN...</div>
       <div class="promo-desc" id="promo-desc">Silakan tunggu sebentar, sistem sedang menghubungkan ke server.</div>
     </div>
 
-    <!-- DIGITAL CLOCK -->
-    <div class="clock-box">
-      <div class="clock-time" id="clock-time">00:00</div>
-      <div class="clock-day" id="clock-day">SEN</div>
-    </div>
-
-    <!-- BOTTOM PROGRESS TRACK -->
-    <div class="progress-track" id="progress-track"></div>
-
     <!-- FLOATING AUTO-HIDE CONTROLS -->
     <div class="floating-bar">
       <button class="ctrl-btn" onclick="toggleFullscreen()">Layar Penuh (F)</button>
+      <button class="ctrl-btn" onclick="toggleOverlayText()">Teks Overlay (T)</button>
       <button class="ctrl-btn" onclick="nextSlideManual()">Slide Berikutnya &gt;</button>
       <button class="ctrl-btn" onclick="location.reload()">Muat Ulang</button>
     </div>
@@ -357,8 +225,6 @@
     var activePromos = [];
     var currentIndex = 0;
     var slideTimer = null;
-    var progressInterval = null;
-    var progressStartTime = Date.now();
     var settingsData = null;
 
     // Fallback default promos
@@ -392,30 +258,10 @@
       return path + '?v=' + Date.now();
     }
 
-    // UPDATE CLOCK REAL-TIME
-    function updateClock() {
-      var now = new Date();
-      var hours = String(now.getHours());
-      if (hours.length < 2) hours = '0' + hours;
-      var minutes = String(now.getMinutes());
-      if (minutes.length < 2) minutes = '0' + minutes;
-
-      var days = ['MIN', 'SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB'];
-      var dayName = days[now.getDay()];
-
-      document.getElementById('clock-time').textContent = hours + ':' + minutes;
-      document.getElementById('clock-day').textContent = dayName;
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
-
     // RENDER SLIDES DOM
     function renderSlidesDom() {
       var wrapper = document.getElementById('slides-wrapper');
       wrapper.innerHTML = '';
-
-      var track = document.getElementById('progress-track');
-      track.innerHTML = '';
 
       for (var i = 0; i < activePromos.length; i++) {
         var p = activePromos[i];
@@ -429,12 +275,6 @@
           '<img class="slide-img-main" src="' + imgSrc + '" alt="' + (p.title || '') + '" onerror="this.src=\'https://images.unsplash.com/photo-1544178178-50348c32d847?auto=format&fit=crop&q=80&w=1920\'">';
 
         wrapper.appendChild(slide);
-
-        // Progress segment
-        var seg = document.createElement('div');
-        seg.className = 'progress-segment';
-        seg.innerHTML = '<div class="progress-bar-fill" id="pfill-' + i + '"></div>';
-        track.appendChild(seg);
       }
       updateCaption();
     }
@@ -463,31 +303,6 @@
         }
       }
       updateCaption();
-      startProgressAnimation();
-    }
-
-    // PROGRESS ANIMATION
-    function startProgressAnimation() {
-      progressStartTime = Date.now();
-      if (progressInterval) clearInterval(progressInterval);
-
-      progressInterval = setInterval(function() {
-        var elapsed = Date.now() - progressStartTime;
-        var pct = Math.min(100, (elapsed / SLIDE_DURATION) * 100);
-
-        for (var i = 0; i < activePromos.length; i++) {
-          var fill = document.getElementById('pfill-' + i);
-          if (fill) {
-            if (i < currentIndex) {
-              fill.style.width = '100%';
-            } else if (i === currentIndex) {
-              fill.style.width = pct + '%';
-            } else {
-              fill.style.width = '0%';
-            }
-          }
-        }
-      }, 50);
     }
 
     // NEXT SLIDE
@@ -503,7 +318,6 @@
     function restartLoop() {
       if (slideTimer) clearInterval(slideTimer);
       slideTimer = setInterval(nextSlide, SLIDE_DURATION);
-      startProgressAnimation();
     }
 
     // FULLSCREEN TOGGLE
@@ -518,9 +332,26 @@
       }
     }
 
+    // TOGGLE TEXT OVERLAYS (CAPTION & BADGE)
+    var showOverlayText = true;
+    function toggleOverlayText() {
+      showOverlayText = !showOverlayText;
+      var caption = document.getElementById('caption-box');
+      var header = document.getElementById('header-bar');
+      if (caption) caption.style.display = showOverlayText ? 'block' : 'none';
+      if (header) header.style.display = showOverlayText ? 'flex' : 'none';
+      localStorage.setItem('videotron_show_text', showOverlayText ? '1' : '0');
+    }
+
+    // Restore saved preference
+    if (localStorage.getItem('videotron_show_text') === '0') {
+      toggleOverlayText();
+    }
+
     // KEYBOARD SHORTCUTS
     window.addEventListener('keydown', function(e) {
       if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+      if (e.key === 't' || e.key === 'T') toggleOverlayText();
       if (e.key === 'ArrowRight' || e.key === ' ') nextSlideManual();
     });
 
@@ -538,7 +369,6 @@
             console.error('Parse settings error', e);
           }
         } else {
-          // Fallback to /settings directly if not using /api-proxy
           fetchFallbackSettings();
         }
       };
@@ -564,14 +394,6 @@
 
     function applySettings(data) {
       settingsData = data;
-      if (data.businessName) {
-        document.getElementById('brand-name').textContent = data.businessName;
-      }
-      if (data.logoPath) {
-        var logoContainer = document.getElementById('brand-logo-container');
-        logoContainer.innerHTML = '<img src="' + resolveImageUrl(data.logoPath) + '" alt="Logo">';
-      }
-
       var newPromos = (data.displayPromotions && data.displayPromotions.length > 0)
         ? data.displayPromotions
         : DEFAULT_PROMOS;
