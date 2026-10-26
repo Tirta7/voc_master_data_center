@@ -354,13 +354,16 @@ function SmartDisplayContent() {
  const [isScratchedAll, setIsScratchedAll] = useState(false);
 
 
- // Dynamic Promos Logic - Only fallback to PROMOS if settings loaded and empty
- const activePromos = (settings && settings.displayPromotions?.length > 0)
+ // Dynamic Promos Logic - Only active campaigns (isActive !== false)
+ const allPromos = (settings && settings.displayPromotions?.length > 0)
  ? settings.displayPromotions
- : (settings ? PROMOS : []); // Show nothing or a loader if settings not yet loaded
+ : (settings ? PROMOS : []);
 
- const currentPromo = activePromos.length > 0
- ? activePromos[promoIndex % activePromos.length]
+ const activePromos = allPromos.filter((p: any) => p && p.isActive !== false);
+ const displayPromosList = activePromos.length > 0 ? activePromos : allPromos;
+
+ const currentPromo = displayPromosList.length > 0
+ ? displayPromosList[promoIndex % displayPromosList.length]
  : null;
 
  // Rating & Notification Post-Flow

@@ -160,6 +160,7 @@ export class Setting {
     tag: string;
     color: string;
     image: string;
+    isActive?: boolean;
   }[];
 
   @Column({ default: false })

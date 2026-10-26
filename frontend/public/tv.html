@@ -394,13 +394,24 @@
 
     function applySettings(data) {
       settingsData = data;
-      var newPromos = (data.displayPromotions && data.displayPromotions.length > 0)
+      var rawPromos = (data.displayPromotions && data.displayPromotions.length > 0)
         ? data.displayPromotions
         : DEFAULT_PROMOS;
+
+      var newPromos = [];
+      for (var k = 0; k < rawPromos.length; k++) {
+        if (rawPromos[k] && rawPromos[k].isActive !== false) {
+          newPromos.push(rawPromos[k]);
+        }
+      }
+      if (newPromos.length === 0) {
+        newPromos = DEFAULT_PROMOS;
+      }
 
       // Only re-render if count or items changed
       if (JSON.stringify(newPromos) !== JSON.stringify(activePromos)) {
         activePromos = newPromos;
+        if (currentIndex >= activePromos.length) currentIndex = 0;
         renderSlidesDom();
         restartLoop();
       }

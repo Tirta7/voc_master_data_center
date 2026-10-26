@@ -9,7 +9,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 
-import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Tv, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Tv, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus, Power, PowerOff } from 'lucide-react';
 import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 import { QRCodeCanvas } from 'qrcode.react';
@@ -105,7 +105,7 @@ export default function BusinessSettings() {
 
     // AI Gamification Analytics State
 
-    const [displayEndpointType, setDisplayEndpointType] = useState<'tv' | 'tablet'>('tv');
+    const [displayEndpointType, setDisplayEndpointType] = useState<'tv' | 'stb' | 'tablet'>('tv');
     const [gamificationStats, setGamificationStats] = useState<any>(null);
 
     const [gamiStatsLoading, setGamiStatsLoading] = useState(false);
@@ -3658,44 +3658,56 @@ export default function BusinessSettings() {
 
                                                     </div>
 
-                                                    {/* DEVICE TYPE TABS */}
-                                                    <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl mb-6">
+                                                    {/* DEVICE TYPE TABS (3 PILIHAN JELAS) */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-slate-100 rounded-2xl mb-6">
                                                         <button
                                                             type="button"
                                                             onClick={() => setDisplayEndpointType('tv')}
-                                                            className={`py-3 px-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                                                            className={`py-3 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
                                                                 displayEndpointType === 'tv'
                                                                     ? 'bg-white text-indigo-600 shadow-md shadow-indigo-100 scale-[1.02]'
                                                                     : 'text-slate-500 hover:text-slate-800'
                                                             }`}
                                                         >
                                                             <Tv className="w-4 h-4" />
-                                                            Layar TV Iklan (Videotron)
+                                                            Layar TV Modern
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDisplayEndpointType('stb')}
+                                                            className={`py-3 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                                                                displayEndpointType === 'stb'
+                                                                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 scale-[1.02]'
+                                                                    : 'text-slate-500 hover:text-slate-800'
+                                                            }`}
+                                                        >
+                                                            <Sparkles className="w-4 h-4 text-emerald-400" />
+                                                            STB TV (Chrome 69)
                                                         </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => setDisplayEndpointType('tablet')}
-                                                            className={`py-3 px-3 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+                                                            className={`py-3 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
                                                                 displayEndpointType === 'tablet'
                                                                     ? 'bg-white text-indigo-600 shadow-md shadow-indigo-100 scale-[1.02]'
                                                                     : 'text-slate-500 hover:text-slate-800'
                                                             }`}
                                                         >
                                                             <Monitor className="w-4 h-4" />
-                                                            Tablet Kasir (Interaktif)
+                                                            Tablet Kasir
                                                         </button>
                                                     </div>
 
-                                                    {/* TAB CONTENT: TV VIDEOTRON */}
-                                                    {displayEndpointType === 'tv' ? (
+                                                    {/* TAB CONTENT: TV MODERN */}
+                                                    {displayEndpointType === 'tv' && (
                                                         <div className="space-y-4">
                                                             <div className="p-4 bg-indigo-50/80 border border-indigo-100 rounded-2xl">
                                                                 <div className="flex items-center gap-2 text-indigo-700 font-black text-xs uppercase tracking-wider mb-1">
                                                                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                                                    Mode Iklan Penuh (Videotron Signage)
+                                                                    Mode Iklan Penuh (Videotron Signage Modern)
                                                                 </div>
                                                                 <p className="text-xs text-indigo-950 font-medium">
-                                                                    Khusus Smart TV gantung / standing videotron. Menampilkan promosi layar penuh secara otomatis tanpa tombol interaktif kasir.
+                                                                    Khusus Smart TV modern / PC display. Menampilkan promosi layar penuh secara otomatis edge-to-edge.
                                                                 </p>
                                                             </div>
 
@@ -3722,38 +3734,70 @@ export default function BusinessSettings() {
                                                                     }}
                                                                     className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] transition-all active:scale-95 flex items-center justify-center gap-2.5 shadow-xl shadow-indigo-100"
                                                                 >
-                                                                    <Tv className="w-4 h-4" /> Buka Layar TV Iklan
+                                                                    <Tv className="w-4 h-4" /> Buka Layar TV Modern
                                                                 </button>
                                                             </div>
+                                                        </div>
+                                                    )}
 
-                                                            {/* LEGACY STB / ANDROID TV LAMA LINK */}
-                                                            <div className="pt-3 border-t border-slate-200/80">
-                                                                <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-3">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <div className="flex items-center gap-2 text-emerald-800 font-black text-xs uppercase tracking-wider">
-                                                                            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                                                            Link Khusus STB TV / Chrome 69 Lama (Anti Macet)
-                                                                        </div>
-                                                                        <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[8px] font-black uppercase">Ultra Ringan</span>
+                                                    {/* TAB CONTENT: STB TV / ANDROID TV LAMA (CHROME 69) */}
+                                                    {displayEndpointType === 'stb' && (
+                                                        <div className="space-y-4">
+                                                            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2 text-emerald-800 font-black text-xs uppercase tracking-wider">
+                                                                        <Sparkles className="w-4 h-4 text-emerald-600" />
+                                                                        Layar STB TV / Chrome 69 Jadul (Anti Macet)
                                                                     </div>
-                                                                    <p className="text-[11px] text-emerald-950 font-medium">
-                                                                        Gunakan link ini jika STB TV Anda memakai Chrome versi lama (Chrome 69 ke bawah) yang tidak bisa di-update. Langsung jalan lancar tanpa perlu install aplikasi apapun!
-                                                                    </p>
-                                                                    <div 
-                                                                        onClick={() => {
-                                                                            const url = `${window.location.protocol}//${window.location.host}/videotron.html`;
-                                                                            navigator.clipboard.writeText(url);
-                                                                            alert('Link STB Lama (/videotron.html) berhasil disalin!');
-                                                                        }}
-                                                                        className="bg-white border-2 border-emerald-200 hover:border-emerald-400 rounded-xl p-3 font-mono text-xs break-all cursor-pointer transition-all text-emerald-700 font-bold flex items-center justify-between shadow-sm"
-                                                                    >
-                                                                        <span>{typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/videotron.html` : 'Loading...'}</span>
-                                                                        <span className="px-2.5 py-1 bg-emerald-700 text-white text-[8px] font-black uppercase rounded">Copy Link STB</span>
-                                                                    </div>
+                                                                    <span className="px-2.5 py-0.5 bg-emerald-600 text-white rounded-full text-[9px] font-black uppercase">Zero-Crash</span>
+                                                                </div>
+                                                                <p className="text-xs text-emerald-950 font-medium leading-relaxed">
+                                                                    Dibuat khusus untuk Android TV Box / STB ZTE / Indihome lama (Android 9 & Chrome 69 ke bawah) yang tidak bisa di-update. Langsung jalan super mulus dan ringan tanpa layar putih!
+                                                                </p>
+                                                            </div>
+
+                                                            <div 
+                                                                onClick={() => {
+                                                                    const url = `${window.location.protocol}//${window.location.host}/videotron.html`;
+                                                                    navigator.clipboard.writeText(url);
+                                                                    alert('Link STB TV (/videotron.html) berhasil disalin!');
+                                                                }}
+                                                                className="bg-emerald-50/40 hover:bg-emerald-50 border-2 border-emerald-200 hover:border-emerald-300 rounded-[1.5rem] p-5 font-mono text-xs break-all cursor-pointer transition-all active:scale-[0.98] text-emerald-800 group/url relative shadow-inner"
+                                                            >
+                                                                {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/videotron.html` : 'Loading...'}
+                                                                <div className="absolute right-4 top-4 opacity-0 group-hover/url:opacity-100 transition-opacity">
+                                                                    <span className="px-3 py-1 bg-emerald-600 text-white text-[8px] font-black uppercase rounded-lg">Copy URL STB</span>
                                                                 </div>
                                                             </div>
+
+                                                            <div className="flex gap-3">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        window.open(`/videotron.html`, '_blank');
+                                                                    }}
+                                                                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] transition-all active:scale-95 flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-100"
+                                                                >
+                                                                    <Tv className="w-4 h-4" /> Buka Layar STB TV
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const url = `${window.location.protocol}//${window.location.host}/videotron.html`;
+                                                                        navigator.clipboard.writeText(url);
+                                                                        alert('Link STB TV (/videotron.html) berhasil disalin!');
+                                                                    }}
+                                                                    className="px-6 py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center"
+                                                                >
+                                                                    Salin Link
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    ) : (
+                                                    )}
+
+                                                    {/* TAB CONTENT: TABLET KASIR */}
+                                                    {displayEndpointType === 'tablet' && (
                                                         <div className="space-y-4">
                                                             <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl">
                                                                 <div className="flex items-center gap-2 text-slate-800 font-black text-xs uppercase tracking-wider mb-1">
@@ -3851,103 +3895,128 @@ export default function BusinessSettings() {
                                                 type="button"
 
                                                 onClick={() => {
-
-                                                    const newPromo = { title: "Special Deal", desc: "Nikmati promo terbatas hari ini!", tag: "PROMO", color: "from-indigo-600 to-blue-600", image: "" };
-
+                                                    const newPromo = { 
+                                                        title: "Special Deal", 
+                                                        desc: "Nikmati promo terbatas hari ini!", 
+                                                        tag: "PROMO", 
+                                                        color: "from-indigo-600 to-blue-600", 
+                                                        image: "",
+                                                        isActive: true 
+                                                    };
                                                     setSettings({ ...settings, displayPromotions: [...(settings.displayPromotions || []), newPromo] });
-
                                                 }}
-
                                                 className="px-10 py-5 bg-indigo-600 hover:bg-slate-950 text-white rounded-[1.5rem] font-black text-[10px] transition-all shadow-2xl shadow-indigo-100 flex items-center gap-4 active:scale-95 uppercase tracking-[0.2em]"
-
                                             >
-
                                                 <Plus className="w-5 h-5" /> Buat Kampanye Baru
-
                                             </button>
-
                                         </div>
 
-
-
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
-
                                             {(!settings.displayPromotions || settings.displayPromotions.length === 0) && (
-
                                                 <div className="xl:col-span-2 p-24 border-4 border-dashed border-slate-100 rounded-[4rem] text-center bg-slate-50/50">
-
                                                      <div className="w-24 h-24 bg-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-slate-100 text-slate-200 shadow-inner">
-
                                                         <Image className="w-10 h-10" />
-
                                                      </div>
-
                                                      <h5 className="text-2xl font-black text-slate-400 uppercase tracking-[0.2em] leading-none italic">Banner Empty</h5>
-
                                                      <p className="text-slate-300 text-[10px] font-bold uppercase tracking-[0.4em] mt-5">Siapkan materi visual untuk meningkatkan engagement pelanggan</p>
-
                                                 </div>
-
                                             )}
-
                                             
+                                            {(settings.displayPromotions || []).map((promo: any, idx: number) => {
+                                                const isPromoActive = promo.isActive !== false;
+                                                return (
+                                                <div key={idx} className={`bg-white border rounded-[3rem] p-3 shadow-2xl transition-all duration-500 hover:-translate-y-1 flex flex-col ${isPromoActive ? 'border-slate-100 shadow-slate-100/50' : 'border-amber-200/80 bg-slate-50/60 opacity-90'}`}>
+                                                    {/* SAKLAR CONTROLLER BAR */}
+                                                    <div className="flex items-center justify-between px-6 py-4 bg-slate-50/90 rounded-[2.2rem] mb-2 border border-slate-100">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center italic shadow-sm">
+                                                                #{idx + 1}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`w-2.5 h-2.5 rounded-full ${isPromoActive ? 'bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse' : 'bg-slate-400'}`}></span>
+                                                                    <span className={`text-[11px] font-black uppercase tracking-wider ${isPromoActive ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                                        {isPromoActive ? 'Iklan Aktif (Tayang)' : 'Iklan Dimatikan (OFF)'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[9px] text-slate-400 font-semibold">
+                                                                    {isPromoActive ? 'Tampil berputar di layar Smart TV & STB' : 'Disembunyikan sementara dari layar TV'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
 
-                                            {(settings.displayPromotions || []).map((promo: any, idx: number) => (
+                                                        <div className="flex items-center gap-3">
+                                                            {/* SAKLAR ON / OFF */}
+                                                            <button
+                                                                type="button"
+                                                                title={isPromoActive ? "Klik untuk mematikan sementara iklan ini" : "Klik untuk mengaktifkan kembali iklan ini"}
+                                                                onClick={() => {
+                                                                    const newPromos = [...settings.displayPromotions];
+                                                                    newPromos[idx] = { ...newPromos[idx], isActive: !isPromoActive };
+                                                                    setSettings({ ...settings, displayPromotions: newPromos });
+                                                                }}
+                                                                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border transition-all cursor-pointer select-none active:scale-95 ${
+                                                                    isPromoActive 
+                                                                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm hover:bg-emerald-100' 
+                                                                        : 'bg-white border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-50'
+                                                                }`}
+                                                            >
+                                                                <span className="text-[10px] font-black uppercase tracking-wider">
+                                                                    {isPromoActive ? 'ON' : 'OFF'}
+                                                                </span>
+                                                                <div className={`relative inline-block w-10 h-5 rounded-full transition-colors duration-200 ease-in-out ${isPromoActive ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                                                    <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full shadow-md transition-transform duration-200 ease-in-out flex items-center justify-center ${isPromoActive ? 'translate-x-5' : 'translate-x-0'}`}>
+                                                                        {isPromoActive ? (
+                                                                            <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[3]" />
+                                                                        ) : (
+                                                                            <X className="w-2.5 h-2.5 text-slate-400 stroke-[3]" />
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </button>
 
-                                                <div key={idx} className="bg-white border border-slate-100 rounded-[3rem] p-2 shadow-2xl shadow-slate-100/50 overflow-hidden group/promo transition-all duration-500 hover:-translate-y-2 flex flex-col">
+                                                            {/* HAPUS PROMO */}
+                                                            <button
+                                                                type="button"
+                                                                title="Hapus Iklan Ini"
+                                                                onClick={() => {
+                                                                    if (confirm(`Hapus kampanye iklan "${promo.title || 'ini'}"?`)) {
+                                                                        const newPromos = [...settings.displayPromotions];
+                                                                        newPromos.splice(idx, 1);
+                                                                        setSettings({ ...settings, displayPromotions: newPromos });
+                                                                    }
+                                                                }}
+                                                                className="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white transition-all flex items-center justify-center shadow-sm active:scale-90"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
 
                                                     {/* LIVE PREVIEW - 16:9 Aspect Ratio Focus */}
-
-                                                    <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-100">
-
+                                                    <div className={`relative aspect-video w-full rounded-[2.2rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-100 transition-all duration-300 ${!isPromoActive ? 'opacity-60 grayscale-[50%]' : ''}`}>
                                                         <div className={`absolute inset-0 bg-gradient-to-br ${promo.color} opacity-90 transition-all duration-700`}></div>
-
                                                         {promo.image && <img src={getFullImageUrl(promo.image)} alt="Preview" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-40 group-hover/promo:scale-110 transition-transform duration-[2s]" />}
+                                                        
+                                                        {/* OVERLAY KETIKA NONAKTIF */}
+                                                        {!isPromoActive && (
+                                                            <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center text-center p-6">
+                                                                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center mb-2 shadow-lg">
+                                                                    <PowerOff className="w-6 h-6" />
+                                                                </div>
+                                                                <p className="text-white font-black text-xs uppercase tracking-wider">Iklan Dinonaktifkan (OFF)</p>
+                                                                <p className="text-white/70 text-[9px] font-bold mt-1">Klik saklar di atas ke ON untuk menayangkan kembali di TV</p>
+                                                            </div>
+                                                        )}
 
                                                         <div className="absolute inset-x-8 bottom-8 text-white">
-
                                                             <div className="flex items-center gap-3 mb-4">
-
                                                                 <span className="px-3 py-1.5 bg-white/20  rounded-lg text-[9px] font-black uppercase tracking-[0.2em]">{promo.tag || 'PROMO'}</span>
-
-                                                                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
-
+                                                                <div className={`w-1.5 h-1.5 rounded-full ${isPromoActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></div>
                                                             </div>
-
                                                             <h4 className="text-3xl font-black uppercase tracking-tighter leading-tight mb-2 drop-shadow-lg">{promo.title || 'YOUR HEADER'}</h4>
-
                                                             <p className="text-[11px] font-bold text-white/70 uppercase tracking-widest leading-relaxed max-w-sm line-clamp-2">{promo.desc || 'Campaign details appear here...'}</p>
-
                                                         </div>
-
-                                                        <div className="absolute top-6 left-6 w-12 h-12 bg-black/30  text-white rounded-2xl flex items-center justify-center font-black text-lg border border-white/10 italic">
-
-                                                            {idx + 1}
-
-                                                        </div>
-
-                                                        <button
-
-                                                            type="button"
-
-                                                            onClick={() => {
-
-                                                                const newPromos = [...settings.displayPromotions];
-
-                                                                newPromos.splice(idx, 1);
-
-                                                                setSettings({ ...settings, displayPromotions: newPromos });
-
-                                                            }}
-
-                                                            className="absolute top-6 right-6 w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center opacity-0 group-hover/promo:opacity-100 transition-all shadow-xl active:scale-90 hover:bg-rose-600 scale-90"
-
-                                                        >
-
-                                                            <Trash2 className="w-5 h-5" />
-
-                                                        </button>
-
                                                     </div>
 
 
@@ -4077,8 +4146,8 @@ export default function BusinessSettings() {
                                                     </div>
 
                                                 </div>
-
-                                            ))}
+                                                );
+                                            })}
 
                                         </div>
 
