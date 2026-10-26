@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { socket } from '@/lib/socket';
-import { Timer, Coffee, CreditCard, Zap, Trophy, Percent, Monitor, Loader2, Star, CheckCircle2, Bomb, Sparkles, Target, Phone, X, Gift, BellRing, Users, AlertTriangle, Wrench, Wallet, History as HistoryIcon, QrCode, Calendar } from 'lucide-react';
+import { Timer, Coffee, CreditCard, Zap, Trophy, Percent, Monitor, Loader2, Star, CheckCircle2, Bomb, Sparkles, Target, Phone, X, Gift, BellRing, Users, AlertTriangle, Wrench, Wallet, History as HistoryIcon, QrCode, Calendar, LogIn, LogOut, ScanLine, RotateCcw } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -180,71 +180,164 @@ function SmartDisplayContent() {
  const [attendancePin, setAttendancePin] = useState('');
  const [attendanceStatus, setAttendanceStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR'>('IDLE');
  const [attendanceMsg, setAttendanceMsg] = useState('');
- const [attendanceAction, setAttendanceAction] = useState<'CHECKIN' | 'CHECKOUT' | null>(null);
+ const [attendanceData, setAttendanceData] = useState<{ userName: string; mode: string; time: string; status: string } | null>(null);
+ const [attendanceAction, setAttendanceAction] = useState<'CHECKIN' | 'CHECKOUT'>('CHECKIN');
+ const [countdownSeconds, setCountdownSeconds] = useState(3);
  const [waitingName, setWaitingName] = useState('');
  const [waitingPhone, setWaitingPhone] = useState('');
  const [isSubmittingWaiting, setIsSubmittingWaiting] = useState(false);
  const [regSuccess, setRegSuccess] = useState(false);
  const { waitingList } = useRealtimeData();
 
- // ─── Camera Scanner ────────────────────────────────────────────────────────
- // QR tokens live only ~3s, so we submit IMMEDIATELY on decode (no manual tap).
- // The token itself carries CHECKIN/CHECKOUT intent; the kiosk button is only a fallback.
+ // ─── Camera Scanner & Attendance Flow ──────────────────────────────────────
  const attendanceActionRef = useRef(attendanceAction);
  useEffect(() => { attendanceActionRef.current = attendanceAction; }, [attendanceAction]);
  const scanBusyRef = useRef(false);
  const lastScannedRef = useRef<string>('');
+ const resetTimerRef = useRef<any>(null);
+ const countdownIntervalRef = useRef<any>(null);
+
+ // Audio feedback synthesizer (Web Audio API)
+ const playAudioFeedback = useCallback((type: 'beep' | 'success' | 'error') => {
+     try {
+         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+         if (!AudioCtx) return;
+         const ctx = new AudioCtx();
+         const osc = ctx.createOscillator();
+         const gain = ctx.createGain();
+         osc.connect(gain);
+         gain.connect(ctx.destination);
+         const now = ctx.currentTime;
+         if (type === 'beep') {
+             osc.frequency.setValueAtTime(880, now);
+             gain.gain.setValueAtTime(0.15, now);
+             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+             osc.start(now);
+             osc.stop(now + 0.1);
+         } else if (type === 'success') {
+             osc.frequency.setValueAtTime(523.25, now);
+             osc.frequency.setValueAtTime(783.99, now + 0.12);
+             gain.gain.setValueAtTime(0.2, now);
+             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+             osc.start(now);
+             osc.stop(now + 0.35);
+         } else {
+             osc.type = 'sawtooth';
+             osc.frequency.setValueAtTime(220, now);
+             gain.gain.setValueAtTime(0.2, now);
+             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+             osc.start(now);
+             osc.stop(now + 0.3);
+         }
+     } catch {
+         // Silently ignore if audio autoplay is disabled
+     }
+ }, []);
+
+ const resetAttendanceState = useCallback(() => {
+     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+     setAttendancePin('');
+     setAttendanceStatus('IDLE');
+     setAttendanceMsg('');
+     setAttendanceData(null);
+     setCountdownSeconds(3);
+     scanBusyRef.current = false;
+     lastScannedRef.current = '';
+     // Note: Keep emptyView as 'ATTENDANCE' to stay in scanning position ready for next employee!
+ }, []);
+
+ const executeAttendance = useCallback(async (token: string, explicitMode?: 'CHECKIN' | 'CHECKOUT') => {
+     if (!token) return;
+     if (scanBusyRef.current || token === lastScannedRef.current) return;
+     scanBusyRef.current = true;
+     lastScannedRef.current = token;
+     
+     const targetMode = explicitMode || attendanceActionRef.current || 'CHECKIN';
+     setAttendancePin(token);
+     setAttendanceStatus('LOADING');
+     playAudioFeedback('beep');
+
+     try {
+         const res = await axios.post(`/attendance/public/qr`, {
+             token,
+             mode: targetMode,
+         });
+         const doneMode = res.data?.scanMode || targetMode;
+         const name = res.data?.userName || '';
+         setAttendanceAction(doneMode);
+         setAttendanceStatus('SUCCESS');
+         const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+         setAttendanceData({
+             userName: name,
+             mode: doneMode,
+             time: nowStr,
+             status: res.data?.status || 'APPROVED',
+         });
+         setAttendanceMsg(name ? `${name} berhasil ${doneMode === 'CHECKIN' ? 'Check-in (Masuk)' : 'Check-out (Pulang)'}!` : `Berhasil ${doneMode === 'CHECKIN' ? 'Check-in' : 'Check-out'}!`);
+         playAudioFeedback('success');
+     } catch (err: any) {
+         setAttendanceStatus('ERROR');
+         setAttendanceData(null);
+         setAttendanceMsg(err.response?.data?.message || 'QR Code / PIN Tidak Valid');
+         playAudioFeedback('error');
+     } finally {
+         setCountdownSeconds(3);
+         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+         if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+
+         let sec = 3;
+         countdownIntervalRef.current = setInterval(() => {
+             sec -= 1;
+             setCountdownSeconds(sec);
+             if (sec <= 0) {
+                 clearInterval(countdownIntervalRef.current);
+             }
+         }, 1000);
+
+         resetTimerRef.current = setTimeout(() => {
+             resetAttendanceState();
+         }, 3000);
+     }
+ }, [playAudioFeedback, resetAttendanceState]);
 
  useEffect(() => {
      let html5QrCode: Html5Qrcode | null = null;
-     let resetTimer: any;
-
-     const submitToken = async (token: string) => {
-         if (scanBusyRef.current || token === lastScannedRef.current) return;
-         scanBusyRef.current = true;
-         lastScannedRef.current = token;
-         setAttendancePin(token);
-         setAttendanceStatus('LOADING');
-         try {
-             const res = await axios.post(`/attendance/public/qr`, {
-                 token,
-                 mode: attendanceActionRef.current || 'CHECKIN',
-             });
-             const doneMode = res.data?.scanMode || attendanceActionRef.current || 'CHECKIN';
-             const name = res.data?.userName;
-             setAttendanceAction(doneMode);
-             setAttendanceStatus('SUCCESS');
-             setAttendanceMsg(`${name ? name + ' — ' : ''}Berhasil ${doneMode === 'CHECKIN' ? 'Check-in' : 'Check-out'}!`);
-         } catch (err: any) {
-             setAttendanceStatus('ERROR');
-             setAttendanceMsg(err.response?.data?.message || 'QR TIDAK VALID');
-         } finally {
-             resetTimer = setTimeout(() => {
-                 setAttendancePin('');
-                 setAttendanceStatus('IDLE');
-                 scanBusyRef.current = false;
-             }, 2500);
-         }
-     };
 
      if (emptyView === 'ATTENDANCE') {
-         html5QrCode = new Html5Qrcode("qr-reader-display");
-         html5QrCode.start(
-             { facingMode: "user" },
-             { fps: 15, qrbox: { width: 260, height: 260 } },
-             (decodedText) => { submitToken(decodedText.trim()); },
-             () => { /* ignore per-frame decode misses */ }
-         ).catch(err => console.error("Scanner error:", err));
+         try {
+             html5QrCode = new Html5Qrcode("qr-reader-display");
+             html5QrCode.start(
+                 { facingMode: "user" },
+                 { fps: 15, qrbox: { width: 280, height: 280 } },
+                 (decodedText) => { 
+                     executeAttendance(decodedText.trim()); 
+                 },
+                 () => { /* frame decode miss */ }
+             ).catch(err => {
+                 console.error("Scanner camera user error:", err);
+                 html5QrCode?.start(
+                     { facingMode: "environment" },
+                     { fps: 15, qrbox: { width: 280, height: 280 } },
+                     (decodedText) => { executeAttendance(decodedText.trim()); },
+                     () => {}
+                 ).catch(e2 => console.error("Scanner fallback error:", e2));
+             });
+         } catch (err) {
+             console.error("Html5Qrcode init error:", err);
+         }
      }
 
      return () => {
-         clearTimeout(resetTimer);
+         if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+         if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
          scanBusyRef.current = false;
+         lastScannedRef.current = '';
          if (html5QrCode && html5QrCode.isScanning) {
              html5QrCode.stop().catch(console.error);
          }
      };
- }, [emptyView]);
+ }, [emptyView, executeAttendance]);
 
  // Remote Scanner Flow for Topup/Check
  const [scanRequestId, setScanRequestId] = useState<string | null>(null);
@@ -1333,116 +1426,260 @@ function SmartDisplayContent() {
  };
 
  const renderAttendanceView = () => {
- const handleAttendance = async (action: 'CHECKIN' | 'CHECKOUT') => {
- if (!attendancePin) return;
- setAttendanceStatus('LOADING');
- setAttendanceAction(action);
- try {
- const res = await axios.post(`/attendance/public/qr`, {
- token: attendancePin,
- mode: action
- });
- const doneMode = res.data?.scanMode || action;
- setAttendanceAction(doneMode);
- setAttendanceStatus('SUCCESS');
- setAttendanceMsg(`Berhasil ${doneMode === 'CHECKIN' ? 'Check-in' : 'Check-out'}!`);
- 
- setTimeout(() => {
- setAttendancePin('');
- setAttendanceStatus('IDLE');
- setEmptyView('PROMO');
- }, 3000);
- } catch (err: any) {
- setAttendanceStatus('ERROR');
- setAttendanceMsg(err.response?.data?.message || 'QR TIDAK VALID');
- setAttendancePin('');
- setTimeout(() => {
- setAttendanceStatus('IDLE');
- }, 3000);
- }
- };
+    return (
+      <div className="w-full max-w-xl glass-card p-6 sm:p-8 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500 z-10 mx-4 relative overflow-hidden border border-white/20 bg-slate-950/95 backdrop-blur-2xl">
+        {/* Ambient Glows */}
+        <div className={`absolute top-0 right-0 w-64 h-64 blur-[100px] pointer-events-none transition-all duration-700 ${attendanceAction === "CHECKIN" ? "bg-emerald-500/25" : "bg-blue-500/25"}`} />
+        <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-indigo-500/15 blur-[100px] pointer-events-none" />
 
- return (
- <div className="w-full max-w-lg glass-card p-10 rounded-[4rem] shadow-2xl animate-in zoom-in-95 duration-700 z-10 mx-4 relative overflow-hidden">
- <div className="absolute top-0 right-0 w-32 h-32 bg-[#30D158]/10 blur-[80px]" />
- 
- <div className="relative z-10 text-center space-y-6 mb-10">
- <div className="w-20 h-20 bg-emerald-600/10 rounded-3xl flex items-center justify-center mx-auto border border-emerald-500/20 shadow-2xl">
- <Calendar className="w-10 h-10 text-[#30D158]" />
- </div>
- <div>
- <h2 className="text-3xl font-black text-white uppercase tracking-tight ">PRESENSI KARYAWAN</h2>
- <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] opacity-80 mt-2">Scan QR Code Karyawan Anda</p>
- </div>
- </div>
+        {/* HEADER BAR */}
+        <div className="relative z-10 flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+          <div className="flex items-center gap-3.5">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border shadow-xl transition-all duration-300 ${
+              attendanceAction === "CHECKIN" 
+                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" 
+                : "bg-blue-500/20 border-blue-500/50 text-blue-400"
+            }`}>
+              <QrCode className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-black text-white uppercase tracking-tight">Presensi Karyawan</h2>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 mt-0.5">
+                Scan QR Code / Kartu Karyawan
+              </p>
+            </div>
+          </div>
 
- {attendanceStatus === 'SUCCESS' || attendanceStatus === 'ERROR' ? (
- <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-10 text-center space-y-6">
- <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-2xl ${attendanceStatus === 'SUCCESS' ? 'bg-[#30D158]' : 'bg-rose-500'}`}>
- {attendanceStatus === 'SUCCESS' ? (
- <CheckCircle2 className="w-10 h-10 text-white animate-bounce" />
- ) : (
- <AlertTriangle className="w-10 h-10 text-white animate-pulse" />
- )}
- </div>
- <p className={`font-black uppercase tracking-widest leading-relaxed text-sm ${attendanceStatus === 'SUCCESS' ? 'text-[#30D158]' : 'text-rose-500'}`}>
- {attendanceMsg}
- </p>
- </motion.div>
- ) : (
- <div className="space-y-8 relative z-10">
- {/* QR Scanner Input */}
- <div className="space-y-6 relative">
- <div id="qr-reader-display" className="mx-auto w-full max-w-sm overflow-hidden rounded-3xl border-2 border-emerald-500/20" />
- <input
- type="password" 
- placeholder="Atau gunakan Scanner External..."
- className="w-full bg-white/5 border border-white/10 rounded-2xl py-6 text-center text-xl font-black tracking-widest outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder:text-white/20 text-white"
- value={attendancePin} 
- onChange={e => setAttendancePin(e.target.value)} 
- autoFocus
- onKeyDown={e => {
- if (e.key === 'Enter' && attendancePin && attendanceAction) {
-    handleAttendance(attendanceAction);
- }
- }}
- />
- </div>
+          <button
+            type="button"
+            onClick={() => {
+              resetAttendanceState();
+              setEmptyView("PROMO");
+            }}
+            className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-rose-500 text-slate-300 hover:text-white transition-all flex items-center justify-center border border-white/10 active:scale-90"
+            title="Tutup Presensi"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
- <div className="flex flex-col sm:flex-row gap-4 pt-6">
- <button
- onClick={() => {
- setAttendancePin('');
- setEmptyView('PROMO');
- }}
- className="order-2 sm:order-1 flex-1 py-5 bg-white/5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all border border-white/10"
- >
- Keluar
- </button>
- <div className="order-1 sm:order-2 flex-[2] flex gap-3">
- <button
- disabled={!attendancePin || attendanceStatus === 'LOADING'}
- onClick={() => handleAttendance('CHECKIN')}
- className="flex-1 py-5 bg-emerald-600 hover:bg-[#30D158] disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
- >
- {attendanceStatus === 'LOADING' && attendanceAction === 'CHECKIN' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'SCAN CHECK IN'}
- </button>
- <button
- disabled={!attendancePin || attendanceStatus === 'LOADING'}
- onClick={() => handleAttendance('CHECKOUT')}
- className="flex-1 py-5 bg-[#0A84FF] hover:bg-indigo-500 disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-xl shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
- >
- {attendanceStatus === 'LOADING' && attendanceAction === 'CHECKOUT' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CHECK OUT'}
- </button>
- </div>
- </div>
- </div>
- )}
- </div>
- );
- };
+        {/* CAMERA SCANNER VIEWPORT (ALWAYS MOUNTED IN DOM) */}
+        <div className="relative mb-5">
+          <div className="relative mx-auto w-full aspect-square max-w-[340px] rounded-3xl overflow-hidden border-2 border-slate-700/80 bg-black shadow-2xl group">
+            {/* The Html5Qrcode video container - ALWAYS preserved */}
+            <div id="qr-reader-display" className="w-full h-full object-cover [&>video]:!object-cover [&>video]:!w-full [&>video]:!h-full" />
 
+            {/* Viewfinder Corner Overlays */}
+            <div className="pointer-events-none absolute inset-4 border-2 border-transparent">
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl shadow-[0_0_8px_#34d399]" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl shadow-[0_0_8px_#34d399]" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl shadow-[0_0_8px_#34d399]" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-xl shadow-[0_0_8px_#34d399]" />
+            </div>
 
+            {/* Animated Laser Scanning Beam */}
+            {attendanceStatus === "IDLE" && (
+              <div className="pointer-events-none absolute inset-x-6 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#34d399] animate-scan-laser" />
+            )}
+
+            {/* Top Camera Status Badge */}
+            <div className="absolute top-3 inset-x-0 flex justify-center pointer-events-none z-10">
+              <div className="px-3.5 py-1 bg-black/75 backdrop-blur-md border border-white/20 rounded-full flex items-center gap-2 shadow-lg">
+                <span className={`w-2 h-2 rounded-full ${attendanceAction === "CHECKIN" ? "bg-emerald-400" : "bg-blue-400"} animate-pulse`} />
+                <span className="text-[9px] font-black uppercase tracking-wider text-white">
+                  {attendanceAction === "CHECKIN" ? "Mode: CHECK-IN (Masuk)" : "Mode: CHECK-OUT (Pulang)"}
+                </span>
+              </div>
+            </div>
+
+            {/* RESULT OVERLAY (SUCCESS / ERROR / LOADING) */}
+            {attendanceStatus !== "IDLE" && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute inset-0 z-30 bg-slate-950/92 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
+              >
+                {attendanceStatus === "LOADING" && (
+                  <div className="space-y-4">
+                    <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mx-auto" />
+                    <p className="text-white font-black text-xs uppercase tracking-widest">
+                      Memverifikasi Presensi...
+                    </p>
+                  </div>
+                )}
+
+                {attendanceStatus === "SUCCESS" && (
+                  <div className="space-y-3.5 max-w-xs animate-in zoom-in-95 duration-300">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mx-auto shadow-[0_0_25px_rgba(16,185,129,0.5)]">
+                      <CheckCircle2 className="w-10 h-10 animate-bounce" />
+                    </div>
+
+                    <div>
+                      <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1.5 shadow-md ${
+                        attendanceData?.mode === "CHECKOUT" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-emerald-600 text-white"
+                      }`}>
+                        {attendanceData?.mode === "CHECKOUT" ? "CHECK-OUT BERHASIL" : "CHECK-IN BERHASIL"}
+                      </span>
+                      <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                        {attendanceData?.userName || "Karyawan"}
+                      </h3>
+                      <p className="text-xs font-semibold text-emerald-400 mt-0.5">
+                        Pukul {attendanceData?.time} WIB
+                      </p>
+                    </div>
+
+                    {/* Auto-restart countdown & immediate restart button */}
+                    <div className="pt-2 border-t border-white/10 space-y-2">
+                      <p className="text-[10px] font-bold text-slate-300">
+                        Scan berikutnya dalam <span className="text-emerald-400 font-black text-xs">{countdownSeconds}s</span>...
+                      </p>
+                      <button
+                        type="button"
+                        onClick={resetAttendanceState}
+                        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Scan Karyawan Berikutnya
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {attendanceStatus === "ERROR" && (
+                  <div className="space-y-3.5 max-w-xs animate-in zoom-in-95 duration-300">
+                    <div className="w-16 h-16 rounded-full bg-rose-500/20 border-2 border-rose-500 text-rose-400 flex items-center justify-center mx-auto shadow-[0_0_25px_rgba(244,63,94,0.5)]">
+                      <AlertTriangle className="w-10 h-10 animate-pulse" />
+                    </div>
+
+                    <div>
+                      <span className="inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mb-1.5 bg-rose-600 text-white shadow-md">
+                        ABSENSI GAGAL
+                      </span>
+                      <p className="text-xs font-black text-rose-300 leading-relaxed uppercase">
+                        {attendanceMsg}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/10 space-y-2">
+                      <button
+                        type="button"
+                        onClick={resetAttendanceState}
+                        className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Coba Scan Lagi
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </div>
+        </div>
+
+        {/* EXTERNAL SCANNER / PIN MANUAL INPUT */}
+        <div className="mb-5 relative">
+          <div className="relative">
+            <input
+              type="password"
+              placeholder="Ketik PIN / Gunakan Barcode Scanner..."
+              className="w-full bg-slate-900/90 border-2 border-slate-700/80 focus:border-emerald-400 rounded-2xl py-3.5 pl-11 pr-24 text-center text-sm font-black tracking-widest outline-none transition-all placeholder:text-slate-500 text-white shadow-inner"
+              value={attendancePin}
+              onChange={e => setAttendancePin(e.target.value)}
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === "Enter" && attendancePin) {
+                  executeAttendance(attendancePin, attendanceAction);
+                }
+              }}
+            />
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <ScanLine className="w-5 h-5 text-emerald-400" />
+            </div>
+            {attendancePin && (
+              <button
+                type="button"
+                onClick={() => executeAttendance(attendancePin, attendanceAction)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-md active:scale-95"
+              >
+                SUBMIT
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* HIGH CONTRAST ACTION BUTTONS */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              setAttendanceAction("CHECKIN");
+              if (attendancePin) {
+                executeAttendance(attendancePin, "CHECKIN");
+              }
+            }}
+            className={`relative py-4 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2.5 shadow-xl select-none active:scale-95 ${
+              attendanceAction === "CHECKIN"
+                ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white ring-4 ring-emerald-500/40 shadow-emerald-500/30 scale-[1.02]"
+                : "bg-slate-900/95 hover:bg-slate-800 text-emerald-400 border-2 border-emerald-500/40 hover:border-emerald-400"
+            }`}
+          >
+            <LogIn className="w-5 h-5 stroke-[2.5]" />
+            <div className="text-left leading-tight">
+              <span className="block text-[11px] font-black">SCAN CHECK IN</span>
+              <span className="block text-[8px] font-bold opacity-80">Absen Masuk Shift</span>
+            </div>
+            {attendanceAction === "CHECKIN" && (
+              <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-white text-emerald-700 text-[8px] font-black rounded-full shadow-md uppercase tracking-wider">
+                AKTIF
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttendanceAction("CHECKOUT");
+              if (attendancePin) {
+                executeAttendance(attendancePin, "CHECKOUT");
+              }
+            }}
+            className={`relative py-4 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2.5 shadow-xl select-none active:scale-95 ${
+              attendanceAction === "CHECKOUT"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-4 ring-blue-500/40 shadow-blue-500/30 scale-[1.02]"
+                : "bg-slate-900/95 hover:bg-slate-800 text-blue-400 border-2 border-blue-500/40 hover:border-blue-400"
+            }`}
+          >
+            <LogOut className="w-5 h-5 stroke-[2.5]" />
+            <div className="text-left leading-tight">
+              <span className="block text-[11px] font-black">CHECK OUT</span>
+              <span className="block text-[8px] font-bold opacity-80">Absen Pulang Shift</span>
+            </div>
+            {attendanceAction === "CHECKOUT" && (
+              <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-white text-blue-700 text-[8px] font-black rounded-full shadow-md uppercase tracking-wider">
+                AKTIF
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* BOTTOM EXIT BUTTON */}
+        <button
+          type="button"
+          onClick={() => {
+            resetAttendanceState();
+            setEmptyView("PROMO");
+          }}
+          className="w-full py-3.5 bg-slate-900/90 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all border border-white/10 flex items-center justify-center gap-2 active:scale-95"
+        >
+          <X className="w-3.5 h-3.5" /> Keluar ke Menu Utama
+        </button>
+      </div>
+    );
+  };
  const renderRedeemView = () => {
  if (!redeemMember) return null;
 

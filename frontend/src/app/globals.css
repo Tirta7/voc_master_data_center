@@ -278,3 +278,15 @@ input[type="time"]::-webkit-date-and-time-value {
     z-index: 9999;
   }
 }
+
+/* Attendance Scanner Laser Animation */
+@keyframes scannerLaser {
+  0% { top: 8%; opacity: 0.3; }
+  50% { top: 90%; opacity: 1; }
+  100% { top: 8%; opacity: 0.3; }
+}
+
+.animate-scan-laser {
+  animation: scannerLaser 2s ease-in-out infinite;
+}
+
