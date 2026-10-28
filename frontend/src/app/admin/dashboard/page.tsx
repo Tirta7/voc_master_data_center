@@ -2915,7 +2915,14 @@ export default function AdminDashboard() {
                                         </div>
                                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Potongan & Denda (Range)</p>
-                                            <p className="text-2xl font-black text-rose-600">{fmt(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.penalties || 0), 0))}</p>
+                                            {(() => {
+                                                const totalPen = Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.penalties || 0), 0);
+                                                return (
+                                                    <p className={`text-2xl font-black ${totalPen < 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {totalPen < 0 ? `+${fmt(Math.abs(totalPen))}` : fmt(totalPen)}
+                                                    </p>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
 
@@ -2961,7 +2968,9 @@ export default function AdminDashboard() {
                                                                 </div>
                                                             </td>
                                                             <td className="px-6 py-5 text-right">
-                                                                <p className="text-sm font-black text-rose-500">-{fmt(p.penalties || 0)}</p>
+                                                                <p className={`text-sm font-black ${(p.penalties || 0) < 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                                    {(p.penalties || 0) < 0 ? `+${fmt(Math.abs(p.penalties))}` : `-${fmt(p.penalties || 0)}`}
+                                                                </p>
                                                             </td>
                                                             <td className="px-6 py-5 text-right">
                                                                 <p className="text-lg font-black text-indigo-600">{fmt(p.total || 0)}</p>
@@ -3308,12 +3317,18 @@ export default function AdminDashboard() {
                                 {/* Penalties */}
                                 <div className="space-y-4">
                                     <SectionHeader icon={<AlertTriangle className="w-4 h-4" />} title="Potongan & Denda" />
-                                    <div className="bg-rose-50 p-5 rounded-2xl border border-rose-100 flex justify-between items-center">
+                                    <div className={`p-5 rounded-2xl border flex justify-between items-center ${(selectedPayrollDetail.penalties || 0) < 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
                                         <div>
-                                            <p className="text-sm font-black text-rose-700">Total Denda Keamanan</p>
-                                            <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mt-0.5">Idle Timeout, Lateness, etc.</p>
+                                            <p className={`text-sm font-black ${(selectedPayrollDetail.penalties || 0) < 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                {(selectedPayrollDetail.penalties || 0) < 0 ? 'Koreksi / Pengembalian Denda' : 'Total Denda Keamanan'}
+                                            </p>
+                                            <p className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${(selectedPayrollDetail.penalties || 0) < 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                                                {(selectedPayrollDetail.penalties || 0) < 0 ? 'Restitusi / Penghapusan Denda' : 'Idle Timeout, Lateness, etc.'}
+                                            </p>
                                         </div>
-                                        <p className="text-xl font-black text-rose-600">-{fmt(selectedPayrollDetail.penalties)}</p>
+                                        <p className={`text-xl font-black ${(selectedPayrollDetail.penalties || 0) < 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                            {(selectedPayrollDetail.penalties || 0) < 0 ? `+${fmt(Math.abs(selectedPayrollDetail.penalties))}` : `-${fmt(selectedPayrollDetail.penalties || 0)}`}
+                                        </p>
                                     </div>
                                 </div>
                             </div>

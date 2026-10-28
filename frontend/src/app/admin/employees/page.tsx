@@ -2069,7 +2069,7 @@ export default function EmployeePage() {
                                             className="flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors group border-b border-slate-50 last:border-0"
                                         >
                                             <div
-                                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${v.type === "IDLE_TIMEOUT" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}
+                                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${Number(v.penaltyAmount) < 0 ? "bg-emerald-50 text-emerald-600" : v.type === "IDLE_TIMEOUT" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}
                                             >
                                                 <AlertTriangle className="w-5 h-5" />
                                             </div>
@@ -2088,8 +2088,8 @@ export default function EmployeePage() {
                                                         minute: "2-digit",
                                                     })}
                                                 </p>
-                                                <p className="text-[9px] font-bold text-rose-500">
-                                                    -Rp {Number(v.penaltyAmount).toLocaleString()}
+                                                <p className={`text-[9px] font-bold ${Number(v.penaltyAmount) < 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                                                    {Number(v.penaltyAmount) < 0 ? `+Rp ${Math.abs(Number(v.penaltyAmount)).toLocaleString()}` : `-Rp ${Number(v.penaltyAmount).toLocaleString()}`}
                                                 </p>
                                             </div>
                                         </div>
@@ -2508,8 +2508,8 @@ export default function EmployeePage() {
                                                     </td>
                                                     <td className="px-8 py-6">
                                                         <div className="flex flex-col">
-                                                            <p className="text-sm font-black text-rose-500 tabular-nums">
-                                                                - {fmt(stats.penalties)}
+                                                            <p className={`text-sm font-black tabular-nums ${(stats.penalties || 0) < 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                                                                {(stats.penalties || 0) < 0 ? `+ ${fmt(Math.abs(stats.penalties))}` : `- ${fmt(stats.penalties)}`}
                                                             </p>
 
                                                             <div className="flex flex-wrap items-center gap-2.5 mt-1 text-[9px] font-bold">
@@ -2749,8 +2749,8 @@ export default function EmployeePage() {
                                                         <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest">
                                                             Total Deductions
                                                         </p>
-                                                        <p className="text-sm font-black text-rose-600 tabular-nums">
-                                                            - {fmt(stats.penalties)}
+                                                        <p className={`text-sm font-black tabular-nums ${(stats.penalties || 0) < 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                                            {(stats.penalties || 0) < 0 ? `+ ${fmt(Math.abs(stats.penalties))}` : `- ${fmt(stats.penalties)}`}
                                                         </p>
                                                     </div>
                                                     <div className="mt-2 pt-2 border-t border-rose-100/50 space-y-1">
