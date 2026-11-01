@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { socket } from '@/lib/socket';
 import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
@@ -717,6 +718,35 @@ export default function AdminDashboard() {
     const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
     const [selectedAuditStaff, setSelectedAuditStaff] = useState<any | null>(null);
     const [mounted, setMounted] = useState(false);
+    const [licenseState, setLicenseState] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchLicense = async () => {
+            try {
+                const res = await axios.get('/license/status');
+                setLicenseState(res.data);
+            } catch (err) {
+                console.error('Failed to fetch license status in dashboard:', err);
+            }
+        };
+        fetchLicense();
+
+        const onLicUpdate = (data: any) => {
+            if (data) setLicenseState((prev: any) => ({ ...(prev || {}), ...data }));
+        };
+        socket.on('license_updated', onLicUpdate);
+        return () => {
+            socket.off('license_updated', onLicUpdate);
+        };
+    }, []);
+
+    const isLicenseExpired = Boolean(
+        licenseState && (
+            licenseState.status === 'EXPIRED' ||
+            licenseState.status === 'BLOCKED' ||
+            (licenseState.status !== 'ACTIVE' && licenseState.status !== 'GRACE' && licenseState.trial?.enabled && licenseState.trial?.remaining <= 0)
+        )
+    );
 
     useEffect(() => {
         setMounted(true);
@@ -1043,8 +1073,10 @@ export default function AdminDashboard() {
 
 
             {/* ── Top bar ── */}
-            {/* Hero Header */}
-            <div className="max-w-7xl mx-auto px-6 py-6 pt-8 pb-0">
+            {/* Dashboard Content Container (blur jika lisensi habis) */}
+            <div className={`transition-all duration-700 ${isLicenseExpired ? 'filter blur-[14px] pointer-events-none select-none opacity-40' : ''}`}>
+                {/* Hero Header */}
+                <div className="max-w-7xl mx-auto px-6 py-6 pt-8 pb-0">
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 w-full mb-4">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
@@ -3064,6 +3096,72 @@ export default function AdminDashboard() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Lock Overlay saat Lisensi / Trial Habis */}
+            {isLicenseExpired && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="relative max-w-lg w-full bg-slate-900/95 border border-indigo-500/30 rounded-3xl p-8 text-center shadow-2xl shadow-indigo-950/80 text-white overflow-hidden">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
+                        
+                        <div className="relative z-10 flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 p-0.5 shadow-xl shadow-rose-500/20 mb-5">
+                                <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center">
+                                    <Lock className="w-8 h-8 text-rose-400 animate-pulse" />
+                                </div>
+                            </div>
+
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-black uppercase tracking-widest mb-3">
+                                Akses Laporan Dibatasi
+                            </div>
+
+                            <h2 className="text-2xl font-black tracking-tight text-white mb-2">
+                                Laporan Owner Terkunci
+                            </h2>
+                            
+                            <p className="text-xs text-slate-300 leading-relaxed max-w-md mb-6">
+                                Masa aktif lisensi atau kuota coba gratis Anda telah habis. Seluruh data omzet, grafik laba bersih, transaksi, dan pembukuan sementara disembunyikan hingga lisensi diperpanjang.
+                            </p>
+
+                            <div className="w-full bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3.5 mb-6 text-left flex items-center justify-between text-xs">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Device ID</p>
+                                    <p className="font-mono font-bold text-slate-200 mt-0.5">{licenseState?.machineId || 'VOC-PC'}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status Lisensi</p>
+                                    <span className="inline-block mt-0.5 font-bold text-rose-400 uppercase">
+                                        {licenseState?.trial?.remaining <= 0 ? 'Trial Habis (0 sesi)' : (licenseState?.status || 'Terkunci')}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="w-full flex flex-col gap-2.5">
+                                <button
+                                    onClick={() => window.dispatchEvent(new CustomEvent('open_trial_modal'))}
+                                    className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <Zap className="w-4 h-4 text-amber-300" />
+                                    Perpanjang Lisensi / Klaim Voucher
+                                </button>
+                                
+                                {licenseState?.billing?.contact && (
+                                    <a
+                                        href={`https://wa.me/${licenseState.billing.contact.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(`Halo Admin, saya ingin perpanjang lisensi untuk Device ID: ${licenseState?.machineId}`)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full py-3 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+                                        Hubungi Admin WhatsApp
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
                 {/* Net Profit Calculation Detail Modal */}
                 {showProfitModal && (() => {
