@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Lock, QrCode, MessageCircle, RefreshCw, CheckCircle, Tag, ArrowRight, X, Sparkles, WifiOff } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Lock, QrCode, MessageCircle, RefreshCw, CheckCircle, Tag, ArrowRight, X, Sparkles, WifiOff, Calendar, ShieldCheck } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import { socket } from '@/lib/socket';
 
@@ -65,6 +65,31 @@ export default function TrialExhaustedModal({
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [voucherMsg, setVoucherMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState<{
+    packageName?: string;
+    amountPaid?: number;
+    expiredAt?: string;
+    daysLeft?: number;
+  } | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
+
+  const currentAmount = selectedPackage
+    ? (selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0)
+    : (billing?.amount ?? 0);
+  const currentAmountText = selectedPackage
+    ? (selectedPackage.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`)
+    : (billing?.amount_text ?? '');
+  const currentPackageName = selectedPackage
+    ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
+    : 'Perpanjangan Lisensi';
+
+  const initialLicenseRef = useRef<{
+    expiredAt?: string;
+    licenseKey?: string;
+    uniqueCode?: number;
+    daysLeft?: number;
+    status?: string;
+  } | null>(null);
 
   // Sinkronisasi billing realtime saat modal dibuka
   useEffect(() => {
@@ -74,13 +99,73 @@ export default function TrialExhaustedModal({
   }, [billingData]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      initialLicenseRef.current = null;
+      setPaymentSuccess(null);
+      setPaymentNotice(null);
+      return;
+    }
+
+    // Ambil baseline lisensi saat modal pertama kali dibuka
+    fetch(`${getApiUrl()}/api/license/status`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!initialLicenseRef.current && d) {
+          initialLicenseRef.current = {
+            expiredAt: d.expiredAt || '',
+            licenseKey: d.licenseKey || '',
+            uniqueCode: d.billing?.unique_code ?? d.uniqueCode,
+            daysLeft: typeof d.daysLeft === 'number' ? d.daysLeft : 0,
+            status: d.status,
+          };
+        }
+      })
+      .catch(() => {});
+
+    const detectPaymentSuccess = (newData: any) => {
+      const init = initialLicenseRef.current;
+      if (!init || !newData) return false;
+
+      const newCode = newData.billing?.unique_code ?? newData.uniqueCode;
+      const oldCode = init.uniqueCode;
+
+      const expiredExtended = !!(newData.expiredAt && init.expiredAt && newData.expiredAt > init.expiredAt);
+      const daysIncreased = !!(typeof newData.daysLeft === 'number' && typeof init.daysLeft === 'number' && newData.daysLeft > init.daysLeft);
+      const keyChanged = !!(newData.licenseKey && init.licenseKey && newData.licenseKey !== init.licenseKey);
+      const codeRotated = !!(oldCode && newCode && Number(newCode) !== Number(oldCode));
+
+      if (expiredExtended || daysIncreased || keyChanged || codeRotated) {
+        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Paket Lisensi');
+        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+
+        setPaymentSuccess({
+          packageName: pkgName,
+          amountPaid: paidAmt,
+          expiredAt: newData.expiredAt || '',
+          daysLeft: typeof newData.daysLeft === 'number' ? newData.daysLeft : (typeof init.daysLeft === 'number' ? init.daysLeft + 1 : 1),
+        });
+
+        // Update baseline
+        initialLicenseRef.current = {
+          expiredAt: newData.expiredAt || '',
+          licenseKey: newData.licenseKey || '',
+          uniqueCode: newCode,
+          daysLeft: newData.daysLeft,
+          status: newData.status,
+        };
+
+        if (onVoucherClaimed) onVoucherClaimed();
+        return true;
+      }
+      return false;
+    };
 
     const fetchLatestBilling = async () => {
       try {
         const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
         if (res.ok) {
           const d = await res.json();
+          detectPaymentSuccess(d);
           if (d.billing && d.billing.packages && d.billing.packages.length > 0) {
             setBilling(d.billing);
             setQrFailed(false);
@@ -102,8 +187,11 @@ export default function TrialExhaustedModal({
     const interval = setInterval(fetchLatestBilling, 2500);
 
     const onLicenseUpdated = (data: any) => {
-      if (data?.billing) {
-        setBilling(data.billing);
+      if (data) {
+        detectPaymentSuccess(data);
+        if (data.billing) {
+          setBilling(data.billing);
+        }
       }
     };
     socket.on('license_updated', onLicenseUpdated);
@@ -114,8 +202,11 @@ export default function TrialExhaustedModal({
       es.addEventListener('license', (ev) => {
         try {
           const state = JSON.parse((ev as MessageEvent).data);
-          if (state?.billing) {
-            setBilling(state.billing);
+          if (state) {
+            detectPaymentSuccess(state);
+            if (state.billing) {
+              setBilling(state.billing);
+            }
           }
         } catch {}
       });
@@ -126,7 +217,7 @@ export default function TrialExhaustedModal({
       socket.off('license_updated', onLicenseUpdated);
       es?.close();
     };
-  }, [isOpen]);
+  }, [isOpen, selectedPackage, currentAmount]);
 
   // Pilih paket default
   useEffect(() => {
@@ -147,16 +238,6 @@ export default function TrialExhaustedModal({
       setSelectedPackage(null);
     }
   }, [billing]);
-
-  const currentAmount = selectedPackage
-    ? (selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0)
-    : (billing?.amount ?? 0);
-  const currentAmountText = selectedPackage
-    ? (selectedPackage.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`)
-    : (billing?.amount_text ?? '');
-  const currentPackageName = selectedPackage
-    ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
-    : 'Perpanjangan Lisensi';
 
   useEffect(() => {
     setQrLoaded(false);
@@ -193,15 +274,34 @@ export default function TrialExhaustedModal({
 
   const handleCheckPaymentNow = async () => {
     setCheckingPayment(true);
+    setPaymentNotice(null);
     try {
       const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
       const data = await res.json();
-      if (data.status === 'ACTIVE' || data.status === 'GRACE' || (data.trial && data.trial.remaining > 0)) {
+      const init = initialLicenseRef.current;
+      const newCode = data.billing?.unique_code ?? data.uniqueCode;
+      const oldCode = init?.uniqueCode;
+
+      const expiredExtended = !!(init?.expiredAt && data.expiredAt && data.expiredAt > init.expiredAt);
+      const daysIncreased = !!(typeof init?.daysLeft === 'number' && typeof data.daysLeft === 'number' && data.daysLeft > init.daysLeft);
+      const keyChanged = !!(init?.licenseKey && data.licenseKey && data.licenseKey !== init.licenseKey);
+      const codeRotated = !!(oldCode && newCode && Number(newCode) !== Number(oldCode));
+
+      if (expiredExtended || daysIncreased || keyChanged || codeRotated) {
+        setPaymentSuccess({
+          packageName: selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Paket Lisensi'),
+          amountPaid: selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount,
+          expiredAt: data.expiredAt || '',
+          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
+        });
         if (onVoucherClaimed) onVoucherClaimed();
-        onClose();
+      } else {
+        setPaymentNotice('Sedang memverifikasi mutasi transfer QRIS Anda... Mohon tunggu 5-10 detik jika baru saja transfer dari m-banking/e-wallet.');
+        setTimeout(() => setPaymentNotice(null), 8000);
       }
-    } catch {}
-    finally {
+    } catch {
+      setPaymentNotice('Gagal menghubungkan ke server lisensi. Pastikan koneksi internet stabil.');
+    } finally {
       setCheckingPayment(false);
     }
   };
@@ -281,7 +381,103 @@ export default function TrialExhaustedModal({
           </button>
         </div>
 
-        {/* Body Modal: Dua Kolom (Kiri QRIS & Kanan Pilihan Paket + Voucher) */}
+        {/* Body Modal: Layar Sukses Pembayaran vs Layar Dua Kolom (QRIS & Paket) */}
+        {paymentSuccess ? (
+          <div style={{
+            padding: '38px 24px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+            background: 'radial-gradient(circle at 50% 15%, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.98) 75%)',
+            animation: 'fadeIn 0.3s ease-out',
+          }}>
+            <div style={{
+              width: '78px', height: '78px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 45px rgba(16, 185, 129, 0.55), 0 0 90px rgba(16, 185, 129, 0.25)',
+              marginBottom: '18px',
+              animation: 'bounceIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            }}>
+              <CheckCircle size={46} color="#ffffff" strokeWidth={2.5} />
+            </div>
+
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '20px', padding: '5px 16px', marginBottom: '12px',
+            }}>
+              <Sparkles size={14} color="#34d399" />
+              <span style={{ fontSize: '11px', fontWeight: '800', color: '#6ee7b7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Pembayaran Berhasil Diterima
+              </span>
+            </div>
+
+            <h2 style={{
+              color: '#ffffff', fontSize: '23px', fontWeight: '900', margin: '0 0 8px',
+              letterSpacing: '-0.02em',
+            }}>
+              Lisensi Anda Berhasil Diperpanjang!
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 24px', maxWidth: '460px', lineHeight: '1.5' }}>
+              Terima kasih! Pembayaran QRIS Anda telah terverifikasi secara otomatis. Masa aktif lisensi aplikasi Anda telah diperbarui.
+            </p>
+
+            {/* Rincian Transaksi */}
+            <div style={{
+              width: '100%', maxWidth: '440px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '16px', padding: '16px 20px',
+              display: 'flex', flexDirection: 'column', gap: '12px',
+              boxSizing: 'border-box', marginBottom: '24px',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Paket Diperpanjang</span>
+                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>{paymentSuccess.packageName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Nominal</span>
+                <span style={{ color: '#34d399', fontSize: '16px', fontWeight: '900' }}>
+                  Rp{paymentSuccess.amountPaid?.toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Berlaku Sampai</span>
+                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>
+                  {paymentSuccess.expiredAt
+                    ? new Date(paymentSuccess.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : 'Aktif'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Sisa Waktu</span>
+                <span style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '800' }}>
+                  {paymentSuccess.daysLeft} Hari Lagi
+                </span>
+              </div>
+            </div>
+
+            {/* Tombol Selesai */}
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                width: '100%', maxWidth: '440px', padding: '12px 24px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                borderRadius: '12px', border: 'none', color: '#ffffff',
+                fontSize: '13px', fontWeight: '800', cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'transform 0.15s ease',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <CheckCircle size={16} /> Selesai & Lanjutkan
+            </button>
+          </div>
+        ) : (
+        /* Body Modal: Dua Kolom (Kiri QRIS & Kanan Pilihan Paket + Voucher) */
         <div style={{
           display: 'flex', flexDirection: 'row', alignItems: 'stretch',
           flexWrap: 'wrap',
@@ -532,42 +728,57 @@ export default function TrialExhaustedModal({
             </div>
 
             {/* Bottom Actions */}
-            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-              <button
-                type="button"
-                onClick={handleCheckPaymentNow}
-                disabled={checkingPayment}
-                style={{
-                  flex: 1, padding: '10px 14px',
-                  background: 'linear-gradient(135deg, #10b981, #059669)',
-                  borderRadius: '10px', border: 'none', color: 'white',
-                  fontSize: '12px', fontWeight: '800', cursor: checkingPayment ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                  boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                }}
-              >
-                {checkingPayment ? (
-                  <><RefreshCw size={13} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa...</>
-                ) : (
-                  <><CheckCircle size={14} /> Saya Sudah Bayar</>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  padding: '10px 16px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '10px', color: '#94a3b8',
-                  fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                }}
-              >
-                Tutup
-              </button>
+            <div>
+              <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                <button
+                  type="button"
+                  onClick={handleCheckPaymentNow}
+                  disabled={checkingPayment}
+                  style={{
+                    flex: 1, padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    borderRadius: '10px', border: 'none', color: 'white',
+                    fontSize: '12px', fontWeight: '800', cursor: checkingPayment ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                  }}
+                >
+                  {checkingPayment ? (
+                    <><RefreshCw size={13} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa...</>
+                  ) : (
+                    <><CheckCircle size={14} /> Saya Sudah Bayar</>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{
+                    padding: '10px 16px',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '10px', color: '#94a3b8',
+                    fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                  }}
+                >
+                  Tutup
+                </button>
+              </div>
+
+              {paymentNotice && (
+                <div style={{
+                  marginTop: '10px', padding: '9px 12px', borderRadius: '8px',
+                  background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.25)',
+                  color: '#93c5fd', fontSize: '11px', lineHeight: '1.4', textAlign: 'left',
+                  display: 'flex', alignItems: 'flex-start', gap: '8px',
+                }}>
+                  <RefreshCw size={14} style={{ flexShrink: 0, marginTop: '2px', animation: 'spin 2s linear infinite' }} />
+                  <span>{paymentNotice}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
+        )}
       </div>
 
       <style>{`
@@ -578,6 +789,16 @@ export default function TrialExhaustedModal({
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounceIn {
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.08); }
+          70% { transform: scale(0.95); }
+          100% { transform: scale(1); opacity: 1; }
         }
       `}</style>
     </div>
