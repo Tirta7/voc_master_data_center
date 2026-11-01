@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff } from 'lucide-react';
+import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag, ArrowRight } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import WaitingCat from '@/components/WaitingCat';
 
@@ -32,6 +32,49 @@ export default function ActivatePage() {
   const [backendReady, setBackendReady] = useState(false);
   const [qrFailed, setQrFailed] = useState(false);
   const [qrLoaded, setQrLoaded] = useState(false);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherMsg, setVoucherMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+
+  const handleClaimVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!voucherCode.trim()) return;
+    setVoucherLoading(true);
+    setVoucherMsg(null);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/license/voucher/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: voucherCode.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setVoucherMsg({ text: data.message || 'Voucher berhasil digunakan!' });
+        setTimeout(() => { window.location.href = '/'; }, 1000);
+      } else {
+        setVoucherMsg({ text: data.message || 'Kode voucher tidak valid', error: true });
+      }
+    } catch (err: any) {
+      setVoucherMsg({ text: err?.message || 'Gagal klaim voucher', error: true });
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+
+  const handleCheckPaymentNow = async () => {
+    setCheckingPayment(true);
+    try {
+      const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
+      const data = await res.json();
+      if (data.status === 'ACTIVE' || data.status === 'GRACE' || data.status === 'TRIAL') {
+        window.location.href = '/';
+      }
+    } catch {}
+    finally {
+      setCheckingPayment(false);
+    }
+  };
 
   const isLockedStatus = licenseState?.status === 'EXPIRED' || licenseState?.status === 'BLOCKED';
   // QRIS hanya ditampilkan saat EXPIRED / BLOCKED
@@ -472,6 +515,101 @@ export default function ActivatePage() {
               Setelah pembayaran dikonfirmasi admin, aplikasi <strong>terbuka otomatis</strong> dalam ±10 detik — tidak perlu memasukkan kode.
             </p>
           </div>
+
+          {/* Tombol Instan: Saya Sudah Bayar */}
+          <button
+            type="button"
+            onClick={handleCheckPaymentNow}
+            disabled={checkingPayment}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              borderRadius: '12px',
+              border: 'none',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: '800',
+              cursor: checkingPayment ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              marginBottom: '16px',
+              boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
+              opacity: checkingPayment ? 0.7 : 1,
+            }}
+          >
+            {checkingPayment ? (
+              <>
+                <RefreshCw size={14} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa Mutasi...
+              </>
+            ) : (
+              <>
+                <CheckCircle size={15} /> ✅ Saya Sudah Bayar (Buka Sekarang)
+              </>
+            )}
+          </button>
+
+          {/* Form Klaim Kode Voucher Promo */}
+          <form onSubmit={handleClaimVoucher} style={{
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '14px',
+            padding: '14px',
+            marginBottom: '14px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: '#c7d2fe', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Tag size={13} /> Punya Kode Voucher Promo?
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                placeholder="cth: COBAGRATIS / DISKON"
+                style={{
+                  flex: 1,
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: 'white',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={voucherLoading || !voucherCode.trim()}
+                style={{
+                  background: 'rgba(99,102,241,0.25)',
+                  border: '1px solid rgba(99,102,241,0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  color: '#c7d2fe',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: (voucherLoading || !voucherCode.trim()) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {voucherLoading ? 'Klaim...' : <>Klaim <ArrowRight size={13} /></>}
+              </button>
+            </div>
+            {voucherMsg && (
+              <p style={{
+                marginTop: '8px', marginBottom: 0, fontSize: '11px', fontWeight: '600',
+                color: voucherMsg.error ? '#f87171' : '#4ade80'
+              }}>
+                {voucherMsg.text}
+              </p>
+            )}
+          </form>
 
           {/* Footer */}
           <p style={{

@@ -22,10 +22,12 @@ import { MqttModule } from '../mqtt/mqtt.module';
 import { AIModule } from '../ai/ai.module';
 import { VoucherModule } from '../voucher/voucher.module';
 import { Member } from '../member/entities/member.entity';
+import { LicenseModule } from '../license/license.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Table, Session, BilliardPackage, Member]),
+    LicenseModule,
     forwardRef(() => TransactionModule),
     forwardRef(() => SocketModule),
     forwardRef(() => SettingsModule),

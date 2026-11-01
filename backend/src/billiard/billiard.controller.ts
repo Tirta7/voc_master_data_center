@@ -15,6 +15,7 @@ import {
   UseInterceptors,
   Res,
   ParseIntPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
@@ -25,6 +26,7 @@ import { Table, TableStatus } from './entities/table.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import type { Response } from 'express';
+import { LicenseService } from '../license/license.service';
 
 @Controller('billiard')
 export class BilliardController {
@@ -35,6 +37,7 @@ export class BilliardController {
     private readonly billiardGateway: BilliardGateway,
     @InjectRepository(Table)
     private readonly tableRepository: Repository<Table>,
+    private readonly licenseService: LicenseService,
   ) {}
 
   // ✅ DEBUG: Endpoint untuk cek isi database meja
@@ -256,6 +259,18 @@ export class BilliardController {
     },
     @Request() req: any,
   ) {
+    // 🛡️ Proteksi Lisensi VOC ML & Pemotongan Kuota Trial
+    const trialRes = await this.licenseService.consumeTrial();
+    if (!trialRes.allowed) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: trialRes.error || 'Kuota coba gratis Anda telah habis. Silakan aktifkan lisensi PRO.',
+        billing: trialRes.billing || this.licenseService.getBilling(),
+        locked: true,
+      });
+    }
+
     this.logger.log(
       `BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}, voucher: ${body.voucherCode || 'none'}`,
     );

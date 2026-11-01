@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { checkLicense } from './vocml-client';
+import { checkLicense, consumeTrial, claimVoucher } from './vocml-client';
 import { QrisUtil } from './qris.util';
 import * as QRCode from 'qrcode';
 
@@ -22,9 +22,11 @@ export interface LicenseBilling {
   qris_image_url: string;
   note: string;
   contact: string;
+  packages?: any[];
+  unique_code?: number | null;
 }
 
-export type LicenseStatus = 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
+export type LicenseStatus = 'ACTIVE' | 'GRACE' | 'TRIAL' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
 
 export interface LicenseState {
   status: LicenseStatus;
@@ -41,6 +43,14 @@ export interface LicenseState {
   lockReason?: string;
   /** Tagihan QRIS — hanya terisi saat EXPIRED / BLOCKED dan admin mengatur QRIS. */
   billing?: LicenseBilling | null;
+  trial?: {
+    enabled: boolean;
+    quota: number;
+    used: number;
+    remaining: number;
+    is_trial: boolean;
+  } | null;
+  uniqueCode?: number | null;
 }
 
 export interface BroadcastMessage {
@@ -243,6 +253,7 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
       let mappedStatus: LicenseStatus = 'NOT_REGISTERED';
       if (lic.status === 'active' || lic.status === 'expiring') mappedStatus = 'ACTIVE';
+      else if (lic.status === 'trial') mappedStatus = 'TRIAL';
       else if (lic.status === 'expired') mappedStatus = 'EXPIRED';
       else if (lic.status === 'locked') mappedStatus = 'BLOCKED';
       else if (lic.status === 'pending') mappedStatus = 'NOT_REGISTERED';
@@ -259,7 +270,7 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
       // Billing hanya relevan saat EXPIRED / BLOCKED (jangan tampilkan QRIS saat aktif)
       const billing: LicenseBilling | null =
-        (mappedStatus === 'EXPIRED' || mappedStatus === 'BLOCKED') ? (lic.billing || null) : null;
+        (mappedStatus === 'EXPIRED' || mappedStatus === 'BLOCKED' || mappedStatus === 'NOT_REGISTERED') ? (lic.billing || null) : (lic.billing || null);
 
       // License key & expiry SELALU mengikuti hasil terakhir (server / snapshot), tanpa
       // mempertahankan key lama — agar koreksi pengurangan masa aktif langsung berlaku.
@@ -278,6 +289,9 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         rawStatus: lic.status,
         lockReason: lic.lockReason || '',
         billing,
+        trial: lic.trial || null,
+        uniqueCode: lic.uniqueCode || null,
+      };
       };
 
       this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}${billing ? ` | Tagihan: ${billing.amount_text}` : ''}`);
@@ -416,7 +430,87 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   }
 
   isLocked(): boolean {
+    if (this.state.status === 'TRIAL') {
+      // Trial terkunci HANYA jika kuota sudah habis
+      if (this.state.trial && this.state.trial.remaining <= 0) return true;
+      return false;
+    }
     return ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED', 'OFFLINE'].includes(this.state.status);
+  }
+
+  /**
+   * Panggil VOCML saat aksi rental meja dimulai.
+   * Mengurangi 1 kuota trial jika status lisensi adalah TRIAL.
+   */
+  async consumeTrial(): Promise<{ allowed: boolean; trial?: any; error?: string; billing?: any }> {
+    // Jika lisensi sudah aktif (PRO/berbayar), langsung izinkan tanpa memotong kuota
+    if (this.state.status === 'ACTIVE' || this.state.status === 'GRACE') {
+      return { allowed: true, trial: this.state.trial };
+    }
+
+    try {
+      const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+      const res = await consumeTrial({
+        serverUrl: this.vocmlServerUrl,
+        product: 'billiard',
+        machineId: this.machineId,
+        apiKey,
+      });
+
+      if (res.trial) {
+        if (!this.state.trial) this.state.trial = res.trial;
+        else Object.assign(this.state.trial, res.trial);
+      }
+
+      if (!res.allowed) {
+        // Kuota trial habis -> otomatis ubah status ke BLOCKED dan pasang billing QRIS
+        this.state.status = 'BLOCKED';
+        this.state.lockReason = res.error || 'Kuota coba gratis habis';
+        if (res.billing) this.state.billing = res.billing;
+        this.statusChange$.next({
+          status: this.state.status,
+          daysLeft: 0,
+          expiredAt: null,
+          message: this.state.lockReason,
+          billing: this.state.billing,
+        });
+        this.license$.next(this.state);
+        return { allowed: false, error: res.error, billing: res.billing || this.state.billing };
+      }
+
+      this.logger.log(`Trial meja billiard digunakan. Sisa: ${res.trial?.remaining ?? '?'}`);
+      return { allowed: true, trial: res.trial };
+    } catch (err: any) {
+      this.logger.error('Gagal panggil consumeTrial:', err);
+      // Fail-safe jika offline sementara
+      return { allowed: true };
+    }
+  }
+
+  /**
+   * Klaim voucher promo dari VOCML.
+   */
+  async claimVoucher(code: string): Promise<{ success: boolean; message: string; data?: any }> {
+    try {
+      const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+      const res = await claimVoucher({
+        serverUrl: this.vocmlServerUrl,
+        product: 'billiard',
+        machineId: this.machineId,
+        code,
+        apiKey,
+      });
+
+      if (!res.ok) {
+        return { success: false, message: res.error || 'Gagal klaim voucher' };
+      }
+
+      // Berhasil klaim -> refresh status lisensi dari VOCML seketika
+      await this.checkLicense();
+      return { success: true, message: res.message || 'Voucher berhasil digunakan', data: res };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Gagal klaim voucher' };
+    }
   }
 
   hasLicenseKey(): boolean {

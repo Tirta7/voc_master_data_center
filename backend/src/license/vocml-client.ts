@@ -92,7 +92,7 @@ function writeCache(file, data) {
   try { fs.writeFileSync(file, JSON.stringify(data)); } catch { /* abaikan */ }
 }
 
-const ALLOWED = new Set(['active', 'expiring']);
+const ALLOWED = new Set(['active', 'expiring', 'trial']);
 
 export async function checkLicense({ serverUrl, product, machineId, publicKeyPem, cacheFile, apiKey = '', storeName = '', appVersion = '', timeoutMs = 8000 }) {
   const base = serverUrl.replace(/\/$/, '');
@@ -127,6 +127,8 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
       daysLeft: typeof payload.days_left === 'number' ? payload.days_left : (typeof body.days_left === 'number' ? body.days_left : null),
       graceDays: payload.grace_days || 0,
       billing,
+      trial: body.trial || null,
+      uniqueCode: body.unique_code || null,
     };
     writeCache(cacheFile, {
       token: body.token,
@@ -139,9 +141,19 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
       days_left: snap.daysLeft,
       grace_days: snap.graceDays,
       billing, // null => tagihan lokal ikut terhapus
+      trial: snap.trial,
+      unique_code: snap.uniqueCode,
     });
 
-    const common = { expiresAt: snap.expiresAt, licenseKey: snap.licenseKey, daysLeft: snap.daysLeft, lockReason: snap.lockReason, billing };
+    const common = { 
+      expiresAt: snap.expiresAt, 
+      licenseKey: snap.licenseKey, 
+      daysLeft: snap.daysLeft, 
+      lockReason: snap.lockReason, 
+      billing, 
+      trial: snap.trial, 
+      uniqueCode: snap.uniqueCode 
+    };
     if (payload.status === 'locked') return result(false, 'locked', { ...common, reason: payload.lock_reason || 'Aplikasi dikunci' });
     if (payload.status === 'pending') return result(false, 'pending', { ...common, reason: 'Menunggu aktivasi lisensi' });
     if (payload.status === 'expired') return result(false, 'expired', { ...common, reason: 'Masa lisensi telah berakhir' });
@@ -167,9 +179,45 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
     const withinGrace = Date.now() - cache.checkedAt <= graceMs && cache.checkedAt <= Date.now();
     const key = payload.license_key ? verifyLicenseKey(payload.license_key, machineId, product, publicKeyPem) : { valid: false };
     if (ALLOWED.has(payload.status) && withinGrace && key.valid && !key.expired) {
-      return result(true, payload.status, { expiresAt: key.expiresAt, licenseKey: payload.license_key, offline: true });
+      return result(true, payload.status, { expiresAt: key.expiresAt, licenseKey: payload.license_key, offline: true, trial: cache.trial || null });
     }
     return result(false, 'offline', { reason: 'Tidak terhubung ke server lisensi dan masa toleransi offline habis', offline: true });
+  }
+}
+
+/** Konsumsi kuota trial 1x (misal saat mulai sewa meja). */
+export async function consumeTrial({ serverUrl, product, machineId, apiKey = '', timeoutMs = 8000 }) {
+  const base = serverUrl.replace(/\/$/, '');
+  const headers = { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) };
+  try {
+    const res = await fetch(`${base}/api/v1/trial/consume`, {
+      method: 'POST',
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify({ machine_id: machineId, product }),
+    });
+    const data = await res.json();
+    return { status: res.status, ok: res.ok, allowed: data.allowed !== false, ...data };
+  } catch (err: any) {
+    return { status: 500, ok: false, allowed: true, error: err.message };
+  }
+}
+
+/** Klaim kode voucher promo. */
+export async function claimVoucher({ serverUrl, product, machineId, code, apiKey = '', timeoutMs = 8000 }) {
+  const base = serverUrl.replace(/\/$/, '');
+  const headers = { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) };
+  try {
+    const res = await fetch(`${base}/api/v1/voucher/claim`, {
+      method: 'POST',
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify({ machine_id: machineId, product, code }),
+    });
+    const data = await res.json();
+    return { status: res.status, ok: res.ok, ...data };
+  } catch (err: any) {
+    return { status: 500, ok: false, error: err.message };
   }
 }
 
@@ -189,5 +237,7 @@ export function normalizeBilling(b) {
     qris_image_url: String(b.qris_image_url || ''),
     note: String(b.note || ''),
     contact: String(b.contact || ''),
+    packages: Array.isArray(b.packages) ? b.packages : [],
+    unique_code: b.unique_code || null,
   };
 }

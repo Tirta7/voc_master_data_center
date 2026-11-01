@@ -110,4 +110,20 @@ export class LicenseController {
   async triggerWarning() {
     return this.licenseService.triggerExpiryWarning();
   }
+
+  /**
+   * Endpoint klaim kode voucher promo dari VOCML
+   */
+  @Post('voucher/claim')
+  async claimVoucher(@Body() body: { code: string }) {
+    return this.licenseService.claimVoucher(body.code);
+  }
+
+  /**
+   * Endpoint konsumsi kuota trial
+   */
+  @Post('trial/consume')
+  async consumeTrial() {
+    return this.licenseService.consumeTrial();
+  }
 }
