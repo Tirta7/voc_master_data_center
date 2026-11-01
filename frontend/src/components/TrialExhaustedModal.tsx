@@ -36,6 +36,9 @@ interface TrialExhaustedModalProps {
   billingData?: LicenseBilling | null;
   machineId?: string;
   onVoucherClaimed?: () => void;
+  title?: string;
+  subtitle?: string;
+  badgeText?: string;
 }
 
 const toWaNumber = (contact: string) => {
@@ -49,6 +52,9 @@ export default function TrialExhaustedModal({
   billingData,
   machineId = 'VOC-2177-C6EC-13BF',
   onVoucherClaimed,
+  title,
+  subtitle,
+  badgeText,
 }: TrialExhaustedModalProps) {
   const [billing, setBilling] = useState<LicenseBilling | null>(billingData || null);
   const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
@@ -182,27 +188,29 @@ export default function TrialExhaustedModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '40px', height: '40px',
-              background: 'linear-gradient(135deg, #dc2626, #ef4444)',
+              background: title ? 'linear-gradient(135deg, #4f46e5, #6366f1)' : 'linear-gradient(135deg, #dc2626, #ef4444)',
               borderRadius: '12px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 20px rgba(239,68,68,0.4)',
+              boxShadow: title ? '0 0 20px rgba(99,102,241,0.4)' : '0 0 20px rgba(239,68,68,0.4)',
             }}>
               <Sparkles size={20} color="white" />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h2 style={{ color: 'white', fontSize: '17px', fontWeight: '800', margin: 0, letterSpacing: '-0.01em' }}>
-                  Kuota Coba Gratis Telah Habis
+                  {title || 'Kuota Coba Gratis Telah Habis'}
                 </h2>
                 <span style={{
                   fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px',
-                  background: 'rgba(239,68,68,0.2)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)',
+                  background: title ? 'rgba(99,102,241,0.2)' : 'rgba(239,68,68,0.2)',
+                  color: title ? '#c7d2fe' : '#fca5a5',
+                  border: title ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(239,68,68,0.3)',
                 }}>
-                  TRIAL 0 SESI
+                  {badgeText || (title ? 'DAFTAR PAKET' : 'TRIAL 0 SESI')}
                 </span>
               </div>
               <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0' }}>
-                Untuk menyalakan meja baru, silakan lakukan perpanjangan lisensi atau masukkan kode voucher promo.
+                {subtitle || 'Untuk menyalakan meja baru, silakan lakukan perpanjangan lisensi atau masukkan kode voucher promo.'}
               </p>
             </div>
           </div>

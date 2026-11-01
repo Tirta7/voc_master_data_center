@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle,
-  Clock, Monitor, Server, Wifi, WifiOff, CalendarClock, Sparkles, Lock,
+  Clock, Monitor, Server, Wifi, WifiOff, CalendarClock, Sparkles, Lock, Zap, QrCode,
 } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import { socket } from '@/lib/socket';
+import TrialExhaustedModal from '@/components/TrialExhaustedModal';
 
 interface LicenseState {
   status: 'ACTIVE' | 'GRACE' | 'TRIAL' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
@@ -19,6 +20,7 @@ interface LicenseState {
   serverOnline?: boolean;
   serverUrl?: string;
   rawStatus?: string;
+  billing?: any;
   trial?: {
     enabled: boolean;
     quota: number;
@@ -55,6 +57,7 @@ export function LicenseSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState<'mid' | 'key' | null>(null);
+  const [showPackageModal, setShowPackageModal] = useState(false);
   const [, setNow] = useState(Date.now());
 
   const fetchStatus = useCallback(async (force = false) => {
@@ -144,14 +147,25 @@ export function LicenseSettingsPanel() {
             </div>
           </div>
 
-          <button
-            onClick={() => fetchStatus(true)}
-            disabled={refreshing}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:opacity-60"
-          >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? 'Sinkron...' : 'Cek Sekarang'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShowPackageModal(true)}
+              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-indigo-200 transition-all hover:-translate-y-0.5 hover:shadow-lg active:scale-95 cursor-pointer"
+            >
+              <Zap size={14} className="text-amber-300" />
+              Daftar Paket
+            </button>
+
+            <button
+              onClick={() => fetchStatus(true)}
+              disabled={refreshing}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:opacity-60 cursor-pointer"
+            >
+              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Sinkron...' : 'Cek Sekarang'}
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -287,14 +301,24 @@ export function LicenseSettingsPanel() {
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-teal-500/20 blur-[70px]" />
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-[70px]" />
 
-        <div className="relative z-10 mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/20">
-            <Sparkles size={20} className="text-teal-300" />
+        <div className="relative z-10 mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-400/30 bg-teal-500/20">
+              <Sparkles size={20} className="text-teal-300" />
+            </div>
+            <div>
+              <h4 className="text-lg font-black tracking-tight md:text-xl">Perpanjangan Otomatis</h4>
+              <p className="text-xs font-medium text-slate-400">Tidak perlu mengetik kode — aplikasi aktif sendiri setelah admin memperpanjang.</p>
+            </div>
           </div>
-          <div>
-            <h4 className="text-lg font-black tracking-tight md:text-xl">Perpanjangan Otomatis</h4>
-            <p className="text-xs font-medium text-slate-400">Tidak perlu mengetik kode — aplikasi aktif sendiri setelah admin memperpanjang.</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowPackageModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-teal-400/40 bg-teal-500/15 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-teal-200 transition-all hover:bg-teal-500/25 active:scale-95 cursor-pointer"
+          >
+            <QrCode size={15} className="text-teal-300" />
+            Lihat Paket & QRIS
+          </button>
         </div>
 
         <ol className="relative z-10 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -314,6 +338,20 @@ export function LicenseSettingsPanel() {
           ))}
         </ol>
       </div>
+
+      {/* MODAL DAFTAR PAKET & VOUCHER */}
+      <TrialExhaustedModal
+        isOpen={showPackageModal}
+        onClose={() => setShowPackageModal(false)}
+        billingData={state?.billing}
+        machineId={state?.machineId}
+        title="Daftar Paket Lisensi & Perpanjangan"
+        subtitle="Pilih durasi paket lisensi untuk bayar otomatis dengan QRIS atau tukarkan kode voucher perpanjangan."
+        badgeText="PILIHAN PAKET"
+        onVoucherClaimed={() => {
+          fetchStatus(true);
+        }}
+      />
     </div>
   );
 }
