@@ -20,6 +20,7 @@ const _socketmodule = require("../socket/socket.module");
 const _transactionmodule = require("../transaction/transaction.module");
 const _billiardmodule = require("../billiard/billiard.module");
 const _aimodule = require("../ai/ai.module");
+const _licensemodule = require("../license/license.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -47,7 +48,8 @@ CafeTableModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_transactionmodule.TransactionModule),
             (0, _common.forwardRef)(()=>_billiardmodule.BilliardModule),
-            (0, _common.forwardRef)(()=>_aimodule.AIModule)
+            (0, _common.forwardRef)(()=>_aimodule.AIModule),
+            _licensemodule.LicenseModule
         ],
         providers: [
             _cafetableservice.CafeTableService

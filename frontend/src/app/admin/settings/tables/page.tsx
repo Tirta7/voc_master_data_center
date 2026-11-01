@@ -59,6 +59,25 @@ export default function PanelControlPage() {
 
     const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
     const [messageTable, setMessageTable] = useState<{id: number, name: string} | null>(null);
+    const [licenseState, setLicenseState] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchLic = async () => {
+            try {
+                const res = await axios.get('/license/status');
+                setLicenseState(res.data);
+            } catch {}
+        };
+        fetchLic();
+
+        const onLicUpdate = (data: any) => {
+            if (data) setLicenseState((prev: any) => ({ ...(prev || {}), ...data }));
+        };
+        socket.on('license_updated', onLicUpdate);
+        return () => {
+            socket.off('license_updated', onLicUpdate);
+        };
+    }, []);
 
     const { settings, setSettings } = useRealtimeData() as any;
     const isBypassIot = settings?.isIotBypassed === true;
@@ -271,6 +290,23 @@ export default function PanelControlPage() {
     // Klik rapid → cancel request lama → update UI langsung → debounce 80ms → kirim request baru
     // Ini memastikan: klik terakhir SELALU menang, tidak ada blocking, UI selalu sinkron
     const handleToggleLight = useCallback((tableId: number, newState: boolean) => {
+        // 🛡️ Jika hendak MENYALAKAN lampu (newState === true), cek kuota trial
+        if (newState) {
+            const isTrialExhausted =
+                licenseState?.trial &&
+                licenseState.trial.enabled &&
+                licenseState.trial.remaining <= 0 &&
+                licenseState.status !== 'ACTIVE' &&
+                licenseState.status !== 'GRACE';
+
+            if (isTrialExhausted) {
+                // Tampilkan popup voucher & paket perpanjangan
+                window.dispatchEvent(new CustomEvent('open_trial_modal'));
+                showAlert('Trial Habis', 'Kuota coba gratis Anda telah habis. Silakan perpanjang lisensi atau klaim kode voucher untuk menyalakan meja.', { variant: 'warning' });
+                return;
+            }
+        }
+
         // 1. Simpan state yang diinginkan dari klik terbaru
         pendingStateRef.current[tableId] = newState;
 
@@ -319,10 +355,14 @@ export default function PanelControlPage() {
                 // Error nyata: revert UI ke state sebelumnya
                 setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: !finalState } : t));
                 setTableMeta(tableId, { lightStatus: 'error' });
+                if (err.response?.data?.trialExhausted || (err.response?.status === 403 && !err.response?.data?.locked)) {
+                    window.dispatchEvent(new CustomEvent('open_trial_modal'));
+                    showAlert('Trial Habis', err.response?.data?.message || 'Kuota coba gratis Anda telah habis.', { variant: 'warning' });
+                }
                 setTimeout(() => setTableMeta(tableId, { lightStatus: 'idle' }), 3000);
             }
         }, 80); // 80ms debounce — cukup cepat untuk terasa instan, cukup lambat untuk koalesce rapid click
-    }, [setTableMeta]);
+    }, [setTableMeta, licenseState, showAlert]);
 
     const handleSendMessage = async (message: string) => {
         if (!messageTable) return;

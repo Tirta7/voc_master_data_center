@@ -70,10 +70,17 @@ export class LicenseController {
    * GET /api/license/billing/qris.png?size=512&t=<amount>
    */
   @Get('billing/qris.png')
-  async getBillingQris(@Res() res: Response, @Query('size') size?: string) {
+  async getBillingQris(
+    @Res() res: Response,
+    @Query('size') size?: string,
+    @Query('amount') amount?: string,
+  ) {
     res.setHeader('Cache-Control', 'no-store');
     try {
-      const png = await this.licenseService.getBillingQrisPng(Number(size) || 512);
+      const png = await this.licenseService.getBillingQrisPng(
+        Number(size) || 512,
+        amount ? Number(amount) : undefined,
+      );
       if (!png) return res.status(404).json({ error: 'no_billing' });
       res.setHeader('Content-Type', 'image/png');
       return res.end(png);

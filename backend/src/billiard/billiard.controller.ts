@@ -203,6 +203,29 @@ export class BilliardController {
     // Backend hanya perlu memproses setiap request valid yang masuk.
     // Anti-spam sesungguhnya sudah ada di BilliardService.lastCommandAt (v17.2).
     const isOn = body?.isOn === true;
+
+    // 🛡️ Jika hendak menyalakan lampu meja (isOn === true), pastikan kuota trial belum habis
+    if (isOn) {
+      const state = this.licenseService.getState();
+      const isTrialExhausted =
+        state.trial &&
+        state.trial.enabled &&
+        state.trial.remaining <= 0 &&
+        state.status !== 'ACTIVE' &&
+        state.status !== 'GRACE';
+
+      if (isTrialExhausted) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          error: 'TRIAL_EXHAUSTED',
+          message: 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk menyalakan meja.',
+          billing: state.billing || this.licenseService.getBilling(),
+          trialExhausted: true,
+          locked: false,
+        });
+      }
+    }
+
     return this.billiardService.toggleLight(+id, isOn);
   }
 
@@ -264,10 +287,11 @@ export class BilliardController {
     if (!trialRes.allowed) {
       throw new ForbiddenException({
         statusCode: 403,
-        error: 'Forbidden',
-        message: trialRes.error || 'Kuota coba gratis Anda telah habis. Silakan aktifkan lisensi PRO.',
+        error: 'TRIAL_EXHAUSTED',
+        message: trialRes.error || 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk melanjutkan.',
         billing: trialRes.billing || this.licenseService.getBilling(),
-        locked: true,
+        trialExhausted: true,
+        locked: false, // JANGAN kunci seluruh layar /activate; biarkan meja aktif berjalan dan tampilkan popup
       });
     }
 

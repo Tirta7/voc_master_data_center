@@ -81,7 +81,14 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   private state: LicenseState;
   
   readonly broadcast$ = new Subject<BroadcastMessage[]>();
-  readonly statusChange$ = new BehaviorSubject<{ status: string; daysLeft: number; expiredAt: string | null; billing?: LicenseBilling | null; message?: string } | null>(null);
+  readonly statusChange$ = new BehaviorSubject<{
+    status: string;
+    daysLeft: number;
+    expiredAt: string | null;
+    billing?: LicenseBilling | null;
+    message?: string;
+    trial?: any;
+  } | null>(null);
   /** Snapshot status lisensi lengkap (incl. billing) untuk SSE /api/license/stream. */
   readonly license$ = new BehaviorSubject<LicenseState | null>(null);
   
@@ -263,6 +270,13 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         mappedStatus = 'GRACE';
       }
 
+      // Jika mesin terdaftar sebagai mode trial (memiliki kuota coba gratis):
+      // Pertahankan status TRIAL agar aplikasi tidak langsung terkunci ke /activate saat sesi terakhir sedang dimainkan.
+      // Meja baru akan dicegat secara elegan melalui popup saat kuota sudah habis.
+      if (lic.trial && lic.trial.enabled && mappedStatus !== 'ACTIVE' && mappedStatus !== 'GRACE') {
+        mappedStatus = 'TRIAL';
+      }
+
       // Saat online, days_left dari server dipakai apa adanya (sumber kebenaran)
       const daysLeft = !lic.offline && typeof lic.daysLeft === 'number'
         ? lic.daysLeft
@@ -292,13 +306,13 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         trial: lic.trial || null,
         uniqueCode: lic.uniqueCode || null,
       };
-      };
 
       this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}${billing ? ` | Tagihan: ${billing.amount_text}` : ''}`);
 
       const emitKey = JSON.stringify([
         this.state.status, this.state.expiredAt || '', this.state.licenseKey || '',
         this.state.message || '', billing ? [billing.amount, billing.qris, billing.note, billing.contact, billing.reason] : null,
+        this.state.trial ? [this.state.trial.remaining, this.state.trial.used] : null,
       ]);
       if (emitKey !== this.lastEmittedStatus) {
         this.lastEmittedStatus = emitKey;
@@ -308,8 +322,10 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
           expiredAt: this.state.expiredAt,
           message: this.state.message,
           billing,
+          trial: this.state.trial,
         });
         this.license$.next(this.state);
+        this.eventEmitter.emit('license.updated', this.state);
       }
     } catch (err) {
       this.logger.error('Error checking VOCML license', err);
@@ -395,14 +411,29 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
    * 2) Fallback: render sendiri dari billing.qris (qrcode, ECC "M", margin 2).
    * Mengembalikan null bila tidak ada tagihan.
    */
-  async getBillingQrisPng(size = 512): Promise<Buffer | null> {
+  async getBillingQrisPng(size = 512, amount?: number): Promise<Buffer | null> {
     const billing = this.getBilling();
     if (!billing) return null;
     const px = Math.min(1024, Math.max(240, Math.round(size) || 512));
 
-    if (billing.qris_image_url) {
+    let targetUrl = billing.qris_image_url;
+    let matchingPackage: any = null;
+    if (amount && billing.packages && billing.packages.length > 0) {
+      matchingPackage = billing.packages.find((p: any) => p.amount === amount || p.final_amount === amount);
+      if (matchingPackage?.qris_image_url) {
+        targetUrl = matchingPackage.qris_image_url;
+      } else if (billing.qris_image_url) {
+        try {
+          const u = new URL(billing.qris_image_url);
+          u.searchParams.set('amount', String(amount));
+          targetUrl = u.toString();
+        } catch {}
+      }
+    }
+
+    if (targetUrl) {
       try {
-        const url = new URL(billing.qris_image_url);
+        const url = new URL(targetUrl);
         if (!url.searchParams.has('size')) url.searchParams.set('size', String(px));
         const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
         const res = await fetch(url.toString(), {
@@ -419,8 +450,15 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       }
     }
 
-    if (!billing.qris) return null;
-    return QRCode.toBuffer(billing.qris, {
+    let qrisString = matchingPackage?.qris || billing.qris;
+    if (amount && billing.qris && (!matchingPackage || !matchingPackage.qris)) {
+      try {
+        qrisString = QrisUtil.generateDynamicQris(billing.qris, amount);
+      } catch {}
+    }
+
+    if (!qrisString) return null;
+    return QRCode.toBuffer(qrisString, {
       type: 'png',
       errorCorrectionLevel: 'M',
       margin: 2,
@@ -431,8 +469,7 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
   isLocked(): boolean {
     if (this.state.status === 'TRIAL') {
-      // Trial terkunci HANYA jika kuota sudah habis
-      if (this.state.trial && this.state.trial.remaining <= 0) return true;
+      // Jangan kunci aplikasi ke /activate selama mode trial (penyalaan meja baru dicegat oleh popup harga & voucher)
       return false;
     }
     return ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED', 'OFFLINE'].includes(this.state.status);
@@ -442,10 +479,25 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
    * Panggil VOCML saat aksi rental meja dimulai.
    * Mengurangi 1 kuota trial jika status lisensi adalah TRIAL.
    */
-  async consumeTrial(): Promise<{ allowed: boolean; trial?: any; error?: string; billing?: any }> {
-    // Jika lisensi sudah aktif (PRO/berbayar), langsung izinkan tanpa memotong kuota
-    if (this.state.status === 'ACTIVE' || this.state.status === 'GRACE') {
+  async consumeTrial(): Promise<{ allowed: boolean; trialExhausted?: boolean; trial?: any; error?: string; billing?: any }> {
+    const hasTrial = !!(this.state.trial && this.state.trial.enabled);
+
+    // Hanya skip jika lisensi aktif/grace DAN memang TIDAK ada kuota trial yang diatur
+    if (!hasTrial && (this.state.status === 'ACTIVE' || this.state.status === 'GRACE')) {
       return { allowed: true, trial: this.state.trial };
+    }
+
+    const prevRemaining = typeof this.state.trial?.remaining === 'number' ? this.state.trial.remaining : 0;
+
+    // Jika kuota trial SUDAH 0 sebelumnya (habis), tolak penyalaan meja baru dan minta bayar/klaim voucher
+    if (hasTrial && prevRemaining <= 0 && this.state.status !== 'ACTIVE' && this.state.status !== 'GRACE') {
+      return {
+        allowed: false,
+        trialExhausted: true,
+        error: 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk menyalakan meja baru.',
+        billing: this.getBilling(),
+        trial: this.state.trial,
+      };
     }
 
     try {
@@ -460,29 +512,58 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       if (res.trial) {
         if (!this.state.trial) this.state.trial = res.trial;
         else Object.assign(this.state.trial, res.trial);
+
+        try {
+          const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');
+          if (fs.existsSync(cacheFile)) {
+            const raw = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+            raw.trial = this.state.trial;
+            fs.writeFileSync(cacheFile, JSON.stringify(raw));
+          }
+        } catch {}
       }
 
-      if (!res.allowed) {
-        // Kuota trial habis -> otomatis ubah status ke BLOCKED dan pasang billing QRIS
-        this.state.status = 'BLOCKED';
-        this.state.lockReason = res.error || 'Kuota coba gratis habis';
-        if (res.billing) this.state.billing = res.billing;
-        this.statusChange$.next({
-          status: this.state.status,
-          daysLeft: 0,
-          expiredAt: null,
-          message: this.state.lockReason,
-          billing: this.state.billing,
-        });
-        this.license$.next(this.state);
-        return { allowed: false, error: res.error, billing: res.billing || this.state.billing };
+      // Jika kuota sebelum sewa >= 1, sesi ini adalah SESI TERAKHIR YANG BERHAK MENYALA.
+      // Biarkan menyala normal, jangan langsung kunci aplikasi atau gagalkan meja!
+      const isLastSessionUsed = prevRemaining >= 1;
+
+      if (!res.allowed && !isLastSessionUsed) {
+        // Kuota memang sudah habis sejak awal
+        return {
+          allowed: false,
+          trialExhausted: true,
+          error: res.error || 'Kuota coba gratis Anda telah habis.',
+          billing: res.billing || this.state.billing || this.getBilling(),
+          trial: this.state.trial,
+        };
       }
 
-      this.logger.log(`Trial meja billiard digunakan. Sisa: ${res.trial?.remaining ?? '?'}`);
-      return { allowed: true, trial: res.trial };
+      // Status lokal tetap TRIAL agar aplikasi tidak terkunci ke /activate saat sesi terakhir ini sedang berjalan
+      if (this.state.status !== 'ACTIVE' && this.state.status !== 'GRACE') {
+        this.state.status = 'TRIAL';
+      }
+
+      // ✅ Emit status ke SSE & WebSocket agar status kuota di frontend seketika berkurang tanpa perlu refresh
+      this.statusChange$.next({
+        status: this.state.status,
+        daysLeft: this.state.daysLeft,
+        expiredAt: this.state.expiredAt,
+        message: this.state.message,
+        billing: this.state.billing || this.getBilling(),
+        trial: this.state.trial,
+      });
+      this.license$.next(this.state);
+      this.eventEmitter.emit('license.updated', this.state);
+
+      this.logger.log(`Trial meja billiard digunakan. Sisa: ${this.state.trial?.remaining ?? 0}`);
+      return { allowed: true, trial: this.state.trial };
     } catch (err: any) {
       this.logger.error('Gagal panggil consumeTrial:', err);
-      // Fail-safe jika offline sementara
+      // Fail-safe jika offline sementara tapi sebelumnya punya kuota
+      if (prevRemaining >= 1) {
+        if (this.state.trial) this.state.trial.remaining = Math.max(0, prevRemaining - 1);
+        return { allowed: true, trial: this.state.trial };
+      }
       return { allowed: true };
     }
   }

@@ -96,6 +96,11 @@ export class EventsGateway
     this.server.to(['management', 'cashier']).emit('approval_finalized', payload);
   }
 
+  @OnEvent('license.updated')
+  handleLicenseUpdated(payload: any) {
+    this.server.emit('license_updated', payload);
+  }
+
   async handleConnection(client: Socket) {
     const userId = client.handshake.query.userId;
     if (userId) {

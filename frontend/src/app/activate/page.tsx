@@ -5,6 +5,23 @@ import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import WaitingCat from '@/components/WaitingCat';
 
+/** Varian paket perpanjangan dari VOCML. */
+interface BillingPackage {
+  id?: string;
+  days?: number;
+  label?: string;
+  name?: string;
+  basePrice?: number;
+  promoPrice?: number;
+  is_promo?: boolean;
+  promo_badge?: string;
+  final_amount?: number;
+  amount?: number;
+  amount_text?: string;
+  qris_image_url?: string;
+  qris?: string;
+}
+
 /** Tagihan QRIS dari VOCML (field `billing`). */
 interface LicenseBilling {
   reason: 'locked' | 'expired';
@@ -17,6 +34,8 @@ interface LicenseBilling {
   qris_image_url: string;
   note: string;
   contact: string;
+  packages?: BillingPackage[];
+  unique_code?: number | null;
 }
 
 const toWaNumber = (contact: string) => {
@@ -80,8 +99,43 @@ export default function ActivatePage() {
   // QRIS hanya ditampilkan saat EXPIRED / BLOCKED
   const billing: LicenseBilling | null = isLockedStatus ? (licenseState?.billing || null) : null;
 
+  const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
+
+  // Otomatis sinkronisasi paket pilihan saat data billing masuk/berubah
+  useEffect(() => {
+    if (billing?.packages && billing.packages.length > 0) {
+      setSelectedPackage((prev) => {
+        if (prev) {
+          const match = billing.packages!.find(
+            (p) => (p.id && p.id === prev.id) || (p.days === prev.days && (p.amount === prev.amount || p.final_amount === prev.final_amount))
+          );
+          if (match) return match;
+        }
+        const initial = billing.packages!.find(
+          (p) => p.amount === billing.amount || p.final_amount === billing.amount
+        );
+        return initial || billing.packages![0];
+      });
+    } else {
+      setSelectedPackage(null);
+    }
+  }, [billing]);
+
+  const currentAmount = selectedPackage
+    ? (selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0)
+    : (billing?.amount ?? 0);
+  const currentAmountText = selectedPackage
+    ? (selectedPackage.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`)
+    : (billing?.amount_text ?? '');
+  const currentPackageName = selectedPackage
+    ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
+    : 'Perpanjangan Lisensi';
+
   // Reset status gambar saat nominal / QR berubah
-  useEffect(() => { setQrFailed(false); setQrLoaded(false); }, [billing?.amount, billing?.qris]);
+  useEffect(() => {
+    setQrFailed(false);
+    setQrLoaded(false);
+  }, [currentAmount, billing?.qris]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,452 +236,502 @@ export default function ActivatePage() {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999999,
-      background: 'linear-gradient(135deg, #020617 0%, #0f172a 40%, #1e1b4b 100%)',
+      background: 'radial-gradient(ellipse at top, #0f172a 0%, #020617 70%, #000000 100%)',
       fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif",
-      overflow: 'auto',
+      overflowY: 'auto',
+      display: 'flex', flexDirection: 'column',
+      justifyContent: 'center', alignItems: 'center',
+      padding: '20px',
+      boxSizing: 'border-box',
     }}>
-      {/* Container scrollable yang aman dari top overflow */}
-      <div style={{
-        minHeight: '100%',
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center',
-        padding: 'calc(env(safe-area-inset-top, 48px) + 24px) 20px calc(env(safe-area-inset-bottom, 24px) + 24px)',
-      }}>
-      {/* Animasi partikel latar belakang */}
+      {/* Animasi partikel latar belakang halus */}
       <div style={{
         position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
       }}>
-        {[...Array(6)].map((_, i) => (
+        {[...Array(4)].map((_, i) => (
           <div key={i} style={{
             position: 'absolute',
-            width: `${200 + i * 80}px`, height: `${200 + i * 80}px`,
+            width: `${240 + i * 80}px`, height: `${240 + i * 80}px`,
             borderRadius: '50%',
-            background: `radial-gradient(circle, rgba(99,102,241,${0.04 + i * 0.01}) 0%, transparent 70%)`,
-            top: `${10 + i * 15}%`, left: `${5 + i * 17}%`,
-            animation: `pulse ${3 + i}s ease-in-out infinite alternate`,
+            background: `radial-gradient(circle, rgba(99,102,241,${0.03 + i * 0.01}) 0%, transparent 70%)`,
+            top: `${15 + i * 20}%`, left: `${10 + i * 25}%`,
+            animation: `pulse ${4 + i}s ease-in-out infinite alternate`,
           }} />
         ))}
       </div>
 
-      <div style={{ width: '100%', maxWidth: '850px', position: 'relative', margin: 'auto 0' }}>
-        {/* Gembok */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{
-            width: '72px', height: '72px',
-            background: isBlocked
-              ? 'linear-gradient(135deg, #7f1d1d, #dc2626)'
-              : 'linear-gradient(135deg, #312e81, #6366f1)',
-            borderRadius: '20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-            boxShadow: isBlocked
-              ? '0 0 40px rgba(239,68,68,0.35)'
-              : '0 0 40px rgba(99,102,241,0.35)',
-            animation: 'lockBounce 2s ease-in-out infinite',
-          }}>
-            <Lock size={32} color="white" strokeWidth={2} />
-          </div>
+      {/* Main Unified Modal Container */}
+      <div style={{
+        width: '100%',
+        maxWidth: billing ? '1000px' : '520px',
+        background: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(36px)',
+        WebkitBackdropFilter: 'blur(36px)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '24px',
+        boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255,255,255,0.03)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        zIndex: 1,
+        margin: 'auto 0',
+      }}>
 
-          <h1 style={{
-            color: 'white', fontSize: '20px', fontWeight: '800',
-            margin: '0 0 6px', letterSpacing: '-0.02em',
-          }}>
-            Aplikasi Terkunci
-          </h1>
-          <p style={{
-            color: '#94a3b8', fontSize: '13px', margin: 0,
-            lineHeight: '1.5',
-          }}>
-            {statusLabel}
-          </p>
-          {licenseState?.message && (isBlocked || isExpired) && (
-            <p style={{
-              display: 'inline-block', marginTop: '10px', padding: '6px 14px', borderRadius: '999px',
-              background: 'rgba(239,68,68,0.12)', color: '#fca5a5', fontSize: '12px', fontWeight: 600,
-            }}>
-              {licenseState.message}
-            </p>
-          )}
-        </div>
-
-        {/* Cards Container */}
+        {/* Card Header Terintegrasi */}
         <div style={{
-          display: 'flex', gap: '24px', flexWrap: 'wrap',
-          alignItems: 'stretch', justifyContent: 'center'
-        }}>
-          
-        {/* Card Kiri: Tagihan QRIS dari VOCML (hanya bila billing != null) */}
-        {billing && (
-          <section id="billing-panel" aria-label="Tagihan QRIS" style={{
-            flex: '1 1 350px',
-            background: 'rgba(15, 23, 42, 0.4)',
-            backdropFilter: 'blur(32px)',
-            WebkitBackdropFilter: 'blur(32px)',
-            border: 'none',
-            borderRadius: '24px',
-            padding: '32px 24px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.02)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              background: 'rgba(34,197,94,0.1)', color: '#4ade80',
-              padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700',
-              marginBottom: '16px', display: 'inline-flex', alignItems: 'center', gap: '6px'
-            }}>
-              <QrCode size={14} /> Tagihan Perpanjangan
-            </div>
-
-            <h2 style={{ color: 'white', fontSize: '20px', fontWeight: '800', margin: '0 0 6px' }}>
-              {billing.reason === 'expired' ? 'Lisensi telah berakhir' : 'Aplikasi dikunci'}
-            </h2>
-            {licenseState?.lockReason && (
-              <p style={{ color: '#fca5a5', fontSize: '13px', fontWeight: 600, margin: '0 0 20px', lineHeight: 1.5 }}>
-                {licenseState.lockReason}
-              </p>
-            )}
-
-            {/* QR: dari proxy backend, latar putih, tanpa blur/stretch */}
-            {!qrFailed ? (
-              <div style={{
-                background: '#ffffff', padding: '12px', borderRadius: '12px',
-                width: '288px', height: '288px', boxSizing: 'border-box',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto', position: 'relative',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-              }}>
-                {!qrLoaded && (
-                  <RefreshCw size={24} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
-                )}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  id="billing-qris-image"
-                  src={`${getApiUrl()}/api/license/billing/qris.png?t=${billing.amount}`}
-                  alt={`QRIS ${billing.merchant_name} ${billing.amount_text}`}
-                  width={264}
-                  height={264}
-                  onLoad={() => setQrLoaded(true)}
-                  onError={() => setQrFailed(true)}
-                  style={{
-                    width: '264px', height: '264px', display: 'block',
-                    objectFit: 'contain', imageRendering: 'pixelated',
-                    background: '#ffffff', opacity: qrLoaded ? 1 : 0,
-                  }}
-                />
-              </div>
-            ) : (
-              <div id="billing-qris-offline" style={{
-                width: '288px', minHeight: '160px', boxSizing: 'border-box', margin: '0 auto',
-                padding: '24px', borderRadius: '16px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px',
-              }}>
-                <WifiOff size={28} />
-                <div style={{ fontSize: '13px', fontWeight: 600 }}>Hubungkan internet untuk menampilkan QRIS</div>
-                <button
-                  id="billing-qris-retry"
-                  onClick={() => { setQrFailed(false); setQrLoaded(false); }}
-                  style={{ background: 'rgba(255,255,255,0.08)', color: '#fca5a5', border: 'none', borderRadius: '10px', padding: '6px 12px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Coba lagi
-                </button>
-              </div>
-            )}
-
-            <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600', marginTop: '20px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Total tagihan
-            </div>
-            <div id="billing-amount" style={{ color: '#fff', fontSize: '34px', fontWeight: '800', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-              {billing.amount_text}
-            </div>
-            <div style={{ color: '#cbd5e1', fontSize: '13px', marginTop: '6px', fontWeight: 600 }}>
-              QRIS · {billing.merchant_name}
-            </div>
-            {billing.note && (
-              <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxWidth: '320px' }}>
-                {billing.note}
-              </div>
-            )}
-
-            {billing.contact.trim() !== '' && (
-              <div style={{ marginTop: '18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                <div style={{ color: '#cbd5e1', fontSize: '13px' }}>
-                  Kontak admin: <strong style={{ color: '#fff' }}>{billing.contact}</strong>
-                </div>
-                <a
-                  id="billing-whatsapp"
-                  href={`https://wa.me/${toWaNumber(billing.contact)}?text=${encodeURIComponent(
-                    `Halo admin, saya ingin membayar perpanjangan lisensi Billiard.\nMachine ID: ${machineId}\nNominal: ${billing.amount_text}`
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="billing-wa-btn"
-                  style={{
-                    padding: '10px 18px',
-                    background: 'linear-gradient(135deg, #16a34a, #22c55e)',
-                    borderRadius: '12px', color: 'white', textDecoration: 'none',
-                    fontSize: '14px', fontWeight: '700',
-                    boxShadow: '0 8px 24px rgba(34,197,94,0.3)',
-                    display: 'inline-flex', alignItems: 'center', gap: '8px',
-                    transition: 'transform 0.15s, box-shadow 0.15s',
-                  }}
-                >
-                  <MessageCircle size={16} /> Chat WhatsApp
-                </a>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Card Kanan: Form Manual */}
-        <div style={{
-          flex: '1 1 350px',
-          maxWidth: billing ? undefined : '480px',
-          background: 'rgba(15, 23, 42, 0.4)',
-          backdropFilter: 'blur(32px)',
-          WebkitBackdropFilter: 'blur(32px)',
-          border: 'none',
-          borderRadius: '24px',
-          padding: '32px 24px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.02)',
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 24px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+          background: 'rgba(255, 255, 255, 0.015)',
+          flexWrap: 'wrap',
+          gap: '12px',
         }}>
-
-          <WaitingCat />
-
-          {/* Metode Pembayaran Didukung (Dipindah ke atas card Kanan) */}
-          <div 
-            className="w-full flex flex-col items-center gap-2 sm:gap-3"
-            style={{
-              background: 'rgba(255,255,255,0.03)',
-              borderRadius: '16px',
-              padding: '12px 16px',
-              marginBottom: '32px'
-            }}
-          >
-              <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
-              <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#0066AE] italic shadow-sm">BCA</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00529C] shadow-sm">BRI</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#F36F21] shadow-sm">BNI</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">DANA</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#4C2A86] shadow-sm">OVO</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">gopay</span>
-                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
-              </div>
-          </div>
-
-          {/* CTA Hubungi Teknisi */}
-          <div style={{
-            background: 'rgba(255,255,255,0.03)',
-            borderRadius: '16px',
-            padding: '12px 16px',
-            marginBottom: '20px',
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'center',
-          }}>
-            <div style={{ fontSize: '24px' }}>📞</div>
-            <div>
-              <p style={{ color: '#c7d2fe', fontSize: '13px', fontWeight: '700', margin: '0 0 2px' }}>
-                Hubungi Teknisi / Admin
-              </p>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: 0, lineHeight: '1.4' }}>
-                {isFirstInstall
-                  ? 'Sampaikan Serial Number di bawah untuk mendapatkan kode aktivasi, selesaikan pembayaran terlebih dahulu'
-                  : 'Sampaikan Serial Number di bawah untuk perpanjangan lisensi.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Serial Number / Machine ID */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block', color: '#64748b', fontSize: '10px',
-              fontWeight: '700', letterSpacing: '0.08em',
-              textTransform: 'uppercase', marginBottom: '8px',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px', height: '40px',
+              background: isBlocked
+                ? 'linear-gradient(135deg, #991b1b, #ef4444)'
+                : 'linear-gradient(135deg, #312e81, #6366f1)',
+              borderRadius: '12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: isBlocked ? '0 0 20px rgba(239,68,68,0.35)' : '0 0 20px rgba(99,102,241,0.35)',
+              flexShrink: 0,
             }}>
-              Serial Number PC Ini
-            </label>
-            {/* Pesan status saat backend belum ready */}
-            {machineId === 'Memuat...' && (
-              <div style={{
-                background: 'rgba(99,102,241,0.08)',
-                borderRadius: '10px',
-                padding: '8px 12px',
-                marginBottom: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}>
-                <RefreshCw size={12} style={{ color: '#818cf8', animation: 'spin 1.5s linear infinite', flexShrink: 0 }} />
-                <span style={{ color: '#818cf8', fontSize: '11px', fontWeight: '600' }}>
-                  {retryCount === 0
-                    ? 'Menghubungkan ke server aplikasi...'
-                    : `Menunggu server siap... (percobaan ${retryCount}/20)`}
+              <Lock size={20} color="white" strokeWidth={2.2} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h1 style={{ color: 'white', fontSize: '18px', fontWeight: '800', margin: 0, letterSpacing: '-0.02em' }}>
+                  Aplikasi Terkunci
+                </h1>
+                <span style={{
+                  fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '6px',
+                  background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)',
+                }}>
+                  {statusLabel}
                 </span>
               </div>
-            )}
-            <div style={{
-              display: 'flex', gap: '8px', alignItems: 'center',
-              background: 'rgba(0,0,0,0.4)',
-              borderRadius: '16px', padding: '12px 14px',
-            }}>
-              <span style={{
-                flex: 1, color: machineId === 'Memuat...' ? '#475569' : '#e2e8f0', fontSize: '15px',
-                fontWeight: '800', letterSpacing: '0.08em',
-                fontFamily: 'monospace',
-                wordBreak: 'break-all',
-                animation: machineId === 'Memuat...' ? 'pulse 1.5s ease-in-out infinite' : 'none',
-              }}>
-                {machineId}
-              </span>
-              <button
-                onClick={copyMachineId}
-                disabled={machineId === 'Memuat...' || machineId.startsWith('GAGAL')}
-                style={{
-                  background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(99,102,241,0.15)',
-                  border: `1px solid ${copied ? '#22c55e' : 'rgba(99,102,241,0.4)'}`,
-                  borderRadius: '8px', padding: '8px 12px',
-                  cursor: (machineId === 'Memuat...' || machineId.startsWith('GAGAL')) ? 'not-allowed' : 'pointer',
-                  opacity: (machineId === 'Memuat...' || machineId.startsWith('GAGAL')) ? 0.4 : 1,
-                  color: copied ? '#86efac' : '#818cf8',
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  fontSize: '12px', fontWeight: '700',
-                  transition: 'all 0.2s', whiteSpace: 'nowrap',
-                }}
-              >
-                {copied ? <><CheckCircle size={14} /> Disalin!</> : <><Copy size={14} /> Salin</>}
-              </button>
-            </div>
-          </div>
-
-          {/* Status otomatis — VOCML membuka kunci tanpa kode */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            background: 'rgba(20,184,166,0.08)', borderRadius: '14px',
-            padding: '12px 14px', marginBottom: '14px',
-          }}>
-            <RefreshCw size={16} style={{ color: '#5eead4', animation: 'spin 2s linear infinite', flexShrink: 0 }} />
-            <p style={{ color: '#99f6e4', fontSize: '12px', margin: 0, lineHeight: 1.5 }}>
-              Setelah pembayaran dikonfirmasi admin, aplikasi <strong>terbuka otomatis</strong> dalam ±10 detik — tidak perlu memasukkan kode.
-            </p>
-          </div>
-
-          {/* Tombol Instan: Saya Sudah Bayar */}
-          <button
-            type="button"
-            onClick={handleCheckPaymentNow}
-            disabled={checkingPayment}
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              borderRadius: '12px',
-              border: 'none',
-              color: 'white',
-              fontSize: '13px',
-              fontWeight: '800',
-              cursor: checkingPayment ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              marginBottom: '16px',
-              boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
-              opacity: checkingPayment ? 0.7 : 1,
-            }}
-          >
-            {checkingPayment ? (
-              <>
-                <RefreshCw size={14} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa Mutasi...
-              </>
-            ) : (
-              <>
-                <CheckCircle size={15} /> ✅ Saya Sudah Bayar (Buka Sekarang)
-              </>
-            )}
-          </button>
-
-          {/* Form Klaim Kode Voucher Promo */}
-          <form onSubmit={handleClaimVoucher} style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '14px',
-            padding: '14px',
-            marginBottom: '14px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: '#c7d2fe', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              <Tag size={13} /> Punya Kode Voucher Promo?
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                value={voucherCode}
-                onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                placeholder="cth: COBAGRATIS / DISKON"
-                style={{
-                  flex: 1,
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  color: 'white',
-                  fontSize: '12px',
-                  fontFamily: 'monospace',
-                  outline: 'none',
-                }}
-              />
-              <button
-                type="submit"
-                disabled={voucherLoading || !voucherCode.trim()}
-                style={{
-                  background: 'rgba(99,102,241,0.25)',
-                  border: '1px solid rgba(99,102,241,0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 14px',
-                  color: '#c7d2fe',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: (voucherLoading || !voucherCode.trim()) ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {voucherLoading ? 'Klaim...' : <>Klaim <ArrowRight size={13} /></>}
-              </button>
-            </div>
-            {voucherMsg && (
-              <p style={{
-                marginTop: '8px', marginBottom: 0, fontSize: '11px', fontWeight: '600',
-                color: voucherMsg.error ? '#f87171' : '#4ade80'
-              }}>
-                {voucherMsg.text}
+              <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0', fontWeight: '500' }}>
+                {licenseState?.lockReason || licenseState?.message || 'Selesaikan perpanjangan lisensi untuk melanjutkan penggunaan aplikasi.'}
               </p>
-            )}
-          </form>
+            </div>
+          </div>
 
-          {/* Footer */}
-          <p style={{
-            textAlign: 'center', color: '#334155',
-            fontSize: '11px', marginTop: '24px',
+          {/* Quick Machine ID Copy Pill */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '10px', padding: '5px 10px',
           }}>
-            VOC Billiard Management System v2.0 • Lisensi Komersial
-          </p>
+            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Machine ID
+            </span>
+            <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: '800', color: '#e2e8f0' }}>
+              {machineId}
+            </span>
+            <button
+              onClick={copyMachineId}
+              disabled={machineId === 'Memuat...' || machineId.startsWith('GAGAL')}
+              style={{
+                background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)',
+                border: 'none', borderRadius: '6px', padding: '3px 8px',
+                color: copied ? '#4ade80' : '#cbd5e1', fontSize: '11px', fontWeight: '700', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s ease',
+              }}
+            >
+              {copied ? <><CheckCircle size={12} /> Disalin</> : <><Copy size={12} /> Salin</>}
+            </button>
+          </div>
         </div>
+
+        {/* Card Body (Two Columns Unified Layout) */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          flexWrap: 'wrap',
+        }}>
+
+          {/* Kolom Kiri: QRIS & Pembayaran */}
+          {billing && (
+            <div id="billing-panel" style={{
+              flex: '0 0 360px',
+              background: 'rgba(0, 0, 0, 0.22)',
+              borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+              padding: '24px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              boxSizing: 'border-box',
+              textAlign: 'center',
+            }}>
+              {/* Badge & Total Tagihan */}
+              <div style={{ width: '100%' }}>
+                <div style={{
+                  background: 'rgba(34,197,94,0.12)', color: '#4ade80',
+                  padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800',
+                  display: 'inline-flex', alignItems: 'center', gap: '5px', marginBottom: '12px',
+                }}>
+                  <QrCode size={13} /> QRIS Pembayaran Otomatis
+                </div>
+
+                {/* QR Box Bersih */}
+                {!qrFailed ? (
+                  <div style={{
+                    background: '#ffffff', padding: '10px', borderRadius: '14px',
+                    width: '200px', height: '200px', boxSizing: 'border-box',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    margin: '0 auto', position: 'relative',
+                    boxShadow: '0 16px 36px rgba(0,0,0,0.55)',
+                  }}>
+                    {!qrLoaded && (
+                      <RefreshCw size={24} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
+                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      id="billing-qris-image"
+                      src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
+                      alt={`QRIS ${billing.merchant_name} ${currentAmountText}`}
+                      width={180}
+                      height={180}
+                      onLoad={() => setQrLoaded(true)}
+                      onError={() => setQrFailed(true)}
+                      style={{
+                        width: '180px', height: '180px', display: 'block',
+                        objectFit: 'contain', imageRendering: 'pixelated',
+                        background: '#ffffff', opacity: qrLoaded ? 1 : 0,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div id="billing-qris-offline" style={{
+                    width: '200px', height: '200px', boxSizing: 'border-box', margin: '0 auto',
+                    padding: '16px', borderRadius: '14px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  }}>
+                    <WifiOff size={24} />
+                    <div style={{ fontSize: '11px', fontWeight: 600 }}>Hubungkan internet</div>
+                    <button
+                      id="billing-qris-retry"
+                      onClick={() => { setQrFailed(false); setQrLoaded(false); }}
+                      style={{ background: 'rgba(255,255,255,0.08)', color: '#fca5a5', border: 'none', borderRadius: '8px', padding: '4px 10px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Coba lagi
+                    </button>
+                  </div>
+                )}
+
+                {/* Total Tagihan */}
+                <div style={{ marginTop: '14px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Total tagihan • {currentPackageName}
+                  </div>
+                  <div id="billing-amount" style={{ color: '#fff', fontSize: '30px', fontWeight: '800', letterSpacing: '-0.02em', lineHeight: 1.15, marginTop: '2px' }}>
+                    {currentAmountText}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px', fontWeight: 600 }}>
+                    QRIS · {billing.merchant_name}
+                  </div>
+                  {billing.note && (
+                    <p style={{ color: '#64748b', fontSize: '11px', margin: '6px 0 0', lineHeight: 1.35, whiteSpace: 'pre-wrap' }}>
+                      {billing.note}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Tombol WhatsApp & Info Kontak */}
+              <div style={{ width: '100%', marginTop: '14px' }}>
+                {billing.contact.trim() !== '' && (
+                  <a
+                    id="billing-whatsapp"
+                    href={`https://wa.me/${toWaNumber(billing.contact)}?text=${encodeURIComponent(
+                      `Halo admin, saya ingin membayar perpanjangan lisensi Billiard.\nPaket: ${currentPackageName}\nMachine ID: ${machineId}\nNominal: ${currentAmountText}`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="billing-wa-btn"
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '9px 14px',
+                      background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                      borderRadius: '10px', color: 'white', textDecoration: 'none',
+                      fontSize: '12px', fontWeight: '700',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <MessageCircle size={15} /> Hubungi Admin / Kirim Bukti
+                  </a>
+                )}
+                {billing.contact && (
+                  <span style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', display: 'block' }}>
+                    Nomor Admin: <strong style={{ color: '#cbd5e1' }}>{billing.contact}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Kolom Kanan: Pilihan Paket & Konfirmasi Aktivasi */}
+          <div style={{
+            flex: '1 1 480px',
+            padding: '24px 26px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxSizing: 'border-box',
+          }}>
+            <div>
+              {/* Header Pilihan Paket */}
+              {billing?.packages && billing.packages.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: '10px',
+                  }}>
+                    <span style={{
+                      fontSize: '11px', fontWeight: '800', color: '#cbd5e1',
+                      letterSpacing: '0.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <Tag size={12} color="#818cf8" /> Pilih Paket Perpanjangan
+                    </span>
+                    {billing.unique_code && (
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600' }}>
+                        Kode Unik Otomatis: <strong style={{ color: '#38bdf8' }}>+{billing.unique_code}</strong>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Grid Paket 2 Kolom Rapi */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '8px',
+                    width: '100%',
+                  }}>
+                    {billing.packages.map((pkg, idx) => {
+                      const isSelected = selectedPackage
+                        ? (selectedPackage.id ? selectedPackage.id === pkg.id : (selectedPackage.amount === pkg.amount && selectedPackage.days === pkg.days))
+                        : idx === 0;
+                      const pkgAmount = pkg.amount ?? pkg.final_amount ?? 0;
+                      const pkgText = pkg.amount_text || `Rp${pkgAmount.toLocaleString('id-ID')}`;
+                      const hasPromo = pkg.is_promo || (pkg.basePrice && pkg.promoPrice && pkg.basePrice > pkg.promoPrice);
+                      const badge = pkg.promo_badge || (hasPromo ? 'PROMO' : null);
+
+                      return (
+                        <button
+                          key={pkg.id || `pkg-${idx}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPackage(pkg);
+                            setQrLoaded(false);
+                            setQrFailed(false);
+                          }}
+                          style={{
+                            position: 'relative',
+                            textAlign: 'left',
+                            padding: '10px 12px',
+                            borderRadius: '12px',
+                            border: isSelected ? '1.5px solid #6366f1' : '1px solid rgba(255,255,255,0.06)',
+                            background: isSelected
+                              ? 'linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(79,70,229,0.1) 100%)'
+                              : 'rgba(255,255,255,0.02)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease-in-out',
+                            boxShadow: isSelected ? '0 0 16px rgba(99,102,241,0.25)' : 'none',
+                          }}
+                        >
+                          {badge && (
+                            <span style={{
+                              position: 'absolute', top: '-6px', right: '10px',
+                              fontSize: '8px', fontWeight: '900', padding: '1px 6px', borderRadius: '4px',
+                              background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff',
+                              letterSpacing: '0.04em', boxShadow: '0 2px 4px rgba(239,68,68,0.35)',
+                            }}>
+                              {badge}
+                            </span>
+                          )}
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <span style={{
+                              fontSize: '12px', fontWeight: isSelected ? '800' : '700',
+                              color: isSelected ? '#ffffff' : '#cbd5e1', lineHeight: 1.2,
+                            }}>
+                              {pkg.label || pkg.name || `${pkg.days} Hari`}
+                            </span>
+                            <div style={{
+                              width: '14px', height: '14px', borderRadius: '50%',
+                              border: isSelected ? '4px solid #6366f1' : '1.5px solid rgba(255,255,255,0.2)',
+                              background: isSelected ? '#fff' : 'transparent',
+                              transition: 'all 0.15s ease', flexShrink: 0,
+                            }} />
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginTop: '3px', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '14px', fontWeight: '900',
+                              color: isSelected ? '#38bdf8' : '#e2e8f0', letterSpacing: '-0.01em',
+                            }}>
+                              {pkgText}
+                            </span>
+                            {hasPromo && pkg.basePrice && (
+                              <span style={{ fontSize: '9px', color: '#64748b', textDecoration: 'line-through', fontWeight: '600' }}>
+                                Rp{pkg.basePrice.toLocaleString('id-ID')}
+                              </span>
+                            )}
+                          </div>
+
+                          {pkg.days && (
+                            <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '500', marginTop: '1px', display: 'block' }}>
+                              +{pkg.days} Hari masa aktif
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Status Info Buka Otomatis */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.15)',
+                borderRadius: '12px', padding: '10px 14px', marginBottom: '14px',
+              }}>
+                <RefreshCw size={15} style={{ color: '#5eead4', animation: 'spin 2s linear infinite', flexShrink: 0 }} />
+                <p style={{ color: '#99f6e4', fontSize: '11px', margin: 0, lineHeight: 1.4 }}>
+                  Setelah scan / transfer, sistem membuka kunci <strong>otomatis dalam ±10 detik</strong> tanpa perlu memasukkan kode.
+                </p>
+              </div>
+
+              {/* Tombol Utama: Saya Sudah Bayar */}
+              <button
+                type="button"
+                onClick={handleCheckPaymentNow}
+                disabled={checkingPayment}
+                style={{
+                  width: '100%',
+                  padding: '12px 18px',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  borderRadius: '12px', border: 'none', color: 'white',
+                  fontSize: '13px', fontWeight: '800',
+                  cursor: checkingPayment ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
+                  transition: 'all 0.15s ease',
+                  marginBottom: '12px',
+                  opacity: checkingPayment ? 0.7 : 1,
+                }}
+              >
+                {checkingPayment ? (
+                  <>
+                    <RefreshCw size={15} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa Status Pembayaran...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={16} /> ✅ Saya Sudah Bayar (Buka Sekarang)
+                  </>
+                )}
+              </button>
+
+              {/* Form Klaim Kode Voucher Promo */}
+              <form onSubmit={handleClaimVoucher} style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '10px',
+                padding: '8px 10px',
+                marginBottom: '14px',
+              }}>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="text"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    placeholder="Punya voucher promo? Masukkan di sini"
+                    style={{
+                      flex: 1,
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      color: 'white',
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={voucherLoading || !voucherCode.trim()}
+                    style={{
+                      background: 'rgba(99,102,241,0.25)',
+                      border: '1px solid rgba(99,102,241,0.5)',
+                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      color: '#c7d2fe',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: (voucherLoading || !voucherCode.trim()) ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {voucherLoading ? '...' : <>Klaim <ArrowRight size={12} /></>}
+                  </button>
+                </div>
+                {voucherMsg && (
+                  <p style={{
+                    marginTop: '6px', marginBottom: 0, fontSize: '10px', fontWeight: '600',
+                    color: voucherMsg.error ? '#f87171' : '#4ade80'
+                  }}>
+                    {voucherMsg.text}
+                  </p>
+                )}
+              </form>
+            </div>
+
+            {/* Metode Pembayaran Didukung (Footer Kanan) */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', flexWrap: 'wrap', gap: '8px',
+            }}>
+              <span style={{ fontSize: '9px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Metode Pembayaran
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#0066AE] italic shadow-sm">BCA</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#00529C] shadow-sm">BRI</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#F36F21] shadow-sm">BNI</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#00AED6] shadow-sm">DANA</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#4C2A86] shadow-sm">OVO</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#00AED6] shadow-sm">gopay</span>
+                <span className="px-1.5 py-0.5 bg-white rounded text-[8px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      </div>
+
+      {/* Footer Branding */}
+      <p style={{
+        textAlign: 'center', color: '#475569',
+        fontSize: '11px', margin: '12px 0 0',
+      }}>
+        VOC Billiard Management System v2.0 • Lisensi Komersial
+      </p>
 
       <style>{`
-        @keyframes lockBounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-        }
         @keyframes pulse {
           from { transform: scale(0.95); opacity: 0.5; }
           to { transform: scale(1.05); opacity: 1; }
@@ -637,8 +741,8 @@ export default function ActivatePage() {
           to { transform: rotate(360deg); }
         }
         .billing-wa-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 28px rgba(34,197,94,0.45) !important;
+          transform: translateY(-1px);
+          box-shadow: 0 8px 20px rgba(34,197,94,0.45) !important;
         }
       `}</style>
     </div>

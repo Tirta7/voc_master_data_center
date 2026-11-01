@@ -6,9 +6,10 @@ import {
   Clock, Monitor, Server, Wifi, WifiOff, CalendarClock, Sparkles, Lock,
 } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
+import { socket } from '@/lib/socket';
 
 interface LicenseState {
-  status: 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
+  status: 'ACTIVE' | 'GRACE' | 'TRIAL' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
   expiredAt: string | null;
   daysLeft: number;
   message?: string;
@@ -18,11 +19,19 @@ interface LicenseState {
   serverOnline?: boolean;
   serverUrl?: string;
   rawStatus?: string;
+  trial?: {
+    enabled: boolean;
+    quota: number;
+    used: number;
+    remaining: number;
+    is_trial: boolean;
+  } | null;
 }
 
 const STATUS_CONFIG = {
   ACTIVE:         { color: '#16a34a', soft: '#dcfce7', ring: '#bbf7d0', icon: ShieldCheck, label: 'Aktif',            desc: 'Lisensi aktif dan tersinkron dengan VOCML.' },
   GRACE:          { color: '#d97706', soft: '#fef3c7', ring: '#fde68a', icon: ShieldAlert, label: 'Segera Berakhir',  desc: 'Masa lisensi hampir habis. Segera lakukan perpanjangan.' },
+  TRIAL:          { color: '#0284c7', soft: '#e0f2fe', ring: '#bae6fd', icon: Sparkles,    label: 'Trial Aktif',      desc: 'Aplikasi berjalan menggunakan kuota coba gratis sesi rental meja billiard.' },
   EXPIRED:        { color: '#dc2626', soft: '#fee2e2', ring: '#fecaca', icon: ShieldOff,   label: 'Kadaluarsa',       desc: 'Masa lisensi telah berakhir. Aplikasi terkunci sampai diperpanjang.' },
   BLOCKED:        { color: '#b91c1c', soft: '#fee2e2', ring: '#fecaca', icon: Lock,        label: 'Dikunci',          desc: 'Aplikasi dikunci oleh admin dari VOCML.' },
   NOT_REGISTERED: { color: '#4f46e5', soft: '#e0e7ff', ring: '#c7d2fe', icon: Shield,      label: 'Menunggu Aktivasi', desc: 'Machine ID sudah terdaftar di VOCML, menunggu admin klik Generate License Key.' },
@@ -61,12 +70,20 @@ export function LicenseSettingsPanel() {
 
   useEffect(() => {
     fetchStatus();
-    // Real-time: backend push saat status lisensi berubah (mis. admin klik Generate License Key di VOCML)
+    // Real-time: update instan via WebSocket & SSE saat kuota trial terpotong atau lisensi berubah
+    const onLicenseUpdate = () => fetchStatus();
+    socket.on('license_updated', onLicenseUpdate);
+
     const es = new EventSource(`${getSocketUrl()}/api/license/status-stream`);
     es.onmessage = (e) => { if (e.data) fetchStatus(); };
     const fallback = setInterval(() => fetchStatus(), 60000);
     const clock = setInterval(() => setNow(Date.now()), 15000); // update label "x detik lalu"
-    return () => { es.close(); clearInterval(fallback); clearInterval(clock); };
+    return () => {
+      socket.off('license_updated', onLicenseUpdate);
+      es.close();
+      clearInterval(fallback);
+      clearInterval(clock);
+    };
   }, [fetchStatus]);
 
   const copy = async (text: string | null | undefined, which: 'mid' | 'key') => {
@@ -142,8 +159,8 @@ export function LicenseSettingsPanel() {
           <Stat icon={<CalendarClock size={12} />} label="Berlaku Sampai" value={fmtDate(state?.expiredAt)} />
           <Stat
             icon={<Clock size={12} />}
-            label="Sisa Waktu"
-            value={hasExpiry ? `${daysLeft} Hari` : '—'}
+            label={status === 'TRIAL' ? 'Sisa Kuota' : 'Sisa Waktu'}
+            value={status === 'TRIAL' && state?.trial ? `${state.trial.remaining} Sesi` : (hasExpiry ? `${daysLeft} Hari` : '—')}
             valueColor={cfg.color}
           />
           <Stat
@@ -154,6 +171,60 @@ export function LicenseSettingsPanel() {
           />
           <Stat icon={<RefreshCw size={12} />} label="Sinkron Terakhir" value={fmtAgo(state?.lastChecked)} />
         </div>
+
+        {/* Trial Quota Card */}
+        {state?.trial && state.trial.enabled && (
+          <div className="relative z-10 mt-5 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 md:p-5 backdrop-blur shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-200">
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-black tracking-tight text-slate-800">
+                      Kuota Coba Gratis (Trial)
+                    </span>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      state.trial.remaining > 0 ? 'bg-sky-100 text-sky-700 border border-sky-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                    }`}>
+                      {state.trial.remaining > 0 ? `Sisa ${state.trial.remaining}x` : 'Habis'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-slate-600 leading-relaxed">
+                    <strong className="text-slate-900 font-bold">{state.trial.used} / {state.trial.quota} terpakai</strong> (Sisa {state.trial.remaining}x). Kuota otomatis terpotong 1x setiap kali sesi sewa meja baru dimulai di kasir.
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center justify-between sm:flex-col sm:items-end gap-0.5 border-t sm:border-t-0 pt-2 sm:pt-0 border-sky-200/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kuota Terpakai</span>
+                <span className="text-base font-black text-sky-800">
+                  {state.trial.used} / {state.trial.quota} Terpakai
+                </span>
+                <span className="text-[11px] font-bold text-sky-600">
+                  (Sisa {state.trial.remaining}x)
+                </span>
+              </div>
+            </div>
+
+            {/* Trial Progress Bar */}
+            {state.trial.quota > 0 && (
+              <div className="mt-3.5">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
+                  <span>Progres Pemakaian: {state.trial.used} dari {state.trial.quota} sesi</span>
+                  <span>{Math.round((state.trial.used / state.trial.quota) * 100)}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-sky-200/60">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 bg-sky-500"
+                    style={{ width: `${Math.min(100, Math.round((state.trial.used / state.trial.quota) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {hasExpiry && (
           <div className="relative z-10 mt-4">

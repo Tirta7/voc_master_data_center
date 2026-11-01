@@ -12,6 +12,8 @@ import CafeOrderModal from '@/components/CafeOrderModal';
 import TransferToBilliardModal from '@/components/TransferToBilliardModal';
 import CancellationRequestModal from '@/components/CancellationRequestModal';
 import CafeStartSessionModal from '@/components/CafeStartSessionModal';
+import TrialExhaustedModal from '@/components/TrialExhaustedModal';
+import { socket } from '@/lib/socket';
 import TableOrderDetailsModal from '@/components/TableOrderDetailsModal';
 import TableInvoicePreviewModal from '@/components/TableInvoicePreviewModal';
 import WaitingListSidebar from '@/components/WaitingListSidebar';
@@ -337,6 +339,41 @@ export default function CafeDashboardPage() {
     const [startTableId, setStartTableId] = useState<number | null>(null);
     const [initialCustomerName, setInitialCustomerName] = useState('');
     const [isWaitingListOpen, setIsWaitingListOpen] = useState(false);
+    const [showTrialExhaustedModal, setShowTrialExhaustedModal] = useState(false);
+    const [trialModalBilling, setTrialModalBilling] = useState<any>(null);
+    const [licenseState, setLicenseState] = useState<any>(null);
+
+    // ── Sync status lisensi & kuota trial real-time untuk intercept sebelum buka meja cafe ──
+    useEffect(() => {
+        const fetchLicense = async () => {
+            try {
+                const res = await axios.get('/license/status');
+                setLicenseState(res.data);
+                if (res.data?.billing) {
+                    setTrialModalBilling(res.data.billing);
+                }
+            } catch (err) {
+                console.error('Failed to fetch license status in cafe:', err);
+            }
+        };
+        fetchLicense();
+
+        const onLicenseUpdated = (data: any) => {
+            if (data) {
+                setLicenseState((prev: any) => ({ ...(prev || {}), ...data }));
+                if (data.billing) setTrialModalBilling(data.billing);
+            }
+        };
+        socket.on('license_updated', onLicenseUpdated);
+
+        const handleOpenTrialModal = () => setShowTrialExhaustedModal(true);
+        window.addEventListener('open_trial_modal', handleOpenTrialModal);
+
+        return () => {
+            socket.off('license_updated', onLicenseUpdated);
+            window.removeEventListener('open_trial_modal', handleOpenTrialModal);
+        };
+    }, []);
 
     // ── Filtered tables from context ──────────────────────────────────────────
     const isRestrictedRole = React.useMemo(() => {
@@ -419,6 +456,22 @@ export default function CafeDashboardPage() {
 
     // ── Action handlers ───────────────────────────────────────────────────────
     const handleStart = (id: number, customerName: string = '') => {
+        // 🛡️ Cek kuota trial: jika sisa kuota trial 0 dan bukan lisensi aktif/grace
+        const isTrialExhausted =
+            licenseState?.trial &&
+            licenseState.trial.enabled &&
+            licenseState.trial.remaining <= 0 &&
+            licenseState.status !== 'ACTIVE' &&
+            licenseState.status !== 'GRACE';
+
+        if (isTrialExhausted) {
+            if (licenseState?.billing) {
+                setTrialModalBilling(licenseState.billing);
+            }
+            setShowTrialExhaustedModal(true);
+            return;
+        }
+
         setStartTableId(id);
         setInitialCustomerName(customerName);
         setIsStartModalOpen(true);
@@ -434,8 +487,19 @@ export default function CafeDashboardPage() {
             }
             setIsStartModalOpen(false);
             refetchCafe();
-        } catch (error) {
-            showAlert('Gagal', 'Gagal membuka meja cafe.', { variant: 'error' });
+        } catch (error: any) {
+            console.error('Failed to open cafe table:', error);
+            if (error.response?.data?.trialExhausted || (error.response?.status === 403 && !error.response?.data?.locked)) {
+                setIsStartModalOpen(false);
+                setTrialModalBilling(error.response?.data?.billing || null);
+                setShowTrialExhaustedModal(true);
+                return;
+            }
+            if (error.response?.status === 403 && error.response?.data?.locked) {
+                window.location.href = '/activate';
+                return;
+            }
+            showAlert('Gagal', error.response?.data?.message || 'Gagal membuka meja cafe.', { variant: 'error' });
         }
     };
 
@@ -748,6 +812,22 @@ export default function CafeDashboardPage() {
                 onClose={() => setIsWaitingListOpen(false)}
                 tables={tables}
                 type="CAFE"
+            />
+
+            {/* Popup Kuota Trial Habis (Pilihan Paket, QRIS & Form Klaim Voucher) */}
+            <TrialExhaustedModal
+                isOpen={showTrialExhaustedModal}
+                onClose={() => setShowTrialExhaustedModal(false)}
+                billingData={trialModalBilling}
+                machineId={licenseState?.machineId}
+                onVoucherClaimed={async () => {
+                    try {
+                        const res = await axios.get('/license/status?force=true');
+                        setLicenseState(res.data);
+                        if (res.data?.billing) setTrialModalBilling(res.data.billing);
+                    } catch {}
+                    refetchCafe();
+                }}
             />
         </div>
     );

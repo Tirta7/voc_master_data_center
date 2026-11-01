@@ -29,6 +29,7 @@ const _mqttmodule = require("../mqtt/mqtt.module");
 const _aimodule = require("../ai/ai.module");
 const _vouchermodule = require("../voucher/voucher.module");
 const _memberentity = require("../member/entities/member.entity");
+const _licensemodule = require("../license/license.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -53,6 +54,7 @@ BilliardModule = _ts_decorate([
                 _billiardpackageentity.BilliardPackage,
                 _memberentity.Member
             ]),
+            _licensemodule.LicenseModule,
             (0, _common.forwardRef)(()=>_transactionmodule.TransactionModule),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),

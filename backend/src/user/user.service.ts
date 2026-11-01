@@ -207,6 +207,14 @@ export class UserService implements OnModuleInit {
           IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='deletedAt') THEN
             ALTER TABLE "users" ADD COLUMN "deletedAt" TIMESTAMP;
           END IF;
+
+          -- 18. Default non-absen untuk akun Superadmin / Owner / Teknisi
+          UPDATE "users" u
+          SET "requiresAttendance" = false
+          FROM "roles" r
+          WHERE u."roleId" = r."id"
+          AND (UPPER(r."name") LIKE '%SUPERADMIN%' OR UPPER(r."name") LIKE '%OWNER%' OR UPPER(r."name") LIKE '%TEKNISI%')
+          AND u."requiresAttendance" IS NOT FALSE;
         END $$;
       `);
       this.logger.log('Foreign key schema integrity checks verified and applied.');

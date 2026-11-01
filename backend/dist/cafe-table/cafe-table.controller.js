@@ -11,6 +11,7 @@ Object.defineProperty(exports, "CafeTableController", {
 const _common = require("@nestjs/common");
 const _cafetableservice = require("./cafe-table.service");
 const _passport = require("@nestjs/passport");
+const _licenseservice = require("../license/license.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -55,7 +56,19 @@ let CafeTableController = class CafeTableController {
         };
     }
     // ── Session ───────────────────────────────────────────────────────────────
-    openSession(id, body, req) {
+    async openSession(id, body, req) {
+        // 🛡️ Proteksi Lisensi VOC ML & Pemotongan Kuota Trial
+        const trialRes = await this.licenseService.consumeTrial();
+        if (!trialRes.allowed) {
+            throw new _common.ForbiddenException({
+                statusCode: 403,
+                error: 'TRIAL_EXHAUSTED',
+                message: trialRes.error || 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk melanjutkan.',
+                billing: trialRes.billing || this.licenseService.getBilling(),
+                trialExhausted: true,
+                locked: false
+            });
+        }
         return this.service.openSession(id, body.customerName, req.user.id, body.memberId);
     }
     getActiveTransaction(id) {
@@ -70,8 +83,9 @@ let CafeTableController = class CafeTableController {
     closeSession(id) {
         return this.service.closeSession(id);
     }
-    constructor(service){
+    constructor(service, licenseService){
         this.service = service;
+        this.licenseService = licenseService;
     }
 };
 _ts_decorate([
@@ -134,7 +148,7 @@ _ts_decorate([
         Object,
         Object
     ]),
-    _ts_metadata("design:returntype", void 0)
+    _ts_metadata("design:returntype", Promise)
 ], CafeTableController.prototype, "openSession", null);
 _ts_decorate([
     (0, _common.Get)(':id/active-transaction'),
@@ -186,7 +200,8 @@ CafeTableController = _ts_decorate([
     (0, _common.Controller)('cafe-table'),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        typeof _cafetableservice.CafeTableService === "undefined" ? Object : _cafetableservice.CafeTableService
+        typeof _cafetableservice.CafeTableService === "undefined" ? Object : _cafetableservice.CafeTableService,
+        typeof _licenseservice.LicenseService === "undefined" ? Object : _licenseservice.LicenseService
     ])
 ], CafeTableController);
 

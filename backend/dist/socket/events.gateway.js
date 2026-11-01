@@ -70,6 +70,9 @@ let EventsGateway = class EventsGateway {
             'cashier'
         ]).emit('approval_finalized', payload);
     }
+    handleLicenseUpdated(payload) {
+        this.server.emit('license_updated', payload);
+    }
     async handleConnection(client) {
         const userId = client.handshake.query.userId;
         if (userId) {
@@ -630,6 +633,14 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], EventsGateway.prototype, "handleApprovalFinalized", null);
+_ts_decorate([
+    (0, _eventemitter.OnEvent)('license.updated'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleLicenseUpdated", null);
 _ts_decorate([
     (0, _websockets.SubscribeMessage)('presence_ping'),
     _ts_param(0, (0, _websockets.ConnectedSocket)()),

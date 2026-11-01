@@ -25,6 +25,7 @@ import { MessageSquare, AlertOctagon, RefreshCw, Search, Menu } from 'lucide-rea
 import ChatWindow from '@/components/ChatWindow';
 import { socket } from '@/lib/socket';
 import { useSidebar } from '@/components/SidebarContext';
+import TrialExhaustedModal from '@/components/TrialExhaustedModal';
 
 
 export default function Dashboard() {
@@ -67,6 +68,39 @@ export default function Dashboard() {
   const [itemToCancel, setItemToCancel] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSeenId, setLastSeenId] = useState<number>(0);
+  const [showTrialExhaustedModal, setShowTrialExhaustedModal] = useState(false);
+  const [trialModalBilling, setTrialModalBilling] = useState<any>(null);
+  const [licenseState, setLicenseState] = useState<any>(null);
+
+  // ── Sync status lisensi & kuota trial real-time untuk intercept sebelum buka modal sesi baru ──
+  useEffect(() => {
+    const fetchLicense = async () => {
+      try {
+        const res = await axios.get('/license/status');
+        setLicenseState(res.data);
+        if (res.data?.billing) {
+          setTrialModalBilling(res.data.billing);
+        }
+      } catch {}
+    };
+    fetchLicense();
+
+    const onLicenseUpdated = (data: any) => {
+      if (data) {
+        setLicenseState((prev: any) => ({ ...(prev || {}), ...data }));
+        if (data.billing) setTrialModalBilling(data.billing);
+      }
+    };
+    socket.on('license_updated', onLicenseUpdated);
+
+    const handleOpenTrialModal = () => setShowTrialExhaustedModal(true);
+    window.addEventListener('open_trial_modal', handleOpenTrialModal);
+
+    return () => {
+      socket.off('license_updated', onLicenseUpdated);
+      window.removeEventListener('open_trial_modal', handleOpenTrialModal);
+    };
+  }, []);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Waiting list alert UI state
@@ -287,23 +321,61 @@ export default function Dashboard() {
 
   // ── Action handlers ───────────────────────────────────────────────────────
   const handleToggleLight = React.useCallback(async (id: number, isOn: boolean) => {
+    // 🛡️ Jika hendak menyalakan lampu (isOn === true), pastikan kuota trial belum habis
+    if (isOn) {
+      const isTrialExhausted =
+        licenseState?.trial &&
+        licenseState.trial.enabled &&
+        licenseState.trial.remaining <= 0 &&
+        licenseState.status !== 'ACTIVE' &&
+        licenseState.status !== 'GRACE';
+
+      if (isTrialExhausted) {
+        if (licenseState?.billing) {
+          setTrialModalBilling(licenseState.billing);
+        }
+        setShowTrialExhaustedModal(true);
+        return;
+      }
+    }
+
     // Optimistic Update
     optimisticUpdateTable(id, { isLightOn: isOn });
     try {
       await axios.patch(`/billiard/tables/${id}/toggle-light`, { isOn });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle light:', error);
       // Rollback on fail
       optimisticUpdateTable(id, { isLightOn: !isOn });
+      if (error.response?.data?.trialExhausted || (error.response?.status === 403 && !error.response?.data?.locked)) {
+        if (error.response?.data?.billing) setTrialModalBilling(error.response.data.billing);
+        setShowTrialExhaustedModal(true);
+      }
     }
-  }, [optimisticUpdateTable]);
+  }, [optimisticUpdateTable, licenseState]);
 
   const openStartModal = React.useCallback((id: number) => {
+    // 🛡️ Cek kuota trial: jika sisa kuota trial 0 dan bukan lisensi aktif/grace
+    const isTrialExhausted =
+      licenseState?.trial &&
+      licenseState.trial.enabled &&
+      licenseState.trial.remaining <= 0 &&
+      licenseState.status !== 'ACTIVE' &&
+      licenseState.status !== 'GRACE';
+
+    if (isTrialExhausted) {
+      if (licenseState?.billing) {
+        setTrialModalBilling(licenseState.billing);
+      }
+      setShowTrialExhaustedModal(true);
+      return;
+    }
+
     const tableObj = tables.find(t => t.id === id);
     if (!tableObj) return;
     setSelectedTable(tableObj);
     setIsModalOpen(true);
-  }, [tables]);
+  }, [tables, licenseState]);
 
   const handleStartSession = async (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: any, promoId?: number, memberId?: number, voucherCode?: string) => {
     setIsSubmitting(true);
@@ -324,6 +396,16 @@ export default function Dashboard() {
       // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
     } catch (error: any) {
       console.error('Failed to start session:', error);
+      // Jika kuota trial habis -> tampilkan modal popup pilihan paket & form klaim voucher promo
+      if (error.response?.data?.trialExhausted || (error.response?.status === 403 && !error.response?.data?.locked)) {
+        optimisticUpdateTable(selectedTable.id, {
+          status: 'available' as any,
+          activeTransaction: null as any,
+        });
+        setTrialModalBilling(error.response?.data?.billing || null);
+        setShowTrialExhaustedModal(true);
+        return;
+      }
       if (error.response?.status === 403 && error.response?.data?.locked) {
         window.location.href = '/activate';
         return;
@@ -810,6 +892,22 @@ export default function Dashboard() {
           socket={socket}
         />
       )}
+
+      {/* Popup Kuota Trial Habis (Pilihan Paket, QRIS & Form Klaim Voucher) */}
+      <TrialExhaustedModal
+        isOpen={showTrialExhaustedModal}
+        onClose={() => setShowTrialExhaustedModal(false)}
+        billingData={trialModalBilling}
+        machineId={licenseState?.machineId}
+        onVoucherClaimed={async () => {
+          try {
+            const res = await axios.get('/license/status?force=true');
+            setLicenseState(res.data);
+            if (res.data?.billing) setTrialModalBilling(res.data.billing);
+          } catch {}
+          refetchBilliard();
+        }}
+      />
     </div>
   );
 }

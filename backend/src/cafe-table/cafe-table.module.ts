@@ -11,6 +11,7 @@ import { SocketModule } from '../socket/socket.module';
 import { TransactionModule } from '../transaction/transaction.module';
 import { BilliardModule } from '../billiard/billiard.module';
 import { AIModule } from '../ai/ai.module';
+import { LicenseModule } from '../license/license.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AIModule } from '../ai/ai.module';
     forwardRef(() => TransactionModule),
     forwardRef(() => BilliardModule),
     forwardRef(() => AIModule),
+    LicenseModule,
   ],
   providers: [CafeTableService],
   controllers: [CafeTableController],

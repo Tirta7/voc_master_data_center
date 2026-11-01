@@ -9,13 +9,18 @@ import {
   ParseIntPipe,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CafeTableService } from './cafe-table.service';
 import { AuthGuard } from '@nestjs/passport';
+import { LicenseService } from '../license/license.service';
 
 @Controller('cafe-table')
 export class CafeTableController {
-  constructor(private readonly service: CafeTableService) {}
+  constructor(
+    private readonly service: CafeTableService,
+    private readonly licenseService: LicenseService,
+  ) {}
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -53,11 +58,24 @@ export class CafeTableController {
 
   @Post(':id/open')
   @UseGuards(AuthGuard('jwt'))
-  openSession(
+  async openSession(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { customerName?: string; memberId?: number },
     @Request() req: any,
   ) {
+    // 🛡️ Proteksi Lisensi VOC ML & Pemotongan Kuota Trial
+    const trialRes = await this.licenseService.consumeTrial();
+    if (!trialRes.allowed) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'TRIAL_EXHAUSTED',
+        message: trialRes.error || 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk melanjutkan.',
+        billing: trialRes.billing || this.licenseService.getBilling(),
+        trialExhausted: true,
+        locked: false, // JANGAN kunci seluruh layar /activate; biarkan meja aktif berjalan dan tampilkan popup
+      });
+    }
+
     return this.service.openSession(
       id,
       body.customerName,

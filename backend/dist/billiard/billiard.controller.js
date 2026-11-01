@@ -17,6 +17,7 @@ const _billiardgateway = require("../socket/billiard.gateway");
 const _tableentity = require("./entities/table.entity");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
+const _licenseservice = require("../license/license.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -157,6 +158,21 @@ let BilliardController = class BilliardController {
         // Backend hanya perlu memproses setiap request valid yang masuk.
         // Anti-spam sesungguhnya sudah ada di BilliardService.lastCommandAt (v17.2).
         const isOn = body?.isOn === true;
+        // 🛡️ Jika hendak menyalakan lampu meja (isOn === true), pastikan kuota trial belum habis
+        if (isOn) {
+            const state = this.licenseService.getState();
+            const isTrialExhausted = state.trial && state.trial.enabled && state.trial.remaining <= 0 && state.status !== 'ACTIVE' && state.status !== 'GRACE';
+            if (isTrialExhausted) {
+                throw new _common.ForbiddenException({
+                    statusCode: 403,
+                    error: 'TRIAL_EXHAUSTED',
+                    message: 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk menyalakan meja.',
+                    billing: state.billing || this.licenseService.getBilling(),
+                    trialExhausted: true,
+                    locked: false
+                });
+            }
+        }
         return this.billiardService.toggleLight(+id, isOn);
     }
     // NOTE: ping-all must be BEFORE tables/:id/ping to avoid route collision
@@ -179,6 +195,18 @@ let BilliardController = class BilliardController {
         return this.billiardService.testGpioPin(+id, +pin, isOn);
     }
     async startSession(id, body, req) {
+        // 🛡️ Proteksi Lisensi VOC ML & Pemotongan Kuota Trial
+        const trialRes = await this.licenseService.consumeTrial();
+        if (!trialRes.allowed) {
+            throw new _common.ForbiddenException({
+                statusCode: 403,
+                error: 'TRIAL_EXHAUSTED',
+                message: trialRes.error || 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk melanjutkan.',
+                billing: trialRes.billing || this.licenseService.getBilling(),
+                trialExhausted: true,
+                locked: false
+            });
+        }
         this.logger.log(`BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}, voucher: ${body.voucherCode || 'none'}`);
         return this.billiardService.startSession(id, body.type, body.duration, body.customerName, body.packageId, body.customPriceSettings, body.promoId, req.user.id, req.user.username, body.memberId, body.idempotencyKey, body.voucherCode);
     }
@@ -265,10 +293,11 @@ let BilliardController = class BilliardController {
    */ async batchUpdateIpAddress(body) {
         return this.billiardService.batchUpdateIpAddress(body.updates);
     }
-    constructor(billiardService, billiardGateway, tableRepository){
+    constructor(billiardService, billiardGateway, tableRepository, licenseService){
         this.billiardService = billiardService;
         this.billiardGateway = billiardGateway;
         this.tableRepository = tableRepository;
+        this.licenseService = licenseService;
         this.logger = new _common.Logger(BilliardController.name);
     }
 };
@@ -671,7 +700,8 @@ BilliardController = _ts_decorate([
     _ts_metadata("design:paramtypes", [
         typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
-        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _licenseservice.LicenseService === "undefined" ? Object : _licenseservice.LicenseService
     ])
 ], BilliardController);
 

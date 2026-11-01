@@ -458,7 +458,12 @@ export default function TableManagementPage() {
                 (billiardTables || []).map(t => t.id === id ? { ...t, isLightOn: isOn } : t),
                 false // don't revalidate immediately to keep the state
             );
-        } catch {
+        } catch (error: any) {
+            if (error.response?.data?.trialExhausted || (error.response?.status === 403 && !error.response?.data?.locked)) {
+                window.dispatchEvent(new CustomEvent('open_trial_modal'));
+                showAlert('Trial Habis', error.response?.data?.message || 'Kuota coba gratis Anda telah habis.', { variant: 'warning' });
+                return;
+            }
             showAlert('Gagal', 'Koneksi ke ESP32 / Server gagal', { variant: 'error' });
         }
     };

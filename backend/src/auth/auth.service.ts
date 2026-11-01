@@ -224,6 +224,8 @@ export class AuthService {
 
   async login(user: any) {
     const payload = { username: user.username, sub: user.id };
+    const roleName = String(user.role?.name || user.role || '').toUpperCase();
+    const isExempt = roleName.includes('SUPERADMIN') || roleName.includes('OWNER') || roleName.includes('TEKNISI');
     return {
       access_token: this.jwtService.sign(payload),
       user: {
@@ -233,7 +235,7 @@ export class AuthService {
         role: user.role?.name || user.role,
         permissions: user.role?.permissions || user.permissions,
         assignedTableIds: user.assignedTableIds,
-        requiresAttendance: user.requiresAttendance !== false,
+        requiresAttendance: isExempt ? false : (user.requiresAttendance !== false),
       },
     };
   }

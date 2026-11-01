@@ -48,9 +48,11 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const isWaiter = userRole.includes('WAITER') || userRole.includes('WAITERS') || userRole.includes('PELAYAN');
     const isCashier = userRole.includes('KASIR') || userRole.includes('CASHIER');
     const isManagementRole = ['ADMIN', 'SUPERADMIN', 'OWNER', 'MANAGER'].some(r => userRole.includes(r));
+    const isExemptRole = userRole.includes('SUPERADMIN') || userRole.includes('OWNER') || userRole.includes('TEKNISI');
     const isProductionRole = ['KITCHEN', 'BARTENDER', 'CHEF'].some(r => userRole.includes(r));
     
     const [isManualOpen, setIsManualOpen] = useState(false);
+    const [isBypassed, setIsBypassed] = useState(false);
     
     // QR Step
     const [setupStep, setSetupStep] = useState<'QR' | 'FORM'>('QR');
@@ -59,19 +61,19 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const [isCheckingAttendance, setIsCheckingAttendance] = useState(true);
 
     const isStaff = isWaiter || isCashier;
-    // Wajib Absensi: Jika aktif (requiresAttendance !== false) dan belum check-in hari ini -> WAJIB scan QR untuk SEMUA role
-    const needsAttendance = user?.requiresAttendance !== false && !checkInTime;
+    // Wajib Absensi: Hanya jika aktif (requiresAttendance !== false), bukan role exempt (Superadmin/Owner/Teknisi), dan belum check-in hari ini
+    const needsAttendance = !isExemptRole && user?.requiresAttendance !== false && !checkInTime;
     // Staf operasional (Kasir / Waiter) yang belum punya shift aktif
     const needsShift = isStaff && !activeShift;
 
-    const shouldShow = forcedOpen || isManualOpen || (
+    const shouldShow = !isBypassed && (forcedOpen || isManualOpen || (
         !!user && !isCheckingAttendance && (needsAttendance || needsShift)
-    );
+    ));
     
     useBodyScrollLock(!!shouldShow);
 
     const handleLogout = async () => {
-        if (user?.requiresAttendance !== false) {
+        if (!isExemptRole && user?.requiresAttendance !== false) {
             try {
                 const today = await axios.get('/attendance/today');
                 if (today.data?.checkInTime && !today.data?.checkOutTime) {
@@ -549,14 +551,28 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     <span className="text-[17px] font-semibold text-slate-900 tracking-tight">Persiapan Shift</span>
                                 </div>
 
-                                {/* Right: Refresh */}
-                                <button
-                                    type="button"
-                                    onClick={() => { refetchProfile(); fetchData(); }}
-                                    className="text-blue-500 active:opacity-60 transition-opacity"
-                                >
-                                    <RefreshCw className={`w-5 h-5 ${fetchingData ? 'animate-spin' : ''}`} strokeWidth={2} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {isManagementRole && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsBypassed(true);
+                                                setIsManualOpen(false);
+                                                router.push('/admin/dashboard');
+                                            }}
+                                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            Portal
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => { refetchProfile(); fetchData(); }}
+                                        className="text-blue-500 active:opacity-60 transition-opacity"
+                                    >
+                                        <RefreshCw className={`w-5 h-5 ${fetchingData ? 'animate-spin' : ''}`} strokeWidth={2} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* User identity card */}
@@ -616,6 +632,20 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     <RefreshCw className={`w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors ${fetchingData ? 'animate-spin' : ''}`} strokeWidth={2} />
                                     <span className="text-[14px] font-medium text-slate-500 group-hover:text-slate-800 transition-colors">Sinkronisasi Data</span>
                                 </button>
+                                {isManagementRole && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsBypassed(true);
+                                            setIsManualOpen(false);
+                                            router.push('/admin/dashboard');
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors group mb-1 font-bold text-[13px]"
+                                    >
+                                        <LayoutDashboard className="w-4 h-4 text-indigo-600" />
+                                        <span>Buka Portal Admin</span>
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleLogout}
                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rose-50 transition-colors group"
@@ -768,6 +798,21 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                             QR berganti tiap detik · screenshot tidak berlaku
                                         </p>
                                     </div>
+
+                                    {isManagementRole && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsBypassed(true);
+                                                setIsManualOpen(false);
+                                                router.push('/admin/dashboard');
+                                            }}
+                                            className="px-6 py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-wider text-xs shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                        >
+                                            <LayoutDashboard className="w-4 h-4 text-emerald-400" />
+                                            <span>Masuk Portal Admin (Lewati Absensi)</span>
+                                        </button>
+                                    )}
                                     </motion.div>
                                     )}
                                     </AnimatePresence>

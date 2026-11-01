@@ -65,8 +65,10 @@ export default function Sidebar() {
     const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
     const [isStartModalOpen, setIsStartModalOpen] = React.useState(false);
 
+    const isExemptRole = ['SUPERADMIN', 'OWNER', 'TEKNISI'].some(r => (user?.role || '').toUpperCase().includes(r));
+
     const handleLogout = async () => {
-        if (user?.requiresAttendance !== false) {
+        if (!isExemptRole && user?.requiresAttendance !== false) {
             try {
                 const today = await axios.get('/attendance/today');
                 if (today.data?.checkInTime && !today.data?.checkOutTime) {
