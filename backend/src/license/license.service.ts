@@ -283,7 +283,11 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         : this.calculateDaysLeft(lic.expiresAt);
 
       // Billing selalu disimpan agar client yang aktif tetap bisa melihat daftar paket untuk perpanjangan
-      const billing: LicenseBilling | null = lic.billing || null;
+      let billing: LicenseBilling | null = lic.billing || null;
+      if (!billing || !billing.packages || billing.packages.length === 0) {
+        const fetched = await this.fetchBillingFromVocml();
+        if (fetched) billing = fetched;
+      }
 
       // License key & expiry SELALU mengikuti hasil terakhir (server / snapshot), tanpa
       // mempertahankan key lama — agar koreksi pengurangan masa aktif langsung berlaku.
@@ -399,6 +403,28 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     return { success: false, message: 'Tidak diperlukan lagi di VOCML. Cukup cek status otomatis.', state: this.state };
   }
 
+  async fetchBillingFromVocml(): Promise<LicenseBilling | null> {
+    try {
+      const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+      const qs = new URLSearchParams({ machine_id: this.machineId, product: 'billiard' });
+      const res = await fetch(`${this.vocmlServerUrl}/api/v1/billing?${qs}`, {
+        headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json();
+      if (data?.billing) {
+        if (!this.state.billing || !this.state.billing.packages?.length) {
+          this.state.billing = data.billing;
+        }
+        return data.billing;
+      }
+    } catch (err: any) {
+      this.logger.warn(`Gagal fetch billing langsung dari VOCML: ${err?.message || err}`);
+    }
+    return null;
+  }
+
   getState(): LicenseState {
     return this.state;
   }
@@ -415,9 +441,9 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
    */
   async getBillingQrisPng(size = 512, amount?: number): Promise<Buffer | null> {
     let billing = this.getBilling();
-    if (!billing) {
-      await this.checkLicense();
-      billing = this.getBilling();
+    if (!billing || !billing.packages?.length) {
+      const fetched = await this.fetchBillingFromVocml();
+      if (fetched) billing = fetched;
     }
     const px = Math.min(1024, Math.max(240, Math.round(size) || 512));
 

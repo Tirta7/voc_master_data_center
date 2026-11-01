@@ -68,7 +68,7 @@ export default function TrialExhaustedModal({
 
   // Sinkronisasi billing realtime saat modal dibuka
   useEffect(() => {
-    if (billingData) {
+    if (billingData && billingData.packages && billingData.packages.length > 0) {
       setBilling(billingData);
     }
   }, [billingData]);
@@ -79,11 +79,21 @@ export default function TrialExhaustedModal({
     const fetchLatestBilling = async () => {
       try {
         const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
-        if (!res.ok) return;
-        const d = await res.json();
-        if (d.billing) {
-          setBilling(d.billing);
-          setQrFailed(false);
+        if (res.ok) {
+          const d = await res.json();
+          if (d.billing && d.billing.packages && d.billing.packages.length > 0) {
+            setBilling(d.billing);
+            setQrFailed(false);
+            return;
+          }
+        }
+        const bRes = await fetch(`${getApiUrl()}/api/license/billing`);
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          if (bData?.billing && bData.billing.packages?.length > 0) {
+            setBilling(bData.billing);
+            setQrFailed(false);
+          }
         }
       } catch {}
     };

@@ -60,9 +60,13 @@ export class LicenseController {
    * Tagihan QRIS terakhir (snapshot). GET /api/license/billing
    */
   @Get('billing')
-  getBilling() {
+  async getBilling() {
+    let b = this.licenseService.getBilling();
+    if (!b || !b.packages || b.packages.length === 0) {
+      b = await this.licenseService.fetchBillingFromVocml();
+    }
     const s = this.licenseService.getState();
-    return { status: s.status, billing: this.licenseService.getBilling() };
+    return { status: s.status, billing: b };
   }
 
   /**
