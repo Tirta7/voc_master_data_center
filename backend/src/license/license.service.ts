@@ -282,9 +282,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         ? lic.daysLeft
         : this.calculateDaysLeft(lic.expiresAt);
 
-      // Billing hanya relevan saat EXPIRED / BLOCKED (jangan tampilkan QRIS saat aktif)
-      const billing: LicenseBilling | null =
-        (mappedStatus === 'EXPIRED' || mappedStatus === 'BLOCKED' || mappedStatus === 'NOT_REGISTERED') ? (lic.billing || null) : (lic.billing || null);
+      // Billing selalu disimpan agar client yang aktif tetap bisa melihat daftar paket untuk perpanjangan
+      const billing: LicenseBilling | null = lic.billing || null;
 
       // License key & expiry SELALU mengikuti hasil terakhir (server / snapshot), tanpa
       // mempertahankan key lama — agar koreksi pengurangan masa aktif langsung berlaku.
@@ -415,9 +414,35 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
    * Mengembalikan null bila tidak ada tagihan.
    */
   async getBillingQrisPng(size = 512, amount?: number): Promise<Buffer | null> {
-    const billing = this.getBilling();
-    if (!billing) return null;
+    let billing = this.getBilling();
+    if (!billing) {
+      await this.checkLicense();
+      billing = this.getBilling();
+    }
     const px = Math.min(1024, Math.max(240, Math.round(size) || 512));
+
+    if (!billing) {
+      try {
+        const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
+        const qs = new URLSearchParams({
+          machine_id: this.machineId,
+          product: 'billiard',
+          ...(amount ? { amount: String(amount) } : {}),
+          size: String(px),
+        });
+        const res = await fetch(`${this.vocmlServerUrl}/api/v1/billing/qris.png?${qs}`, {
+          headers: apiKey ? { 'X-VOCML-Key': apiKey } : {},
+          signal: AbortSignal.timeout(8000),
+        });
+        const type = res.headers.get('content-type') || '';
+        if (res.ok && type.includes('image/png')) {
+          return Buffer.from(await res.arrayBuffer());
+        }
+      } catch (err: any) {
+        this.logger.warn(`Fallback QRIS VOCML gagal: ${err?.message || err}`);
+      }
+      return null;
+    }
 
     let targetUrl = billing.qris_image_url;
     let matchingPackage: any = null;

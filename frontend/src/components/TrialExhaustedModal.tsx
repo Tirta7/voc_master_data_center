@@ -83,6 +83,7 @@ export default function TrialExhaustedModal({
         const d = await res.json();
         if (d.billing) {
           setBilling(d.billing);
+          setQrFailed(false);
         }
       } catch {}
     };
@@ -302,23 +303,30 @@ export default function TrialExhaustedModal({
                   margin: '0 auto', position: 'relative',
                   boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
                 }}>
-                  {!qrLoaded && (
+                  {!qrLoaded && currentAmount > 0 && (
                     <RefreshCw size={22} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
                   )}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
-                    alt={`QRIS ${currentAmountText}`}
-                    width={164}
-                    height={164}
-                    onLoad={() => setQrLoaded(true)}
-                    onError={() => setQrFailed(true)}
-                    style={{
-                      width: '164px', height: '164px', display: 'block',
-                      objectFit: 'contain', imageRendering: 'pixelated',
-                      background: '#ffffff', opacity: qrLoaded ? 1 : 0,
-                    }}
-                  />
+                  {currentAmount > 0 ? (
+                    <img
+                      src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
+                      alt={`QRIS ${currentAmountText}`}
+                      width={164}
+                      height={164}
+                      onLoad={() => setQrLoaded(true)}
+                      onError={() => setQrFailed(true)}
+                      style={{
+                        width: '164px', height: '164px', display: 'block',
+                        objectFit: 'contain', imageRendering: 'pixelated',
+                        background: '#ffffff', opacity: qrLoaded ? 1 : 0,
+                      }}
+                    />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <RefreshCw size={24} color="#6366f1" style={{ animation: 'spin 1.5s linear infinite' }} />
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Memuat QRIS...</span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={{
