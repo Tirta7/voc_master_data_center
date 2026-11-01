@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { socket } from '@/lib/socket';
+import { getApiUrl } from '@/utils/urlUtils';
 import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
@@ -723,8 +724,15 @@ export default function AdminDashboard() {
     useEffect(() => {
         const fetchLicense = async () => {
             try {
-                const res = await axios.get('/license/status');
-                setLicenseState(res.data);
+                const API_BASE = getApiUrl();
+                const res = await fetch(`${API_BASE}/api/license/status`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setLicenseState(data);
+                } else {
+                    const resDirect = await axios.get('/license/status');
+                    setLicenseState(resDirect.data);
+                }
             } catch (err) {
                 console.error('Failed to fetch license status in dashboard:', err);
             }
@@ -744,7 +752,10 @@ export default function AdminDashboard() {
         licenseState && (
             licenseState.status === 'EXPIRED' ||
             licenseState.status === 'BLOCKED' ||
-            (licenseState.status !== 'ACTIVE' && licenseState.status !== 'GRACE' && licenseState.trial?.enabled && licenseState.trial?.remaining <= 0)
+            licenseState.rawStatus === 'expired' ||
+            licenseState.rawStatus === 'locked' ||
+            (licenseState.status !== 'ACTIVE' && licenseState.status !== 'GRACE' && licenseState.trial?.enabled && licenseState.trial?.remaining <= 0) ||
+            (licenseState.trial?.remaining <= 0 && licenseState.status === 'TRIAL')
         )
     );
 
@@ -1074,7 +1085,16 @@ export default function AdminDashboard() {
 
             {/* ── Top bar ── */}
             {/* Dashboard Content Container (blur jika lisensi habis) */}
-            <div className={`transition-all duration-700 ${isLicenseExpired ? 'filter blur-[14px] pointer-events-none select-none opacity-40' : ''}`}>
+            <div
+                className="transition-all duration-700"
+                style={isLicenseExpired ? {
+                    filter: 'blur(16px)',
+                    WebkitFilter: 'blur(16px)',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                    opacity: 0.35,
+                } : undefined}
+            >
                 {/* Hero Header */}
                 <div className="max-w-7xl mx-auto px-6 py-6 pt-8 pb-0">
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 w-full mb-4">
@@ -3100,64 +3120,168 @@ export default function AdminDashboard() {
 
             {/* Lock Overlay saat Lisensi / Trial Habis */}
             {isLicenseExpired && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="relative max-w-lg w-full bg-slate-900/95 border border-indigo-500/30 rounded-3xl p-8 text-center shadow-2xl shadow-indigo-950/80 text-white overflow-hidden">
-                        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
-                        
-                        <div className="relative z-10 flex flex-col items-center">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 p-0.5 shadow-xl shadow-rose-500/20 mb-5">
-                                <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center">
-                                    <Lock className="w-8 h-8 text-rose-400 animate-pulse" />
-                                </div>
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 99999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '16px',
+                    backgroundColor: 'rgba(2, 6, 23, 0.55)',
+                    backdropFilter: 'blur(6px)',
+                    WebkitBackdropFilter: 'blur(6px)',
+                }}>
+                    <div style={{
+                        position: 'relative',
+                        maxWidth: '520px',
+                        width: '100%',
+                        background: 'linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 27, 75, 0.98))',
+                        border: '1px solid rgba(99, 102, 241, 0.35)',
+                        borderRadius: '24px',
+                        padding: '32px 28px',
+                        textAlign: 'center',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.2)',
+                        color: '#ffffff',
+                    }}>
+                        <div style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #ef4444, #f59e0b)',
+                            padding: '2px',
+                            margin: '0 auto 16px auto',
+                            boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.4)',
+                        }}>
+                            <div style={{
+                                width: '100%',
+                                height: '100%',
+                                background: '#0f172a',
+                                borderRadius: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}>
+                                <Lock style={{ width: '32px', height: '32px', color: '#f87171' }} />
                             </div>
+                        </div>
 
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] font-black uppercase tracking-widest mb-3">
-                                Akses Laporan Dibatasi
+                        <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 12px',
+                            borderRadius: '9999px',
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            border: '1px solid rgba(239, 68, 68, 0.35)',
+                            color: '#f87171',
+                            fontSize: '10px',
+                            fontWeight: 900,
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
+                            marginBottom: '12px',
+                        }}>
+                            Akses Laporan Dibatasi
+                        </div>
+
+                        <h2 style={{
+                            fontSize: '24px',
+                            fontWeight: 900,
+                            letterSpacing: '-0.02em',
+                            color: '#ffffff',
+                            marginBottom: '8px',
+                        }}>
+                            Laporan Owner Terkunci
+                        </h2>
+
+                        <p style={{
+                            fontSize: '12.5px',
+                            color: '#cbd5e1',
+                            lineHeight: '1.6',
+                            maxWidth: '420px',
+                            margin: '0 auto 24px auto',
+                        }}>
+                            Masa aktif lisensi atau kuota coba gratis Anda telah habis. Seluruh data omzet, grafik laba bersih, transaksi, dan pembukuan sementara disembunyikan hingga lisensi diperpanjang.
+                        </p>
+
+                        <div style={{
+                            background: 'rgba(30, 41, 59, 0.85)',
+                            border: '1px solid rgba(51, 65, 85, 0.7)',
+                            borderRadius: '16px',
+                            padding: '14px 18px',
+                            marginBottom: '24px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            textAlign: 'left',
+                            fontSize: '12px',
+                        }}>
+                            <div>
+                                <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Device ID</p>
+                                <p style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f1f5f9', margin: '4px 0 0 0' }}>{licenseState?.machineId || 'VOC-PC'}</p>
                             </div>
-
-                            <h2 className="text-2xl font-black tracking-tight text-white mb-2">
-                                Laporan Owner Terkunci
-                            </h2>
-                            
-                            <p className="text-xs text-slate-300 leading-relaxed max-w-md mb-6">
-                                Masa aktif lisensi atau kuota coba gratis Anda telah habis. Seluruh data omzet, grafik laba bersih, transaksi, dan pembukuan sementara disembunyikan hingga lisensi diperpanjang.
-                            </p>
-
-                            <div className="w-full bg-slate-800/80 border border-slate-700/60 rounded-2xl p-3.5 mb-6 text-left flex items-center justify-between text-xs">
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Device ID</p>
-                                    <p className="font-mono font-bold text-slate-200 mt-0.5">{licenseState?.machineId || 'VOC-PC'}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status Lisensi</p>
-                                    <span className="inline-block mt-0.5 font-bold text-rose-400 uppercase">
-                                        {licenseState?.trial?.remaining <= 0 ? 'Trial Habis (0 sesi)' : (licenseState?.status || 'Terkunci')}
-                                    </span>
-                                </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <p style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Status Lisensi</p>
+                                <span style={{ display: 'inline-block', fontWeight: 800, color: '#f87171', textTransform: 'uppercase', margin: '4px 0 0 0' }}>
+                                    {licenseState?.trial?.remaining <= 0 ? 'Trial Habis (0 sesi)' : (licenseState?.status || 'Terkunci')}
+                                </span>
                             </div>
+                        </div>
 
-                            <div className="w-full flex flex-col gap-2.5">
-                                <button
-                                    onClick={() => window.dispatchEvent(new CustomEvent('open_trial_modal'))}
-                                    className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <button
+                                type="button"
+                                onClick={() => window.dispatchEvent(new CustomEvent('open_trial_modal'))}
+                                style={{
+                                    width: '100%',
+                                    padding: '14px 20px',
+                                    borderRadius: '16px',
+                                    background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                    color: '#ffffff',
+                                    fontWeight: 900,
+                                    fontSize: '12px',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    boxShadow: '0 8px 20px rgba(99, 102, 241, 0.35)',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                }}
+                            >
+                                <Zap style={{ width: '16px', height: '16px', color: '#fde047' }} />
+                                Perpanjang Lisensi / Klaim Voucher
+                            </button>
+
+                            {licenseState?.billing?.contact && (
+                                <a
+                                    href={`https://wa.me/${licenseState.billing.contact.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(`Halo Admin, saya ingin perpanjang lisensi untuk Device ID: ${licenseState?.machineId}`)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 20px',
+                                        borderRadius: '16px',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: '#e2e8f0',
+                                        fontWeight: 700,
+                                        fontSize: '12px',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em',
+                                        textDecoration: 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                    }}
                                 >
-                                    <Zap className="w-4 h-4 text-amber-300" />
-                                    Perpanjang Lisensi / Klaim Voucher
-                                </button>
-                                
-                                {licenseState?.billing?.contact && (
-                                    <a
-                                        href={`https://wa.me/${licenseState.billing.contact.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(`Halo Admin, saya ingin perpanjang lisensi untuk Device ID: ${licenseState?.machineId}`)}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="w-full py-3 px-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Share2 className="w-3.5 h-3.5 text-emerald-400" />
-                                        Hubungi Admin WhatsApp
-                                    </a>
-                                )}
-                            </div>
+                                    <Share2 style={{ width: '14px', height: '14px', color: '#34d399' }} />
+                                    Hubungi Admin WhatsApp
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>

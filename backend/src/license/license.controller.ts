@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { Observable, map, filter, merge, interval, defer, of } from 'rxjs';
 import { LicenseService } from './license.service';
 
-@Controller('api/license')
+@Controller(['api/license', 'license'])
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
 
