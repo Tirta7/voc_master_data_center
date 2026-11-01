@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag, ArrowRight } from 'lucide-react';
+import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag, ArrowRight, Sparkles } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import WaitingCat from '@/components/WaitingCat';
 
@@ -55,6 +55,12 @@ export default function ActivatePage() {
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [voucherMsg, setVoucherMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState<{
+    packageName?: string;
+    amountPaid?: number;
+    expiredAt?: string;
+    daysLeft?: number;
+  } | null>(null);
 
   const handleClaimVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +93,19 @@ export default function ActivatePage() {
       const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
       const data = await res.json();
       if (data.status === 'ACTIVE' || data.status === 'GRACE' || data.status === 'TRIAL') {
-        window.location.href = '/';
+        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Lisensi Aktif');
+        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+
+        setPaymentSuccess({
+          packageName: pkgName,
+          amountPaid: paidAmt,
+          expiredAt: data.expiredAt || '',
+          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
+        });
+
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
       }
     } catch {}
     finally {
@@ -148,9 +166,21 @@ export default function ActivatePage() {
       if (cancelled || !data) return;
       setMachineId(data.machineId || 'TIDAK DIKETAHUI');
       setLicenseState(data);
-      // Sudah aktif kembali (diperpanjang / dibuka kuncinya) → tutup layar terkunci otomatis
+      // Sudah aktif kembali (diperpanjang / dibuka kuncinya) → tampilkan sukses lalu redirect
       if (data.status === 'ACTIVE' || data.status === 'GRACE') {
-        window.location.href = '/';
+        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Lisensi Aktif');
+        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+
+        setPaymentSuccess({
+          packageName: pkgName,
+          amountPaid: paidAmt,
+          expiredAt: data.expiredAt || '',
+          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
+        });
+
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3200);
       } else if (!notified && (data.status === 'EXPIRED' || data.status === 'BLOCKED')) {
         notified = true;
         // Trigger push notification ke HP owner
@@ -347,7 +377,95 @@ export default function ActivatePage() {
           </div>
         </div>
 
-        {/* Card Body (Two Columns Unified Layout) */}
+        {/* Card Body: Layar Sukses Pembayaran vs Dua Kolom Terkunci */}
+        {paymentSuccess ? (
+          <div style={{
+            padding: '48px 32px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+            background: 'radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.98) 75%)',
+          }}>
+            <div style={{
+              width: '84px', height: '84px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 50px rgba(16, 185, 129, 0.6), 0 0 100px rgba(16, 185, 129, 0.25)',
+              marginBottom: '20px',
+            }}>
+              <CheckCircle size={50} color="#ffffff" strokeWidth={2.5} />
+            </div>
+
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '20px', padding: '5px 16px', marginBottom: '12px',
+            }}>
+              <Sparkles size={14} color="#34d399" />
+              <span style={{ fontSize: '11px', fontWeight: '800', color: '#6ee7b7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Pembayaran Berhasil Diverifikasi
+              </span>
+            </div>
+
+            <h2 style={{ color: '#ffffff', fontSize: '26px', fontWeight: '900', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+              Aplikasi Berhasil Diaktifkan Kembali!
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 26px', maxWidth: '480px', lineHeight: '1.5' }}>
+              Terima kasih! Pembayaran QRIS Anda telah diterima dan masa aktif lisensi aplikasi Anda langsung diperpanjang secara otomatis.
+            </p>
+
+            <div style={{
+              width: '100%', maxWidth: '460px',
+              background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '16px', padding: '18px 22px',
+              display: 'flex', flexDirection: 'column', gap: '14px',
+              boxSizing: 'border-box', marginBottom: '28px',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Paket Lisensi</span>
+                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>{paymentSuccess.packageName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Nominal</span>
+                <span style={{ color: '#34d399', fontSize: '17px', fontWeight: '900' }}>
+                  Rp{paymentSuccess.amountPaid?.toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Berlaku Sampai</span>
+                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>
+                  {paymentSuccess.expiredAt
+                    ? new Date(paymentSuccess.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : 'Aktif'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Sisa Waktu</span>
+                <span style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '800' }}>
+                  {paymentSuccess.daysLeft} Hari Lagi
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { window.location.href = '/'; }}
+              style={{
+                width: '100%', maxWidth: '460px', padding: '13px 24px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                borderRadius: '12px', border: 'none', color: '#ffffff',
+                fontSize: '13px', fontWeight: '800', cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              }}
+            >
+              <CheckCircle size={16} /> Buka Aplikasi Sekarang
+            </button>
+            <p style={{ color: '#64748b', fontSize: '11px', marginTop: '12px', marginBottom: 0 }}>
+              Membuka aplikasi secara otomatis dalam beberapa detik...
+            </p>
+          </div>
+        ) : (
+        /* Card Body (Two Columns Unified Layout) */
         <div style={{
           display: 'flex',
           flexDirection: 'row',
@@ -721,6 +839,7 @@ export default function ActivatePage() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Footer Branding */}
