@@ -324,6 +324,10 @@ export default function Dashboard() {
       // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
     } catch (error: any) {
       console.error('Failed to start session:', error);
+      if (error.response?.status === 403 && error.response?.data?.locked) {
+        window.location.href = '/activate';
+        return;
+      }
       setIsModalOpen(true); // Re-open on fail to allow retry
       showAlert('Gagal', error.response?.data?.message || 'Gagal memulai sesi. Silakan coba lagi.', { variant: 'error' });
     } finally {
