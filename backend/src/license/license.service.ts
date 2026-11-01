@@ -310,8 +310,11 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}${billing ? ` | Tagihan: ${billing.amount_text}` : ''}`);
 
       const emitKey = JSON.stringify([
-        this.state.status, this.state.expiredAt || '', this.state.licenseKey || '',
-        this.state.message || '', billing ? [billing.amount, billing.qris, billing.note, billing.contact, billing.reason] : null,
+        this.state.status,
+        this.state.expiredAt || '',
+        this.state.licenseKey || '',
+        this.state.message || '',
+        billing ? [billing.amount, billing.qris, billing.note, billing.contact, billing.reason, billing.packages] : null,
         this.state.trial ? [this.state.trial.remaining, this.state.trial.used] : null,
       ]);
       if (emitKey !== this.lastEmittedStatus) {

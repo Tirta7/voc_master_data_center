@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Lock, QrCode, MessageCircle, RefreshCw, CheckCircle, Tag, ArrowRight, X, Sparkles, WifiOff } from 'lucide-react';
-import { getApiUrl } from '@/utils/urlUtils';
+import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
+import { socket } from '@/lib/socket';
 
 interface BillingPackage {
   id?: string;
@@ -65,19 +66,56 @@ export default function TrialExhaustedModal({
   const [voucherMsg, setVoucherMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
 
-  // Ambil billing jika belum ada
+  // Sinkronisasi billing realtime saat modal dibuka
   useEffect(() => {
     if (billingData) {
       setBilling(billingData);
-    } else if (isOpen) {
-      fetch(`${getApiUrl()}/api/license/status`)
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.billing) setBilling(d.billing);
-        })
-        .catch(() => {});
     }
-  }, [billingData, isOpen]);
+  }, [billingData]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchLatestBilling = async () => {
+      try {
+        const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (d.billing) {
+          setBilling(d.billing);
+        }
+      } catch {}
+    };
+
+    fetchLatestBilling();
+    const interval = setInterval(fetchLatestBilling, 2500);
+
+    const onLicenseUpdated = (data: any) => {
+      if (data?.billing) {
+        setBilling(data.billing);
+      }
+    };
+    socket.on('license_updated', onLicenseUpdated);
+
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(`${getSocketUrl()}/api/license/stream`);
+      es.addEventListener('license', (ev) => {
+        try {
+          const state = JSON.parse((ev as MessageEvent).data);
+          if (state?.billing) {
+            setBilling(state.billing);
+          }
+        } catch {}
+      });
+    } catch {}
+
+    return () => {
+      clearInterval(interval);
+      socket.off('license_updated', onLicenseUpdated);
+      es?.close();
+    };
+  }, [isOpen]);
 
   // Pilih paket default
   useEffect(() => {
@@ -85,7 +123,7 @@ export default function TrialExhaustedModal({
       setSelectedPackage((prev) => {
         if (prev) {
           const match = billing.packages!.find(
-            (p) => (p.id && p.id === prev.id) || (p.days === prev.days && (p.amount === prev.amount || p.final_amount === prev.final_amount))
+            (p) => (p.id && prev.id && p.id === prev.id) || (p.days && prev.days && p.days === prev.days)
           );
           if (match) return match;
         }
