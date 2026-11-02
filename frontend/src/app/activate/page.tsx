@@ -123,8 +123,30 @@ export default function ActivatePage() {
     }
   };
 
-  // Tampilkan billing & pilihan paket dari server
-  const billing: LicenseBilling | null = licenseState?.billing || null;
+  // Simpan data billing terakhir agar paket & QRIS TIDAK PERNAH hilang / berkedip
+  const [cachedBilling, setCachedBilling] = useState<LicenseBilling | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = sessionStorage.getItem("last_billing_cache");
+        return saved ? JSON.parse(saved) : null;
+      } catch { return null; }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (licenseState?.billing && licenseState.billing.packages?.length) {
+      setCachedBilling(licenseState.billing);
+      try {
+        sessionStorage.setItem("last_billing_cache", JSON.stringify(licenseState.billing));
+      } catch {}
+    }
+  }, [licenseState?.billing]);
+
+  // Billing yang ditampilkan: utamakan dari licenseState, fallback ke cachedBilling
+  const billing: LicenseBilling | null = (licenseState?.billing && licenseState.billing.packages?.length)
+    ? licenseState.billing
+    : cachedBilling;
 
   const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
 
@@ -173,8 +195,14 @@ export default function ActivatePage() {
 
     const applyState = (data: any) => {
       if (cancelled || !data) return;
-      setMachineId(data.machineId || "TIDAK DIKETAHUI");
+      // Validasi ketat: Jangan pernah proses respon error (429, 500, dll)
+      if (data.statusCode >= 400 || data.error || !data.status) return;
+
+      if (data.machineId && data.machineId !== "TIDAK DIKETAHUI") {
+        setMachineId(data.machineId);
+      }
       setLicenseState(data);
+      setBackendReady(true);
 
       const isCurrentlyActive = data.status === "ACTIVE" || data.status === "GRACE";
       const isCurrentlyLocked = data.status === "EXPIRED" || data.status === "BLOCKED";
@@ -274,13 +302,17 @@ export default function ActivatePage() {
 
     fetchStatus();
 
-    // Polling setiap 5 detik (cadangan bila SSE terputus)
+    // Polling berkala (cadangan bila SSE terputus)
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${getApiUrl()}/api/license/status`);
-        applyState(await res.json());
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && !data.statusCode && data.status) {
+          applyState(data);
+        }
       } catch { /* abaikan polling error */ }
-    }, 5000);
+    }, 3500);
 
     // SSE: status lisensi + billing real-time (event bernama `license`)
     let es: EventSource | null = null;
@@ -347,7 +379,7 @@ export default function ActivatePage() {
       {/* Main Unified Modal Container */}
       <div style={{
         width: '100%',
-        maxWidth: billing ? '1000px' : '520px',
+        maxWidth: '1000px',
         background: 'rgba(15, 23, 42, 0.75)',
         backdropFilter: 'blur(36px)',
         WebkitBackdropFilter: 'blur(36px)',

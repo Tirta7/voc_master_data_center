@@ -146,15 +146,76 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     }
   }
 
+  private vocmlStreamReq: any = null;
+
   async onModuleInit() {
     this.logger.log(`LicenseService init. Machine ID: ${this.machineId}`);
     setTimeout(async () => {
       await this.checkLicense();
       await this.fetchMessages();
-    }, 5000);
+      this.connectVocmlStream();
+    }, 3000);
   }
 
-  @Cron('*/10 * * * * *')
+  /**
+   * Koneksi SSE langsung ke VOCML untuk menerima event lock/unlock/billing seketika (<100ms)
+   */
+  private connectVocmlStream() {
+    if (!this.machineId || !this.vocmlServerUrl) return;
+
+    try {
+      if (this.vocmlStreamReq) {
+        try { this.vocmlStreamReq.destroy(); } catch {}
+        this.vocmlStreamReq = null;
+      }
+
+      const streamUrl = new URL(`${this.vocmlServerUrl}/api/v1/stream?machine_id=${this.machineId}&product=billiard`);
+      const httpLib = streamUrl.protocol === "https:" ? require("https") : require("http");
+
+      const req = httpLib.get(streamUrl.toString(), (res: any) => {
+        if (res.statusCode !== 200) {
+          req.destroy();
+          setTimeout(() => this.connectVocmlStream(), 10000);
+          return;
+        }
+
+        let buffer = "";
+        res.on("data", (chunk: Buffer) => {
+          buffer += chunk.toString();
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+
+          for (const block of parts) {
+            if (
+              block.includes("event: lock") ||
+              block.includes("event: unlock") ||
+              block.includes("event: update") ||
+              block.includes("event: renew") ||
+              block.includes("event: billing")
+            ) {
+              this.logger.log(`[VOCML Stream] Event diterima dari server -> update lisensi seketika!`);
+              this.checkLicense();
+            }
+          }
+        });
+
+        res.on("end", () => {
+          setTimeout(() => this.connectVocmlStream(), 5000);
+        });
+      });
+
+      req.on("error", () => {
+        setTimeout(() => this.connectVocmlStream(), 8000);
+      });
+
+      this.vocmlStreamReq = req;
+    } catch {
+      setTimeout(() => this.connectVocmlStream(), 10000);
+    }
+  }
+
+  /** Pengecekan cadangan berkala tiap 3 detik (bila koneksi stream sempat terputus) */
+  @Cron("*/3 * * * * *")
   async checkLicenseRegularly() {
     await this.checkLicense();
   }
@@ -271,10 +332,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       }
 
       // Jika mesin terdaftar sebagai mode trial (memiliki kuota coba gratis):
-      // Pertahankan status TRIAL agar aplikasi tidak langsung terkunci ke /activate saat sesi terakhir sedang dimainkan.
-      // Meja baru akan dicegat secara elegan melalui popup saat kuota sudah habis.
-      // HANYA gunakan status TRIAL bila status server adalah trial/pending.
-      // JANGAN PERNAH menimpa BLOCKED (locked) atau EXPIRED!
+      // HANYA gunakan status TRIAL bila status dari server adalah trial atau pending.
+      // JANGAN PERNAH menimpa status BLOCKED (locked) atau EXPIRED!
       if (lic.trial && lic.trial.enabled && (lic.status === "trial" || lic.status === "pending")) {
         mappedStatus = "TRIAL";
       }
