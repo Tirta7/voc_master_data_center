@@ -47,6 +47,7 @@ export default function ActivatePage() {
   const wasLockedRef = useRef(false);
   const initialExpiredAtRef = useRef<string | null>(null);
   const isFirstCheckRef = useRef(true);
+  const qrImgRef = useRef<HTMLImageElement | null>(null);
   const [copied, setCopied] = useState(false);
   const [machineId, setMachineId] = useState('Memuat...');
   const [licenseState, setLicenseState] = useState<any>(null);
@@ -183,7 +184,11 @@ export default function ActivatePage() {
   // Reset status gambar saat nominal / QR berubah
   useEffect(() => {
     setQrFailed(false);
-    setQrLoaded(false);
+    if (qrImgRef.current && qrImgRef.current.complete && qrImgRef.current.naturalWidth > 0) {
+      setQrLoaded(true);
+    } else {
+      setQrLoaded(false);
+    }
   }, [currentAmount, billing?.qris]);
 
   useEffect(() => {
@@ -625,6 +630,7 @@ export default function ActivatePage() {
                     )}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
+                      ref={qrImgRef}
                       id="billing-qris-image"
                       src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
                       alt={`QRIS ${billing.merchant_name} ${currentAmountText}`}
@@ -765,9 +771,8 @@ export default function ActivatePage() {
                           key={pkg.id || `pkg-${idx}`}
                           type="button"
                           onClick={() => {
+                            if (isSelected) return;
                             setSelectedPackage(pkg);
-                            setQrLoaded(false);
-                            setQrFailed(false);
                           }}
                           style={{
                             position: 'relative',

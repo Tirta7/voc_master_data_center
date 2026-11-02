@@ -57,6 +57,7 @@ export default function TrialExhaustedModal({
   subtitle,
   badgeText,
 }: TrialExhaustedModalProps) {
+  const qrImgRef = useRef<HTMLImageElement | null>(null);
   const [billing, setBilling] = useState<LicenseBilling | null>(billingData || null);
   const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
   const [qrLoaded, setQrLoaded] = useState(false);
@@ -240,8 +241,12 @@ export default function TrialExhaustedModal({
   }, [billing]);
 
   useEffect(() => {
-    setQrLoaded(false);
     setQrFailed(false);
+    if (qrImgRef.current && qrImgRef.current.complete && qrImgRef.current.naturalWidth > 0) {
+      setQrLoaded(true);
+    } else {
+      setQrLoaded(false);
+    }
   }, [currentAmount]);
 
   const handleClaimVoucher = async (e: React.FormEvent) => {
@@ -548,6 +553,7 @@ export default function TrialExhaustedModal({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {currentAmount > 0 ? (
                     <img
+                      ref={qrImgRef}
                       src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
                       alt={`QRIS ${currentAmountText}`}
                       width={164}
@@ -665,7 +671,10 @@ export default function TrialExhaustedModal({
                         <button
                           key={pkg.id || `pkg-${idx}`}
                           type="button"
-                          onClick={() => setSelectedPackage(pkg)}
+                          onClick={() => {
+                            if (isSelected) return;
+                            setSelectedPackage(pkg);
+                          }}
                           style={{
                             position: 'relative', textAlign: 'left', padding: '8px 10px',
                             borderRadius: '10px',
