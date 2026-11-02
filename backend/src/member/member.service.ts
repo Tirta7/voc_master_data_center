@@ -26,6 +26,8 @@ import { QRUtils } from './qr.utils';
 import { CardUtils } from './card.utils';
 import { SettingsService } from '../settings/settings.service';
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
+import * as path from 'path';
+import * as fs from 'fs';
 
 @Injectable()
 export class MemberService {
@@ -132,7 +134,7 @@ export class MemberService {
 
     return members.map((m) => ({
       ...m,
-      cardUrl: `${this.getApiBaseUrl()}/member-cards/card_${m.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`,
+      cardUrl: `${this.getApiBaseUrl()}/member-cards/card_${m.memberCode.replace(/[^a-zA-Z0-9]/g, '_')}.png`,
     })) as any;
   }
 
@@ -143,7 +145,7 @@ export class MemberService {
     });
     if (!member) throw new NotFoundException('Member not found');
 
-    const cardUrl = `${this.getApiBaseUrl()}/member-cards/card_${member.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`;
+    const cardUrl = `${this.getApiBaseUrl()}/member-cards/card_${member.memberCode.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
     return { ...member, cardUrl } as any;
   }
 
@@ -500,14 +502,26 @@ export class MemberService {
       });
 
       const cardFilename = await this.getOrGenerateCard(member, qrToken);
-      const finalImageUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
+      const cardLocalPath = path.join(process.cwd(), 'public/member-cards', cardFilename);
 
-      // 3. Send the Image
+      // 3. Send the Image (Prioritaskan Buffer file lokal agar 100% terkirim tanpa tergantung APP_URL / HTTP)
+      let imagePayload: Buffer | string = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
+      if (fs.existsSync(cardLocalPath)) {
+        try {
+          imagePayload = fs.readFileSync(cardLocalPath);
+        } catch (readErr: any) {
+          console.warn(`Gagal membaca file kartu lokal, fallback ke URL: ${readErr.message}`);
+        }
+      }
+
       await this.whatsappService.sendImage(
         member.phone,
-        `Kartu Digital Member Anda - ${member.name}`,
-        finalImageUrl,
+        `Kartu Digital Member Anda - ${member.name} (${member.memberCode})`,
+        imagePayload,
       );
+
+      // Berikan jeda 800ms agar pesan gambar dan pesan teks tidak tabrakan di WhatsApp
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       // 4. Send Text Notification with Details
       const settings = await this.settingsService.getSettings();

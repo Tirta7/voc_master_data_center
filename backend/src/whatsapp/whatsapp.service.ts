@@ -171,7 +171,7 @@ export class WhatsAppService implements OnModuleInit {
     }
   }
 
-  async sendImage(target: string, caption: string, url: string) {
+  async sendImage(target: string, caption: string, imageSource: string | Buffer) {
     if (this.connectionStatus !== 'CONNECTED' || !this.sock) {
       this.logger.warn(`WhatsApp not connected. Image to ${target} aborted.`);
       return null;
@@ -182,8 +182,43 @@ export class WhatsAppService implements OnModuleInit {
         ? target
         : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
+      let imagePayload: any;
+
+      if (Buffer.isBuffer(imageSource)) {
+        imagePayload = imageSource;
+      } else if (typeof imageSource === 'string') {
+        const localCandidate = path.isAbsolute(imageSource)
+          ? imageSource
+          : path.join(process.cwd(), imageSource);
+
+        if (fs.existsSync(localCandidate)) {
+          imagePayload = fs.readFileSync(localCandidate);
+        } else if (imageSource.startsWith('http://') || imageSource.startsWith('https://')) {
+          try {
+            const urlObj = new URL(imageSource);
+            const pathname = urlObj.pathname;
+            const publicCandidate = path.join(
+              process.cwd(),
+              'public',
+              pathname.startsWith('/') ? pathname.slice(1) : pathname,
+            );
+            if (fs.existsSync(publicCandidate)) {
+              imagePayload = fs.readFileSync(publicCandidate);
+            } else {
+              imagePayload = { url: imageSource };
+            }
+          } catch {
+            imagePayload = { url: imageSource };
+          }
+        } else {
+          imagePayload = { url: imageSource };
+        }
+      } else {
+        imagePayload = imageSource;
+      }
+
       await this.sock.sendMessage(formattedTarget, {
-        image: { url },
+        image: imagePayload,
         caption,
       });
       return { status: 'success' };

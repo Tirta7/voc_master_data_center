@@ -77,7 +77,7 @@ export class CardUtils {
         </svg>
         `;
 
-    const filename = `card_${data.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`;
+    const filename = `card_${data.memberCode.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
     const outputPath = path.join(this.OUTPUT_DIR, filename);
 
     // 3. Composite everything using sharp (NO RESIZE - original dimensions)
