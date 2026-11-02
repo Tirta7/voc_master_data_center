@@ -303,9 +303,17 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
-  async checkLicense() {
+  private lastForceCheckAt = 0;
+
+  async checkLicense(force = false) {
+    const now = Date.now();
+    // Cegah spam force check minimal 15 detik agar server VOCML tidak terkena HTTP 429
+    if (force && (now - this.lastForceCheckAt < 15_000)) {
+      return;
+    }
     if (this.isCheckingLicense) return;
     this.isCheckingLicense = true;
+    if (force) this.lastForceCheckAt = now;
     try {
       const storeName = this.configService.get<string>('LOCATION_NAME') || 'Billiard VOC';
       const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');

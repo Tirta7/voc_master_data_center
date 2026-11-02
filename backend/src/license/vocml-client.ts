@@ -113,6 +113,25 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
         body: JSON.stringify({ machine_id: machineId, product, store_name: storeName, app_version: appVersion }),
       });
     }
+    if (res.status === 429) {
+      // Server online namun membatasi laju request (rate limit) -> pakai cache tanpa menyatakan offline
+      const cache = readCache(cacheFile);
+      if (cache) {
+        const payload = verifyToken(cache.token, publicKeyPem);
+        const billing = normalizeBilling(cache.billing);
+        const snapStatus = payload?.status || cache.status;
+        return result(ALLOWED.has(snapStatus), snapStatus, {
+          expiresAt: payload?.expires_at || cache.expires_at || null,
+          licenseKey: payload?.license_key || cache.license_key || null,
+          daysLeft: typeof payload?.days_left === 'number' ? payload.days_left : cache.days_left,
+          lockReason: payload?.lock_reason || cache.lock_reason || '',
+          billing,
+          trial: cache.trial || payload?.trial || null,
+          uniqueCode: cache.unique_code || payload?.unique_code || null,
+          offline: false, // Server tetap dianggap online/terhubung
+        });
+      }
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = await res.json();
     const payload = verifyToken(body.token, publicKeyPem);

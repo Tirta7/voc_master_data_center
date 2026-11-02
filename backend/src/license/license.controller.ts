@@ -12,7 +12,7 @@ export class LicenseController {
   @Get('status')
   async getStatus(@Query('force') force?: string) {
     if (force === 'true') {
-      await this.licenseService.checkLicense();
+      await this.licenseService.checkLicense(true);
     }
     return this.licenseService.getState();
   }

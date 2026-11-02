@@ -84,10 +84,14 @@ export default function TrialExhaustedModal({
     ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
     : 'Perpanjangan Lisensi';
 
+  const selectedPackageRef = useRef<BillingPackage | null>(null);
+  selectedPackageRef.current = selectedPackage;
+  const currentAmountRef = useRef<number>(currentAmount);
+  currentAmountRef.current = currentAmount;
+
   const initialLicenseRef = useRef<{
     expiredAt?: string;
     licenseKey?: string;
-    uniqueCode?: number;
     daysLeft?: number;
     status?: string;
   } | null>(null);
@@ -115,7 +119,6 @@ export default function TrialExhaustedModal({
           initialLicenseRef.current = {
             expiredAt: d.expiredAt || '',
             licenseKey: d.licenseKey || '',
-            uniqueCode: d.billing?.unique_code ?? d.uniqueCode,
             daysLeft: typeof d.daysLeft === 'number' ? d.daysLeft : 0,
             status: d.status,
           };
@@ -127,30 +130,31 @@ export default function TrialExhaustedModal({
       const init = initialLicenseRef.current;
       if (!init || !newData) return false;
 
-      const newCode = newData.billing?.unique_code ?? newData.uniqueCode;
-      const oldCode = init.uniqueCode;
+      // HANYA anggap sukses jika masa berlaku benar-benar bertambah maju (perpanjangan durasi)
+      // ATAU lisensi sebelumnya EXPIRED / BLOCKED dan sekarang berubah menjadi ACTIVE / GRACE
+      const initExp = init.expiredAt ? new Date(init.expiredAt).getTime() : 0;
+      const newExp = newData.expiredAt ? new Date(newData.expiredAt).getTime() : 0;
+      const expiredExtended = initExp > 0 && newExp > initExp;
+      const unblocked = (init.status === 'EXPIRED' || init.status === 'BLOCKED') &&
+                        (newData.status === 'ACTIVE' || newData.status === 'GRACE') &&
+                        newExp >= Date.now();
 
-      const expiredExtended = !!(newData.expiredAt && init.expiredAt && newData.expiredAt > init.expiredAt);
-      const daysIncreased = !!(typeof newData.daysLeft === 'number' && typeof init.daysLeft === 'number' && newData.daysLeft > init.daysLeft);
-      const keyChanged = !!(newData.licenseKey && init.licenseKey && newData.licenseKey !== init.licenseKey);
-      const codeRotated = !!(oldCode && newCode && Number(newCode) !== Number(oldCode));
-
-      if (expiredExtended || daysIncreased || keyChanged || codeRotated) {
-        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Paket Lisensi');
-        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+      if (expiredExtended || unblocked) {
+        const pkg = selectedPackageRef.current;
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : 'Paket Lisensi');
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? currentAmountRef.current;
 
         setPaymentSuccess({
           packageName: pkgName,
           amountPaid: paidAmt,
           expiredAt: newData.expiredAt || '',
-          daysLeft: typeof newData.daysLeft === 'number' ? newData.daysLeft : (typeof init.daysLeft === 'number' ? init.daysLeft + 1 : 1),
+          daysLeft: typeof newData.daysLeft === 'number' ? newData.daysLeft : 1,
         });
 
-        // Update baseline
+        // Update baseline agar tidak ter-trigger ganda
         initialLicenseRef.current = {
           expiredAt: newData.expiredAt || '',
           licenseKey: newData.licenseKey || '',
-          uniqueCode: newCode,
           daysLeft: newData.daysLeft,
           status: newData.status,
         };
@@ -163,7 +167,7 @@ export default function TrialExhaustedModal({
 
     const fetchLatestBilling = async () => {
       try {
-        const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
+        const res = await fetch(`${getApiUrl()}/api/license/status`);
         if (res.ok) {
           const d = await res.json();
           detectPaymentSuccess(d);
@@ -185,7 +189,8 @@ export default function TrialExhaustedModal({
     };
 
     fetchLatestBilling();
-    const interval = setInterval(fetchLatestBilling, 2500);
+    // Polling cadangan wajar 15 detik (tanpa force=true agar tidak memicu rate limit)
+    const interval = setInterval(fetchLatestBilling, 15000);
 
     const onLicenseUpdated = (data: any) => {
       if (data) {
@@ -218,7 +223,7 @@ export default function TrialExhaustedModal({
       socket.off('license_updated', onLicenseUpdated);
       es?.close();
     };
-  }, [isOpen, selectedPackage, currentAmount]);
+  }, [isOpen]);
 
   // Pilih paket default
   useEffect(() => {
@@ -284,15 +289,15 @@ export default function TrialExhaustedModal({
       const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
       const data = await res.json();
       const init = initialLicenseRef.current;
-      const newCode = data.billing?.unique_code ?? data.uniqueCode;
-      const oldCode = init?.uniqueCode;
 
-      const expiredExtended = !!(init?.expiredAt && data.expiredAt && data.expiredAt > init.expiredAt);
-      const daysIncreased = !!(typeof init?.daysLeft === 'number' && typeof data.daysLeft === 'number' && data.daysLeft > init.daysLeft);
-      const keyChanged = !!(init?.licenseKey && data.licenseKey && data.licenseKey !== init.licenseKey);
-      const codeRotated = !!(oldCode && newCode && Number(newCode) !== Number(oldCode));
+      const initExp = init?.expiredAt ? new Date(init.expiredAt).getTime() : 0;
+      const newExp = data?.expiredAt ? new Date(data.expiredAt).getTime() : 0;
+      const expiredExtended = initExp > 0 && newExp > initExp;
+      const unblocked = (init?.status === 'EXPIRED' || init?.status === 'BLOCKED') &&
+                        (data.status === 'ACTIVE' || data.status === 'GRACE') &&
+                        newExp >= Date.now();
 
-      if (expiredExtended || daysIncreased || keyChanged || codeRotated) {
+      if (expiredExtended || unblocked) {
         setPaymentSuccess({
           packageName: selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Paket Lisensi'),
           amountPaid: selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount,
