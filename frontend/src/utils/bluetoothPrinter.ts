@@ -243,6 +243,55 @@ export async function printReceiptBluetooth(
         encoder.line(formatLine('KEMBALI', change.toLocaleString('id-ID'), width));
     }
 
+    if (tx?.member) {
+        encoder.separator(width);
+        const mem = tx.member;
+        
+        let memberPaidAmount = 0;
+        if (Array.isArray(tx.payments) && tx.payments.length > 0) {
+            const memPayments = tx.payments.filter((p: any) => 
+                ['MEMBER', 'MEMBERSHIP'].includes((p.paymentMethod || p.method || '').toUpperCase())
+            );
+            if (memPayments.length > 0) {
+                memberPaidAmount += memPayments.reduce((s: number, p: any) => s + Number(p.totalPaid ?? p.amount ?? 0), 0);
+            }
+        }
+        if (memberPaidAmount === 0 && tx.paymentDetails) {
+            const details = Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails];
+            const memDetails = details.filter((p: any) => 
+                ['MEMBER', 'MEMBERSHIP'].includes((p.method || p.paymentMethod || '').toUpperCase())
+            );
+            if (memDetails.length > 0) {
+                memberPaidAmount += memDetails.reduce((s: number, p: any) => s + Number(p.amount ?? p.totalPaid ?? 0), 0);
+            }
+        }
+        if (memberPaidAmount === 0) {
+            const isMemMethod = ['MEMBER', 'MEMBERSHIP'].includes((finalMethod || tx.paymentMethod || '').toUpperCase());
+            if (isMemMethod && (tx.status === 'PAID' || Number(tx.paidAmount || 0) > 0)) {
+                memberPaidAmount = Number(tx.paidAmount || grand || 0);
+            }
+        }
+
+        const currentBal = Number(mem.balance || 0);
+        const initialBalance = currentBal + memberPaidAmount;
+        const remainingBalance = currentBal;
+
+        encoder.line(formatLine('SALDO AWAL Rp', `Rp${initialBalance.toLocaleString('id-ID')}`, width));
+        if (memberPaidAmount > 0) {
+            encoder.line(formatLine('PEMAKAIAN SALDO', `-Rp${memberPaidAmount.toLocaleString('id-ID')}`, width));
+        }
+        encoder.bold(true);
+        encoder.line(formatLine('SISA SALDO Rp', `Rp${remainingBalance.toLocaleString('id-ID')}`, width));
+        encoder.bold(false);
+        encoder.line(formatLine('SISA POIN', `${(mem.points || 0).toLocaleString('id-ID')} Pts`, width));
+        
+        if (mem.tier?.name) {
+            encoder.alignRight();
+            encoder.line(`${mem.tier.name.toUpperCase()} - ${mem.memberCode || ''}`);
+            encoder.alignLeft();
+        }
+    }
+
     // QR Code
     const qrString = `INV: ${tx?.transactionId || tx?.invoiceNumber || tx?.id || '-'}\n` +
                      `TGL: ${new Date().toLocaleString('id-ID')}\n` +

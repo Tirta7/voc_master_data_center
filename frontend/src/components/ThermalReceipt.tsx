@@ -806,36 +806,74 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     </div>
                 )}
 
-                {tx.member && (
-                    <div className="mt-2 pt-2 border-t border-slate-300 border-dashed">
-                        <div className="flex justify-between font-black text-[11px] mb-0.5">
-                            <span>SISA SALDO Rp</span>
-                            <span>Rp{fmt(tx.member.balance)}</span>
+                {tx.member && (() => {
+                    // Extract member paid / deducted amount for this transaction
+                    let memberPaidAmount = 0;
+                    if (Array.isArray(tx.payments) && tx.payments.length > 0) {
+                        const memPayments = tx.payments.filter((p: any) => 
+                            ['MEMBER', 'MEMBERSHIP'].includes((p.paymentMethod || p.method || '').toUpperCase())
+                        );
+                        if (memPayments.length > 0) {
+                            memberPaidAmount += memPayments.reduce((s: number, p: any) => s + Number(p.totalPaid ?? p.amount ?? 0), 0);
+                        }
+                    }
+                    if (memberPaidAmount === 0 && tx.paymentDetails) {
+                        const details = Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails];
+                        const memDetails = details.filter((p: any) => 
+                            ['MEMBER', 'MEMBERSHIP'].includes((p.method || p.paymentMethod || '').toUpperCase())
+                        );
+                        if (memDetails.length > 0) {
+                            memberPaidAmount += memDetails.reduce((s: number, p: any) => s + Number(p.amount ?? p.totalPaid ?? 0), 0);
+                        }
+                    }
+                    if (memberPaidAmount === 0) {
+                        const isMemMethod = ['MEMBER', 'MEMBERSHIP'].includes((method || tx.paymentMethod || '').toUpperCase());
+                        if (isMemMethod && (tx.status === 'PAID' || Number(tx.paidAmount || 0) > 0)) {
+                            memberPaidAmount = Number(tx.paidAmount || grandTotal || 0);
+                        }
+                    }
+
+                    const currentBal = Number(tx.member.balance || 0);
+                    const initialBalance = currentBal + memberPaidAmount;
+                    const remainingBalance = currentBal;
+
+                    const rate = Number(settings?.royaltyPointsPerAmount) || 50000;
+                    const earned = Math.floor(grandTotal / rate);
+
+                    return (
+                        <div className="mt-2 pt-2 border-t border-slate-300 border-dashed">
+                            <div className="flex justify-between font-black text-[11px] mb-0.5">
+                                <span>SALDO AWAL Rp</span>
+                                <span>Rp{fmt(initialBalance)}</span>
+                            </div>
+                            {memberPaidAmount > 0 && (
+                                <div className="flex justify-between font-bold text-[10px] text-slate-700 mb-0.5">
+                                    <span>PEMAKAIAN SALDO</span>
+                                    <span>-Rp{fmt(memberPaidAmount)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between font-black text-[11px] mb-0.5">
+                                <span>SISA SALDO Rp</span>
+                                <span>Rp{fmt(remainingBalance)}</span>
+                            </div>
+                            <div className="flex justify-between font-black text-[11px] mb-0.5">
+                                <span>SISA POIN REWARD</span>
+                                <span>{fmt(tx.member.points || 0)} Pts</span>
+                            </div>
+                            {earned > 0 && tx.status === 'PAID' && (
+                                <div className="flex justify-between font-bold text-[9px] text-slate-800 italic">
+                                    <span>(+ Poin Transaksi Ini)</span>
+                                    <span>{earned} Pts</span>
+                                </div>
+                            )}
+                            {tx.member.tier?.name && (
+                                <p className="text-[9px] text-right opacity-80 tracking-widest font-black uppercase mt-1">
+                                    {tx.member.tier.name} • {tx.member.memberCode}
+                                </p>
+                            )}
                         </div>
-                        <div className="flex justify-between font-black text-[11px] mb-0.5">
-                            <span>SISA POIN REWARD</span>
-                            <span>{fmt(tx.member.points || 0)} Pts</span>
-                        </div>
-                        {(() => {
-                            const rate = Number(settings?.royaltyPointsPerAmount) || 50000;
-                            const earned = Math.floor(grandTotal / rate);
-                            if (earned > 0 && tx.status === 'PAID') {
-                                return (
-                                    <div className="flex justify-between font-bold text-[9px] text-slate-800 italic">
-                                        <span>(+ Poin Transaksi Ini)</span>
-                                        <span>{earned} Pts</span>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        })()}
-                        {tx.member.tier?.name && (
-                            <p className="text-[9px] text-right opacity-80 tracking-widest font-black uppercase mt-1">
-                                {tx.member.tier.name} • {tx.member.memberCode}
-                            </p>
-                        )}
-                    </div>
-                )}
+                    );
+                })()}
             </div>
 
             {/* ── Security QR & Footer Branding ── */}

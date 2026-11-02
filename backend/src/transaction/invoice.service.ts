@@ -257,7 +257,38 @@ export class InvoiceService {
       `Tendered Amount: Rp. ${Number(transaction.paymentDetails?.reduce((sum: number, p: any) => sum + Number(p.tenderedAmount || p.amount), 0) || transaction.paidAmount).toLocaleString()}`,
       `Change Money   : Rp. ${Number(transaction.paymentDetails?.reduce((sum: number, p: any) => sum + Number(p.changeAmount || 0), 0) || Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal))).toLocaleString()}`,
       separator,
-      ...(transaction.memberId
+      ...(transaction.memberId && transaction.member
+        ? (() => {
+            const mem = transaction.member;
+            let memPaid = 0;
+            if (Array.isArray(transaction.payments)) {
+              const p = transaction.payments.filter((x: any) =>
+                ['MEMBER', 'MEMBERSHIP'].includes((x.paymentMethod || '').toUpperCase()),
+              );
+              memPaid += p.reduce((s: number, x: any) => s + Number(x.totalPaid || 0), 0);
+            }
+            if (memPaid === 0 && transaction.paymentDetails) {
+              const details = Array.isArray(transaction.paymentDetails)
+                ? transaction.paymentDetails
+                : [transaction.paymentDetails];
+              const memDetails = details.filter((p: any) =>
+                ['MEMBER', 'MEMBERSHIP'].includes((p.method || p.paymentMethod || '').toUpperCase()),
+              );
+              memPaid += memDetails.reduce((s: number, p: any) => s + Number(p.amount || p.totalPaid || 0), 0);
+            }
+            const curBal = Number(mem.balance || 0);
+            const initBal = curBal + memPaid;
+            return [
+              `Member : ${mem.name || 'Member'}${mem.memberCode ? ` (${mem.memberCode})` : ''}`,
+              `Saldo Awal  : Rp. ${initBal.toLocaleString('id-ID')}`,
+              ...(memPaid > 0 ? [`Pemakaian   : -Rp. ${memPaid.toLocaleString('id-ID')}`] : []),
+              `Sisa Saldo  : Rp. ${curBal.toLocaleString('id-ID')}`,
+              `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
+              `Total Poin Anda : ${(mem.points || 0).toLocaleString('id-ID')}`,
+              separator,
+            ];
+          })()
+        : transaction.memberId
         ? [
             `Member : ${transaction.member?.name || 'Member'}`,
             `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
