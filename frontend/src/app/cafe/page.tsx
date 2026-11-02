@@ -493,13 +493,14 @@ export default function CafeDashboardPage() {
                 setIsStartModalOpen(false);
                 setTrialModalBilling(error.response?.data?.billing || null);
                 setShowTrialExhaustedModal(true);
-                return;
+                throw error;
             }
             if (error.response?.status === 403 && error.response?.data?.locked) {
                 window.location.href = '/activate';
-                return;
+                throw error;
             }
             showAlert('Gagal', error.response?.data?.message || 'Gagal membuka meja cafe.', { variant: 'error' });
+            throw error;
         }
     };
 

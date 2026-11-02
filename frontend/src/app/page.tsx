@@ -396,12 +396,14 @@ export default function Dashboard() {
       // refetchBilliard(); // Dihapus untuk mencegah bentrok data dengan event Realtime WebSocket
     } catch (error: any) {
       console.error('Failed to start session:', error);
+      // Revert optimistic update immediately on ANY error
+      optimisticUpdateTable(selectedTable.id, {
+        status: 'available' as any,
+        activeTransaction: null as any,
+      });
+
       // Jika kuota trial habis -> tampilkan modal popup pilihan paket & form klaim voucher promo
       if (error.response?.data?.trialExhausted || (error.response?.status === 403 && !error.response?.data?.locked)) {
-        optimisticUpdateTable(selectedTable.id, {
-          status: 'available' as any,
-          activeTransaction: null as any,
-        });
         setTrialModalBilling(error.response?.data?.billing || null);
         setShowTrialExhaustedModal(true);
         return;

@@ -359,9 +359,9 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                     await onStart('prepaid', undefined, customerName, undefined, undefined, selectedPromoId || undefined, member?.id, undefined);
                 }
             }
-            setIsLoading(false);
         } catch (error) {
             console.error('Failed to start session:', error);
+        } finally {
             setIsLoading(false);
         }
     };
@@ -408,7 +408,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const hasUncheckedVoucher = voucherCode.trim() !== '' && !validatedVoucher;
 
     const canConfirm = customerName &&
-        !(isPlaytime && !selectedPackageId) &&
+        !(isPlaytime && filteredPackages.length > 0 && !selectedPackageId) &&
         !(activeTab === 'duration' && !selectedPackageId && !isCustomDurationMode) &&
         !(isPromo && promoSubMode === 'bundling' && !selectedPromoId) &&
         !(isPromo && promoSubMode === 'voucher') &&
@@ -917,7 +917,9 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                         ? promos.length > 0 ? `${promos.length} promo tersedia.` : 'Tidak ada promo aktif.'
                                         : filteredPackages.length > 0
                                             ? `${filteredPackages.length} paket tersedia untuk kategori meja ini.`
-                                            : 'Tidak ada paket yang sesuai kriteria.'}
+                                            : isPlaytime
+                                                ? `Tarif standar ${tableCategory}: Rp ${currentCustomRate.toLocaleString('id-ID')}/jam`
+                                                : 'Tidak ada paket yang sesuai kriteria.'}
                             </p>
 
                             {/* Package Grid — 1 col on mobile, 2 on tablet and desktop */}
@@ -1102,6 +1104,27 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                             </button>
                                         );
                                     })
+                                )}
+
+                                {isPlaytime && filteredPackages.length === 0 && (
+                                    <div className="col-span-full p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 text-left">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="p-2 rounded-xl bg-indigo-100 text-indigo-600">
+                                                <Clock className="w-5 h-5" />
+                                            </div>
+                                            <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                                TARIF STANDAR MEJA
+                                            </span>
+                                        </div>
+                                        <h4 className="font-black text-sm text-slate-800 mb-0.5">Open Table Standar ({tableCategory})</h4>
+                                        <p className="text-base font-black text-indigo-600">
+                                            Rp {currentCustomRate.toLocaleString('id-ID')}
+                                            <span className="text-[10px] text-indigo-400 font-medium"> / Jam</span>
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            Durasi dan biaya dihitung otomatis per menit saat sesi distop sesuai konfigurasi tarif meja.
+                                        </p>
+                                    </div>
                                 )}
 
                                 {/* Custom Duration Card */}

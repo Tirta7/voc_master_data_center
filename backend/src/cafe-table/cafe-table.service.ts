@@ -13,6 +13,7 @@ import {
   TransactionType,
 } from '../transaction/entities/transaction.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
+import { Table, TableStatus } from '../billiard/entities/table.entity';
 import { BilliardService } from '../billiard/billiard.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -278,14 +279,34 @@ export class CafeTableService {
         throw new BadRequestException('Meja sudah terpakai');
 
       if (memberId) {
-        const activeSession = await queryRunner.manager.findOne(Transaction, {
+        // 1. Cek sesi meja billiard yang sedang berjalan
+        const activeBilliard = await queryRunner.manager.findOne(Table, {
+          where: { memberId, status: Not(TableStatus.AVAILABLE) },
+        });
+        if (activeBilliard) {
+          throw new ConflictException(
+            `Member ini sedang aktif digunakan di Meja Billiard ${activeBilliard.tableName}. Harap selesaikan sesi sebelumnya terlebih dahulu.`,
+          );
+        }
+
+        // 2. Cek transaksi aktif meja cafe lain
+        const activeCafeSession = await queryRunner.manager.findOne(Transaction, {
           where: {
             memberId,
             status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
           },
+          relations: ['cafeTable', 'table'],
         });
-        if (activeSession)
-          throw new ConflictException('Member ini sudah memiliki sesi aktif.');
+        if (activeCafeSession) {
+          const tableLabel = activeCafeSession.cafeTable?.tableName
+            ? `Meja Cafe ${activeCafeSession.cafeTable.tableName}`
+            : activeCafeSession.table?.tableName
+            ? `Meja Billiard ${activeCafeSession.table.tableName}`
+            : 'meja lain';
+          throw new ConflictException(
+            `Member ini sedang digunakan di ${tableLabel}. Harap selesaikan sesi sebelumnya terlebih dahulu.`,
+          );
+        }
       }
 
       const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();

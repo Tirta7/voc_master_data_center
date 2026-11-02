@@ -1675,7 +1675,21 @@ export class BilliardService implements OnModuleInit {
         });
         if (activeSession && activeSession.id !== tableId) {
           throw new ConflictException(
-            `Member ini sedang digunakan di Meja ${activeSession.tableName}. Harap selesaikan sesi sebelumnya.`,
+            `Member ini sedang digunakan di Meja Billiard ${activeSession.tableName}. Harap selesaikan sesi sebelumnya terlebih dahulu.`,
+          );
+        }
+
+        const activeCafeTx = await this.transactionRepository.findOne({
+          where: {
+            memberId,
+            status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+            type: TransactionType.CAFE,
+          },
+          relations: ['cafeTable'],
+        });
+        if (activeCafeTx && activeCafeTx.cafeTable) {
+          throw new ConflictException(
+            `Member ini sedang digunakan di Meja Cafe ${activeCafeTx.cafeTable.tableName}. Harap selesaikan sesi sebelumnya terlebih dahulu.`,
           );
         }
       }

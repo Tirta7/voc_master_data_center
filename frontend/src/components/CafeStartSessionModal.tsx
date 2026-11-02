@@ -90,7 +90,9 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
             try {
                 await onStart(customerName.trim(), member?.id);
             } catch (error) {
-                setIsLoading(false); // Re-enable on error, otherwise parent closes modal
+                console.error('Cafe start session failed:', error);
+            } finally {
+                setIsLoading(false);
             }
         }
     };
