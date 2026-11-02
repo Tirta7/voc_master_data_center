@@ -56,10 +56,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     }
 
-    // Filter out 401/403 logs to be less noisy (normal auth events)
-    if (status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN) {
+    // Filter out 4xx client errors (400, 401, 403, 404, 409) as business warnings (less noisy, no stack trace)
+    if (status < HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.warn(
-        `[${request.method}] ${request.url} - Status: ${status} - ${JSON.stringify(message)}`,
+        `[${request.method}] ${request.url} - Status: ${status} - ${typeof message === 'object' ? JSON.stringify(message) : message}`,
       );
     } else {
       console.error(
