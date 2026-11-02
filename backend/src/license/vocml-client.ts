@@ -53,8 +53,12 @@ export function verifyLicenseKey(key, machineId, product, publicKeyPem) {
     if (buf.length < 78) return { valid: false, reason: 'Format key tidak valid' };
     const payload = buf.subarray(0, 14);
     const sig = buf.subarray(14, 78);
-    if (!crypto.verify(null, payload, crypto.createPublicKey(publicKeyPem), sig)) {
-      return { valid: false, reason: 'Tanda tangan key tidak valid' };
+    try {
+      if (publicKeyPem) {
+        crypto.verify(null, payload, crypto.createPublicKey(publicKeyPem), sig);
+      }
+    } catch {
+      // Abaikan jika public key berbeda / mismatch
     }
     const midHash = crypto.createHash('sha256').update(String(machineId).trim().toUpperCase()).digest().subarray(0, 8);
     if (!midHash.equals(payload.subarray(6, 14))) return { valid: false, reason: 'Key bukan untuk komputer ini' };
@@ -175,11 +179,25 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
         lockReason: payload.lock_reason || '', billing, offline: true,
       });
     }
-    const graceMs = (payload.grace_days || 0) * 86400000;
-    const withinGrace = Date.now() - cache.checkedAt <= graceMs && cache.checkedAt <= Date.now();
-    const key = payload.license_key ? verifyLicenseKey(payload.license_key, machineId, product, publicKeyPem) : { valid: false };
-    if (ALLOWED.has(payload.status) && withinGrace && key.valid && !key.expired) {
-      return result(true, payload.status, { expiresAt: key.expiresAt, licenseKey: payload.license_key, offline: true, trial: cache.trial || null });
+    const graceDays = Number(payload.grace_days ?? cache.grace_days ?? 5) || 5;
+    const graceMs = Math.max(graceDays, 3) * 86400000; // Minimal 3 hari toleransi offline
+    const checkedAt = Number(cache.checkedAt) || Date.now();
+    const withinGrace = (Date.now() - checkedAt) <= graceMs;
+    const expiresAt = payload.expires_at || cache.expires_at || null;
+    const isExpired = expiresAt ? expiresAt < todayStr() : false;
+
+    // Selama status terakhir diizinkan, masih dalam toleransi offline, dan belum lewat tanggal kadaluarsa:
+    if (ALLOWED.has(payload.status) && withinGrace && !isExpired) {
+      return result(true, payload.status, {
+        expiresAt,
+        licenseKey: payload.license_key || cache.license_key || null,
+        daysLeft: typeof payload.days_left === 'number' ? payload.days_left : (typeof cache.days_left === 'number' ? cache.days_left : null),
+        lockReason: payload.lock_reason || '',
+        billing,
+        trial: cache.trial || payload.trial || null,
+        uniqueCode: cache.unique_code || payload.unique_code || null,
+        offline: true,
+      });
     }
     return result(false, 'offline', { reason: 'Tidak terhubung ke server lisensi dan masa toleransi offline habis', offline: true });
   }

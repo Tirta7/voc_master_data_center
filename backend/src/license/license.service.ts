@@ -214,8 +214,10 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     }
   }
 
-  /** Pengecekan cadangan berkala tiap 3 detik (bila koneksi stream sempat terputus) */
-  @Cron("*/3 * * * * *")
+  private isCheckingLicense = false;
+
+  /** Pengecekan cadangan berkala tiap 30 detik (karena koneksi stream SSE sudah menangani event seketika) */
+  @Cron("*/30 * * * * *")
   async checkLicenseRegularly() {
     await this.checkLicense();
   }
@@ -302,6 +304,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   }
 
   async checkLicense() {
+    if (this.isCheckingLicense) return;
+    this.isCheckingLicense = true;
     try {
       const storeName = this.configService.get<string>('LOCATION_NAME') || 'Billiard VOC';
       const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');
@@ -396,6 +400,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       }
     } catch (err) {
       this.logger.error('Error checking VOCML license', err);
+    } finally {
+      this.isCheckingLicense = false;
     }
   }
 
@@ -464,7 +470,12 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     return { success: false, message: 'Tidak diperlukan lagi di VOCML. Cukup cek status otomatis.', state: this.state };
   }
 
+  private billingCache: { at: number; data: LicenseBilling } | null = null;
+
   async fetchBillingFromVocml(): Promise<LicenseBilling | null> {
+    if (this.billingCache && Date.now() - this.billingCache.at < 300_000) {
+      return this.billingCache.data;
+    }
     try {
       const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
       const qs = new URLSearchParams({ machine_id: this.machineId, product: 'billiard' });
@@ -475,6 +486,7 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       if (!res.ok) return null;
       const data: any = await res.json();
       if (data?.billing) {
+        this.billingCache = { at: Date.now(), data: data.billing };
         if (!this.state.billing || !this.state.billing.packages?.length) {
           this.state.billing = data.billing;
         }
