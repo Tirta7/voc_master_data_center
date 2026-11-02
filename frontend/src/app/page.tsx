@@ -412,8 +412,8 @@ export default function Dashboard() {
         window.location.href = '/activate';
         return;
       }
-      setIsModalOpen(true); // Re-open on fail to allow retry
-      showAlert('Gagal', error.response?.data?.message || 'Gagal memulai sesi. Silakan coba lagi.', { variant: 'error' });
+      setIsModalOpen(false); // Tutup modal agar tidak stuck/menggantung
+      showAlert('Gagal Memulai Sesi', error.response?.data?.message || 'Gagal memulai sesi. Silakan coba lagi.', { variant: 'error' });
     } finally {
       setIsSubmitting(false);
     }

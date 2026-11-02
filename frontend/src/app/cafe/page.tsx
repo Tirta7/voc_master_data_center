@@ -489,18 +489,18 @@ export default function CafeDashboardPage() {
             refetchCafe();
         } catch (error: any) {
             console.error('Failed to open cafe table:', error);
+            // Tutup modal secara langsung agar tidak stuck/menggantung di layar
+            setIsStartModalOpen(false);
             if (error.response?.data?.trialExhausted || (error.response?.status === 403 && !error.response?.data?.locked)) {
-                setIsStartModalOpen(false);
                 setTrialModalBilling(error.response?.data?.billing || null);
                 setShowTrialExhaustedModal(true);
-                throw error;
+                return;
             }
             if (error.response?.status === 403 && error.response?.data?.locked) {
                 window.location.href = '/activate';
-                throw error;
+                return;
             }
-            showAlert('Gagal', error.response?.data?.message || 'Gagal membuka meja cafe.', { variant: 'error' });
-            throw error;
+            showAlert('Gagal Membuka Meja', error.response?.data?.message || 'Gagal membuka meja cafe.', { variant: 'error' });
         }
     };
 
