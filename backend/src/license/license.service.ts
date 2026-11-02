@@ -51,6 +51,8 @@ export interface LicenseState {
     is_trial: boolean;
   } | null;
   uniqueCode?: number | null;
+  lastPayment?: any;
+  plan?: string | null;
 }
 
 export interface BroadcastMessage {
@@ -381,6 +383,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         billing,
         trial: lic.trial || null,
         uniqueCode: lic.uniqueCode || null,
+        lastPayment: lic.lastPayment || lic.last_payment || null,
+        plan: lic.plan || null,
       };
 
       this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}${billing ? ` | Tagihan: ${billing.amount_text}` : ''}`);

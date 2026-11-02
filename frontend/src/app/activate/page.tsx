@@ -110,10 +110,20 @@ export default function ActivatePage() {
         const currentBilling = billingRef.current || data.billing;
         const packages = currentBilling?.packages || [];
 
+        let resolvedPkgName = "";
+        let resolvedAmount = 0;
+
+        // 1. Prioritas utama: data pembayaran resmi terakhir dari server VOCML
+        if (data.lastPayment) {
+          resolvedPkgName = data.lastPayment.package_name || data.lastPayment.action || "";
+          resolvedAmount = Number(data.lastPayment.amount) || 0;
+        }
+
+        // 2. Prioritas kedua: paket yang sedang dipilih atau disimpan pengguna
         let pkg = selectedPackageRef.current;
         if (!pkg) {
           try {
-            const saved = sessionStorage.getItem('last_selected_package');
+            const saved = sessionStorage.getItem("last_selected_package");
             if (saved) {
               const parsed = JSON.parse(saved);
               pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
@@ -122,6 +132,7 @@ export default function ActivatePage() {
           } catch {}
         }
 
+        // 3. Jika ada selisih hari perpanjangan, sesuaikan paket
         if (daysDiff > 0 && packages.length > 0) {
           const matchedByDays = packages.find((p: any) => p.days === daysDiff);
           if (matchedByDays) {
@@ -129,16 +140,16 @@ export default function ActivatePage() {
           }
         }
 
-        if (!pkg && packages.length > 0) {
-          pkg = packages[0];
+        if (!resolvedPkgName) {
+          resolvedPkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : (data.plan ? `Paket ${data.plan}` : "Paket Lisensi")));
+        }
+        if (!resolvedAmount) {
+          resolvedAmount = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || 0));
         }
 
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Paket Lisensi"));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || currentBilling?.amount || 0));
-
         setPaymentSuccess({
-          packageName: pkgName,
-          amountPaid: paidAmt,
+          packageName: resolvedPkgName,
+          amountPaid: resolvedAmount,
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });
@@ -229,6 +240,15 @@ export default function ActivatePage() {
   const billingRef = useRef<LicenseBilling | null>(null);
   billingRef.current = billing;
 
+  useEffect(() => {
+    if (selectedPackage) {
+      selectedPackageRef.current = selectedPackage;
+      try {
+        sessionStorage.setItem("last_selected_package", JSON.stringify(selectedPackage));
+      } catch {}
+    }
+  }, [selectedPackage]);
+
   // Reset status gambar saat nominal / QR berubah
   useEffect(() => {
     setQrFailed(false);
@@ -287,8 +307,6 @@ export default function ActivatePage() {
       }
 
       if (isCurrentlyActive) {
-        // Tampilkan layar sukses pembayaran tanpa langsung redirect otomatis,
-        // memberi waktu kepada pengguna membaca rincian dan mengklik tombol lanjut.
         const initExpTime = initialExpiredAtRef.current ? new Date(initialExpiredAtRef.current).getTime() : 0;
         const newExpTime = data.expiredAt ? new Date(data.expiredAt).getTime() : 0;
         const daysDiff = (initExpTime > 0 && newExpTime > initExpTime)
@@ -298,10 +316,20 @@ export default function ActivatePage() {
         const currentBilling = billingRef.current || data.billing;
         const packages = currentBilling?.packages || [];
 
+        let resolvedPkgName = "";
+        let resolvedAmount = 0;
+
+        // 1. Prioritas utama: data pembayaran resmi terakhir dari server VOCML
+        if (data.lastPayment) {
+          resolvedPkgName = data.lastPayment.package_name || data.lastPayment.action || "";
+          resolvedAmount = Number(data.lastPayment.amount) || 0;
+        }
+
+        // 2. Prioritas kedua: paket yang sedang dipilih atau disimpan pengguna
         let pkg = selectedPackageRef.current;
         if (!pkg) {
           try {
-            const saved = sessionStorage.getItem('last_selected_package');
+            const saved = sessionStorage.getItem("last_selected_package");
             if (saved) {
               const parsed = JSON.parse(saved);
               pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
@@ -310,6 +338,7 @@ export default function ActivatePage() {
           } catch {}
         }
 
+        // 3. Jika ada selisih hari perpanjangan, sesuaikan paket
         if (daysDiff > 0 && packages.length > 0) {
           const matchedByDays = packages.find((p: any) => p.days === daysDiff);
           if (matchedByDays) {
@@ -317,16 +346,16 @@ export default function ActivatePage() {
           }
         }
 
-        if (!pkg && packages.length > 0) {
-          pkg = packages[0];
+        if (!resolvedPkgName) {
+          resolvedPkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : (data.plan ? `Paket ${data.plan}` : "Paket Lisensi")));
+        }
+        if (!resolvedAmount) {
+          resolvedAmount = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || 0));
         }
 
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Paket Lisensi"));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || currentBilling?.amount || 0));
-
         setPaymentSuccess({
-          packageName: pkgName,
-          amountPaid: paidAmt,
+          packageName: resolvedPkgName,
+          amountPaid: resolvedAmount,
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });

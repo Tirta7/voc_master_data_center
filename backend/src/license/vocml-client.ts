@@ -175,7 +175,9 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
       lockReason: snap.lockReason, 
       billing, 
       trial: snap.trial, 
-      uniqueCode: snap.uniqueCode 
+      uniqueCode: snap.uniqueCode,
+      lastPayment: body.last_payment || payload.last_payment || null,
+      plan: body.plan || payload.plan || null,
     };
     if (payload.status === 'locked') return result(false, 'locked', { ...common, reason: payload.lock_reason || 'Aplikasi dikunci' });
     if (payload.status === 'pending') return result(false, 'pending', { ...common, reason: 'Menunggu aktivasi lisensi' });

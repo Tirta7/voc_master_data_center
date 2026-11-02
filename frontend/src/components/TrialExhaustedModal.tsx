@@ -151,7 +151,7 @@ export default function TrialExhaustedModal({
             const saved = sessionStorage.getItem('last_selected_package');
             if (saved) {
               const parsed = JSON.parse(saved);
-              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
+              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days)) || null;
               if (!pkg) pkg = parsed;
             }
           } catch {}
@@ -336,7 +336,7 @@ export default function TrialExhaustedModal({
             const saved = sessionStorage.getItem('last_selected_package');
             if (saved) {
               const parsed = JSON.parse(saved);
-              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
+              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days)) || null;
               if (!pkg) pkg = parsed;
             }
           } catch {}
