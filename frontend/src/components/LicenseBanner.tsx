@@ -95,9 +95,11 @@ export function LicenseBanner() {
   }, []);
 
   if (!state) return null;
+  // Jika lisensi dikunci (BLOCKED) atau EXPIRED, halaman diarahkan ke /activate oleh LicenseGuard
+  if (state.status === "BLOCKED" || state.status === "EXPIRED") return null;
 
   // TRIAL: sedang menggunakan kuota coba gratis
-  if (state.status === 'TRIAL' || (state.trial && state.trial.enabled && state.status !== 'ACTIVE' && state.status !== 'GRACE')) {
+  if (state.status === "TRIAL") {
     const remaining = state.trial?.remaining ?? 0;
     const quota = state.trial?.quota ?? 0;
     const isExhausted = remaining === 0;

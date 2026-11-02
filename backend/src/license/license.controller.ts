@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Body, Res, Sse, Query } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Observable, map, filter, merge, interval, defer, of } from 'rxjs';
 import { LicenseService } from './license.service';
 
+@SkipThrottle()
 @Controller(['api/license', 'license'])
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}

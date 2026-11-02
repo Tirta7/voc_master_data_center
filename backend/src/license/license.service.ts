@@ -273,8 +273,10 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       // Jika mesin terdaftar sebagai mode trial (memiliki kuota coba gratis):
       // Pertahankan status TRIAL agar aplikasi tidak langsung terkunci ke /activate saat sesi terakhir sedang dimainkan.
       // Meja baru akan dicegat secara elegan melalui popup saat kuota sudah habis.
-      if (lic.trial && lic.trial.enabled && mappedStatus !== 'ACTIVE' && mappedStatus !== 'GRACE') {
-        mappedStatus = 'TRIAL';
+      // HANYA gunakan status TRIAL bila status server adalah trial/pending.
+      // JANGAN PERNAH menimpa BLOCKED (locked) atau EXPIRED!
+      if (lic.trial && lic.trial.enabled && (lic.status === "trial" || lic.status === "pending")) {
+        mappedStatus = "TRIAL";
       }
 
       // Saat online, days_left dari server dipakai apa adanya (sumber kebenaran)
@@ -534,6 +536,13 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
    * Mengurangi 1 kuota trial jika status lisensi adalah TRIAL.
    */
   async consumeTrial(): Promise<{ allowed: boolean; trialExhausted?: boolean; trial?: any; error?: string; billing?: any }> {
+    if (this.state.status === "BLOCKED" || this.state.status === "EXPIRED") {
+      return {
+        allowed: false,
+        error: this.state.lockReason || "Aplikasi terkunci. Silakan lakukan pembayaran lisensi.",
+        billing: this.getBilling(),
+      };
+    }
     const hasTrial = !!(this.state.trial && this.state.trial.enabled);
 
     // Hanya skip jika lisensi aktif/grace DAN memang TIDAK ada kuota trial yang diatur

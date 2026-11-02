@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag, ArrowRight, Sparkles } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import WaitingCat from '@/components/WaitingCat';
@@ -44,6 +44,9 @@ const toWaNumber = (contact: string) => {
 };
 
 export default function ActivatePage() {
+  const wasLockedRef = useRef(false);
+  const initialExpiredAtRef = useRef<string | null>(null);
+  const isFirstCheckRef = useRef(true);
   const [copied, setCopied] = useState(false);
   const [machineId, setMachineId] = useState('Memuat...');
   const [licenseState, setLicenseState] = useState<any>(null);
@@ -91,31 +94,37 @@ export default function ActivatePage() {
     setCheckingPayment(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
+      if (!res.ok) {
+        alert("Gagal menghubungi server lisensi. Coba sesaat lagi.");
+        return;
+      }
       const data = await res.json();
-      if (data.status === 'ACTIVE' || data.status === 'GRACE' || data.status === 'TRIAL') {
-        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Lisensi Aktif');
+      if (data.status === "ACTIVE" || data.status === "GRACE") {
+        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : "Lisensi Aktif");
         const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
 
         setPaymentSuccess({
           packageName: pkgName,
-          amountPaid: paidAmt,
-          expiredAt: data.expiredAt || '',
-          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
+          amountPaid: paidAmt > 0 ? paidAmt : (billing?.amount || 0),
+          expiredAt: data.expiredAt || "",
+          daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });
 
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = "/";
         }, 3000);
+      } else {
+        alert("Pembayaran belum terverifikasi oleh server. Pastikan Anda telah melakukan transfer sesuai nominal (termasuk kode unik).");
       }
-    } catch {}
-    finally {
+    } catch {
+      alert("Terjadi kendala jaringan saat memeriksa pembayaran. Silakan coba beberapa saat lagi.");
+    } finally {
       setCheckingPayment(false);
     }
   };
 
-  const isLockedStatus = licenseState?.status === 'EXPIRED' || licenseState?.status === 'BLOCKED';
-  // QRIS hanya ditampilkan saat EXPIRED / BLOCKED
-  const billing: LicenseBilling | null = isLockedStatus ? (licenseState?.billing || null) : null;
+  // Tampilkan billing & pilihan paket dari server
+  const billing: LicenseBilling | null = licenseState?.billing || null;
 
   const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
 
@@ -164,27 +173,72 @@ export default function ActivatePage() {
 
     const applyState = (data: any) => {
       if (cancelled || !data) return;
-      setMachineId(data.machineId || 'TIDAK DIKETAHUI');
+      setMachineId(data.machineId || "TIDAK DIKETAHUI");
       setLicenseState(data);
-      // Sudah aktif kembali (diperpanjang / dibuka kuncinya) → tampilkan sukses lalu redirect
-      if (data.status === 'ACTIVE' || data.status === 'GRACE') {
-        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Lisensi Aktif');
-        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
 
-        setPaymentSuccess({
-          packageName: pkgName,
-          amountPaid: paidAmt,
-          expiredAt: data.expiredAt || '',
-          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
-        });
+      const isCurrentlyActive = data.status === "ACTIVE" || data.status === "GRACE";
+      const isCurrentlyLocked = data.status === "EXPIRED" || data.status === "BLOCKED";
 
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 3200);
-      } else if (!notified && (data.status === 'EXPIRED' || data.status === 'BLOCKED')) {
-        notified = true;
-        // Trigger push notification ke HP owner
-        fetch(`${getApiUrl()}/api/license/notify-warning`, { method: 'POST' }).catch(() => {});
+      if (isFirstCheckRef.current) {
+        isFirstCheckRef.current = false;
+        initialExpiredAtRef.current = data.expiredAt || null;
+
+        // Jika saat pertama kali buka /activate status SUDAH ACTIVE / GRACE (bukan terkunci),
+        // langsung kembali ke dashboard tanpa card pembayaran palsu Rp0
+        if (isCurrentlyActive) {
+          window.location.href = "/";
+          return;
+        }
+
+        if (isCurrentlyLocked) {
+          wasLockedRef.current = true;
+        }
+      }
+
+      if (isCurrentlyLocked) {
+        wasLockedRef.current = true;
+        if (!notified) {
+          notified = true;
+          // Trigger push notification ke HP owner
+          fetch(`${getApiUrl()}/api/license/notify-warning`, { method: "POST" }).catch(() => {});
+        }
+        return;
+      }
+
+      if (isCurrentlyActive) {
+        // Jika sebelumnya terkunci di halaman ini, dan sekarang aktif kembali:
+        if (wasLockedRef.current) {
+          wasLockedRef.current = false;
+
+          const isExtended = !!(
+            data.expiredAt &&
+            initialExpiredAtRef.current &&
+            new Date(data.expiredAt).getTime() > new Date(initialExpiredAtRef.current).getTime()
+          );
+
+          if (isExtended || selectedPackage) {
+            const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : "Lisensi Aktif");
+            const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+
+            setPaymentSuccess({
+              packageName: pkgName,
+              amountPaid: paidAmt > 0 ? paidAmt : (billing?.amount || 0),
+              expiredAt: data.expiredAt || "",
+              daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
+            });
+
+            setTimeout(() => {
+              window.location.href = "/";
+            }, 3200);
+            return;
+          }
+
+          // Jika hanya dibuka kuncinya oleh admin VOCML tanpa pembayaran:
+          window.location.href = "/";
+          return;
+        }
+
+        window.location.href = "/";
       }
     };
 
