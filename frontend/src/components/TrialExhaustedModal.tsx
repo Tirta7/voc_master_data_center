@@ -146,6 +146,17 @@ export default function TrialExhaustedModal({
 
         const packages = billing?.packages || [];
         let pkg = selectedPackageRef.current;
+        if (!pkg) {
+          try {
+            const saved = sessionStorage.getItem('last_selected_package');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
+              if (!pkg) pkg = parsed;
+            }
+          } catch {}
+        }
+
         if (daysDiff > 0 && packages.length > 0) {
           const matchedByDays = packages.find((p: any) => p.days === daysDiff);
           if (matchedByDays) {
@@ -153,8 +164,12 @@ export default function TrialExhaustedModal({
           }
         }
 
+        if (!pkg && packages.length > 0) {
+          pkg = packages[0];
+        }
+
         const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : 'Paket Lisensi'));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (billing?.amount || 0));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || billing?.amount || 0));
 
         setPaymentSuccess({
           packageName: pkgName,
@@ -316,6 +331,17 @@ export default function TrialExhaustedModal({
 
         const packages = billing?.packages || [];
         let pkg = selectedPackageRef.current;
+        if (!pkg) {
+          try {
+            const saved = sessionStorage.getItem('last_selected_package');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
+              if (!pkg) pkg = parsed;
+            }
+          } catch {}
+        }
+
         if (daysDiff > 0 && packages.length > 0) {
           const matchedByDays = packages.find((p: any) => p.days === daysDiff);
           if (matchedByDays) {
@@ -323,8 +349,12 @@ export default function TrialExhaustedModal({
           }
         }
 
+        if (!pkg && packages.length > 0) {
+          pkg = packages[0];
+        }
+
         const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : 'Paket Lisensi'));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (billing?.amount || 0));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || billing?.amount || 0));
 
         setPaymentSuccess({
           packageName: pkgName,
@@ -707,6 +737,10 @@ export default function TrialExhaustedModal({
                           onClick={() => {
                             if (isSelected) return;
                             setSelectedPackage(pkg);
+                            selectedPackageRef.current = pkg;
+                            try {
+                              sessionStorage.setItem('last_selected_package', JSON.stringify(pkg));
+                            } catch {}
                           }}
                           style={{
                             position: 'relative', textAlign: 'left', padding: '8px 10px',

@@ -111,6 +111,17 @@ export default function ActivatePage() {
         const packages = currentBilling?.packages || [];
 
         let pkg = selectedPackageRef.current;
+        if (!pkg) {
+          try {
+            const saved = sessionStorage.getItem('last_selected_package');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
+              if (!pkg) pkg = parsed;
+            }
+          } catch {}
+        }
+
         if (daysDiff > 0 && packages.length > 0) {
           const matchedByDays = packages.find((p: any) => p.days === daysDiff);
           if (matchedByDays) {
@@ -118,8 +129,12 @@ export default function ActivatePage() {
           }
         }
 
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Lisensi Aktif"));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (currentBilling?.amount || 0));
+        if (!pkg && packages.length > 0) {
+          pkg = packages[0];
+        }
+
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Paket Lisensi"));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || currentBilling?.amount || 0));
 
         setPaymentSuccess({
           packageName: pkgName,
@@ -284,6 +299,17 @@ export default function ActivatePage() {
         const packages = currentBilling?.packages || [];
 
         let pkg = selectedPackageRef.current;
+        if (!pkg) {
+          try {
+            const saved = sessionStorage.getItem('last_selected_package');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days));
+              if (!pkg) pkg = parsed;
+            }
+          } catch {}
+        }
+
         if (daysDiff > 0 && packages.length > 0) {
           const matchedByDays = packages.find((p: any) => p.days === daysDiff);
           if (matchedByDays) {
@@ -291,10 +317,14 @@ export default function ActivatePage() {
           }
         }
 
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Lisensi Aktif"));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (currentBilling?.amount || 0));
+        if (!pkg && packages.length > 0) {
+          pkg = packages[0];
+        }
 
-        setPaymentSuccess((prev) => prev || {
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Paket Lisensi"));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || currentBilling?.amount || 0));
+
+        setPaymentSuccess({
           packageName: pkgName,
           amountPaid: paidAmt,
           expiredAt: data.expiredAt || "",
