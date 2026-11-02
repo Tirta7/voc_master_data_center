@@ -2377,6 +2377,15 @@ export class BilliardService implements OnModuleInit {
 
           const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
+          let humanDuration = '';
+          if (hours > 0) {
+            humanDuration = minutes > 0 ? `${hours} Jam ${minutes} Menit` : `${hours} Jam`;
+          } else if (minutes > 0) {
+            humanDuration = `${minutes} Menit`;
+          } else {
+            humanDuration = `${Math.max(1, seconds)} Detik`;
+          }
+
           const fareNameLabel = table.packageId
             ? (
               await this.packageRepository.findOne({
@@ -2470,7 +2479,12 @@ export class BilliardService implements OnModuleInit {
                 finalSnap.memberId!,
                 {
                   tableName: table.tableName,
-                  duration: finalSnap.sessionDuration,
+                  duration:
+                    humanDuration ||
+                    finalSnap.sessionDuration ||
+                    (session?.durationMinutes
+                      ? `${session.durationMinutes} Menit`
+                      : '-'),
                   billiardTotal: Number(finalSnap.billiardTotal || 0),
                   cafeTotal: Number(finalSnap.cafeTotal || 0),
                   grandTotal: Number(finalSnap.grandTotal || 0),

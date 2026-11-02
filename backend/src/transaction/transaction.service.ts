@@ -2270,6 +2270,18 @@ export class TransactionService {
       transaction.endTime = endTime;
     }
 
+    if (transaction.startTime && transaction.endTime) {
+      const diffMs =
+        new Date(transaction.endTime).getTime() -
+        new Date(transaction.startTime).getTime();
+      const totalMins = Math.round(diffMs / 60000);
+      if (!isNaN(totalMins) && totalMins >= 0) {
+        const hours = Math.floor(totalMins / 60);
+        const minutes = totalMins % 60;
+        transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+      }
+    }
+
     if (isManualOverride && userName && Number(amount) !== oldAmount) {
       await this.reportService.logAction(
         'BILLIARD_PRICE_OVERRIDE',

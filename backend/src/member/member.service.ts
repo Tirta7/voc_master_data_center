@@ -902,10 +902,15 @@ Terima kasih telah bermain di VOC Billiard!`;
         return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
       };
 
+      let safeDuration = String(data.duration ?? '').trim();
+      if (!safeDuration || safeDuration === 'null' || safeDuration === 'undefined') {
+        safeDuration = '-';
+      }
+
       const finalMsg = template
         .replace(/{{name}}/g, member.name)
         .replace(/{{table}}/g, data.tableName)
-        .replace(/{{duration}}/g, data.duration)
+        .replace(/{{duration}}/g, safeDuration)
         .replace(/{{billiard_total}}/g, formatCurrency(data.billiardTotal))
         .replace(/{{cafe_total}}/g, formatCurrency(data.cafeTotal))
         .replace(/{{grand_total}}/g, formatCurrency(data.grandTotal))
