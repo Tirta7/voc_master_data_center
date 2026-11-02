@@ -140,9 +140,21 @@ export default function TrialExhaustedModal({
                         newExp >= Date.now();
 
       if (expiredExtended || unblocked) {
-        const pkg = selectedPackageRef.current;
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : 'Paket Lisensi');
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? currentAmountRef.current;
+        const daysDiff = (initExp > 0 && newExp > initExp)
+          ? Math.round((newExp - initExp) / (1000 * 60 * 60 * 24))
+          : 0;
+
+        const packages = billing?.packages || [];
+        let pkg = selectedPackageRef.current;
+        if (daysDiff > 0 && packages.length > 0) {
+          const matchedByDays = packages.find((p: any) => p.days === daysDiff);
+          if (matchedByDays) {
+            pkg = matchedByDays;
+          }
+        }
+
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : 'Paket Lisensi'));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (billing?.amount || 0));
 
         setPaymentSuccess({
           packageName: pkgName,
@@ -298,9 +310,25 @@ export default function TrialExhaustedModal({
                         newExp >= Date.now();
 
       if (expiredExtended || unblocked) {
+        const daysDiff = (initExp > 0 && newExp > initExp)
+          ? Math.round((newExp - initExp) / (1000 * 60 * 60 * 24))
+          : 0;
+
+        const packages = billing?.packages || [];
+        let pkg = selectedPackageRef.current;
+        if (daysDiff > 0 && packages.length > 0) {
+          const matchedByDays = packages.find((p: any) => p.days === daysDiff);
+          if (matchedByDays) {
+            pkg = matchedByDays;
+          }
+        }
+
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : 'Paket Lisensi'));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (billing?.amount || 0));
+
         setPaymentSuccess({
-          packageName: selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : 'Paket Lisensi'),
-          amountPaid: selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount,
+          packageName: pkgName,
+          amountPaid: paidAmt,
           expiredAt: data.expiredAt || '',
           daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
         });

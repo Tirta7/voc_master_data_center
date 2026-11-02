@@ -101,12 +101,29 @@ export default function ActivatePage() {
       }
       const data = await res.json();
       if (data.status === "ACTIVE" || data.status === "GRACE") {
-        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : "Lisensi Aktif");
-        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+        const initExpTime = initialExpiredAtRef.current ? new Date(initialExpiredAtRef.current).getTime() : 0;
+        const newExpTime = data.expiredAt ? new Date(data.expiredAt).getTime() : 0;
+        const daysDiff = (initExpTime > 0 && newExpTime > initExpTime)
+          ? Math.round((newExpTime - initExpTime) / (1000 * 60 * 60 * 24))
+          : 0;
+
+        const currentBilling = billingRef.current || data.billing;
+        const packages = currentBilling?.packages || [];
+
+        let pkg = selectedPackageRef.current;
+        if (daysDiff > 0 && packages.length > 0) {
+          const matchedByDays = packages.find((p: any) => p.days === daysDiff);
+          if (matchedByDays) {
+            pkg = matchedByDays;
+          }
+        }
+
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Lisensi Aktif"));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (currentBilling?.amount || 0));
 
         setPaymentSuccess({
           packageName: pkgName,
-          amountPaid: paidAmt > 0 ? paidAmt : (billing?.amount || 0),
+          amountPaid: paidAmt,
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });
@@ -157,6 +174,19 @@ export default function ActivatePage() {
           );
           if (match) return match;
         }
+
+        // Coba baca paket tersimpan dari sessionStorage jika ada
+        try {
+          const saved = sessionStorage.getItem('last_selected_package');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            const matchSaved = billing.packages!.find(
+              (p) => (p.id && p.id === parsed.id) || (p.days === parsed.days && (p.amount === parsed.amount || p.final_amount === parsed.final_amount))
+            );
+            if (matchSaved) return matchSaved;
+          }
+        } catch {}
+
         const initial = billing.packages!.find(
           (p) => p.amount === billing.amount || p.final_amount === billing.amount
         );
@@ -176,6 +206,13 @@ export default function ActivatePage() {
   const currentPackageName = selectedPackage
     ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
     : 'Perpanjangan Lisensi';
+
+  const selectedPackageRef = useRef<BillingPackage | null>(null);
+  selectedPackageRef.current = selectedPackage;
+  const currentAmountRef = useRef<number>(currentAmount);
+  currentAmountRef.current = currentAmount;
+  const billingRef = useRef<LicenseBilling | null>(null);
+  billingRef.current = billing;
 
   // Reset status gambar saat nominal / QR berubah
   useEffect(() => {
@@ -237,12 +274,29 @@ export default function ActivatePage() {
       if (isCurrentlyActive) {
         // Tampilkan layar sukses pembayaran tanpa langsung redirect otomatis,
         // memberi waktu kepada pengguna membaca rincian dan mengklik tombol lanjut.
-        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : "Lisensi Aktif");
-        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
+        const initExpTime = initialExpiredAtRef.current ? new Date(initialExpiredAtRef.current).getTime() : 0;
+        const newExpTime = data.expiredAt ? new Date(data.expiredAt).getTime() : 0;
+        const daysDiff = (initExpTime > 0 && newExpTime > initExpTime)
+          ? Math.round((newExpTime - initExpTime) / (1000 * 60 * 60 * 24))
+          : 0;
+
+        const currentBilling = billingRef.current || data.billing;
+        const packages = currentBilling?.packages || [];
+
+        let pkg = selectedPackageRef.current;
+        if (daysDiff > 0 && packages.length > 0) {
+          const matchedByDays = packages.find((p: any) => p.days === daysDiff);
+          if (matchedByDays) {
+            pkg = matchedByDays;
+          }
+        }
+
+        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : "Lisensi Aktif"));
+        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (currentBilling?.amount || 0));
 
         setPaymentSuccess((prev) => prev || {
           packageName: pkgName,
-          amountPaid: paidAmt > 0 ? paidAmt : (billing?.amount || 0),
+          amountPaid: paidAmt,
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });
@@ -749,6 +803,10 @@ export default function ActivatePage() {
                           onClick={() => {
                             if (isSelected) return;
                             setSelectedPackage(pkg);
+                            selectedPackageRef.current = pkg;
+                            try {
+                              sessionStorage.setItem('last_selected_package', JSON.stringify(pkg));
+                            } catch {}
                           }}
                           style={{
                             position: 'relative',
