@@ -31,7 +31,7 @@ import { PromoType } from '../promo/entities/promo.entity';
 import { ReportService } from '../report/report.service';
 import { WaitingListService } from '../waiting-list/waiting-list.service';
 import { MemberService } from '../member/member.service';
-import { TransactionStatus, Transaction } from '../transaction/entities/transaction.entity';
+import { TransactionStatus, Transaction, TransactionType } from '../transaction/entities/transaction.entity';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { AIService } from '../ai/ai.service';
 import { VoucherService } from '../voucher/voucher.service';
@@ -1679,7 +1679,7 @@ export class BilliardService implements OnModuleInit {
           );
         }
 
-        const activeCafeTx = await this.transactionRepository.findOne({
+        const activeCafeTx = await this.dataSource.getRepository(Transaction).findOne({
           where: {
             memberId,
             status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
