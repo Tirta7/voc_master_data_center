@@ -309,24 +309,51 @@ export default function TrialExhaustedModal({
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999999,
-      background: 'rgba(2, 6, 23, 0.85)',
-      backdropFilter: 'blur(16px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '16px', boxSizing: 'border-box',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: '860px',
-        background: 'linear-gradient(145deg, #0f172a 0%, #1e1b4b 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '24px',
-        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(99,102,241,0.2)',
-        overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
-        position: 'relative',
-        animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-      }}>
+    <div
+      className="trial-modal-backdrop"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100%',
+        minHeight: '100dvh',
+        zIndex: 9999999,
+        background: 'rgba(2, 6, 23, 0.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
+        overscrollBehaviorY: 'contain',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        paddingTop: 'max(20px, env(safe-area-inset-top, 20px))',
+        paddingBottom: 'max(36px, env(safe-area-inset-bottom, 36px))',
+        paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
+        paddingRight: 'max(14px, env(safe-area-inset-right, 14px))',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        className="trial-modal-container"
+        style={{
+          width: '100%',
+          maxWidth: '860px',
+          background: 'linear-gradient(145deg, #0f172a 0%, #1e1b4b 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: '24px',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(99,102,241,0.2)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          margin: 'auto 0',
+          flexShrink: 0,
+          animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         {/* Header Modal */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -478,19 +505,25 @@ export default function TrialExhaustedModal({
           </div>
         ) : (
         /* Body Modal: Dua Kolom (Kiri QRIS & Kanan Pilihan Paket + Voucher) */
-        <div style={{
-          display: 'flex', flexDirection: 'row', alignItems: 'stretch',
-          flexWrap: 'wrap',
-        }}>
+        <div
+          className="trial-modal-columns"
+          style={{
+            display: 'flex', flexDirection: 'row', alignItems: 'stretch',
+            flexWrap: 'wrap', width: '100%',
+          }}
+        >
           {/* Kolom Kiri: QRIS & Nominal */}
-          <div style={{
-            flex: '0 0 320px',
-            background: 'rgba(0, 0, 0, 0.25)',
-            borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-            padding: '20px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-            textAlign: 'center', boxSizing: 'border-box',
-          }}>
+          <div
+            className="trial-modal-qris-col"
+            style={{
+              flex: '0 0 320px',
+              background: 'rgba(0, 0, 0, 0.25)',
+              borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+              padding: '20px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+              textAlign: 'center', boxSizing: 'border-box',
+            }}
+          >
             <div style={{ width: '100%' }}>
               <div style={{
                 background: 'rgba(34,197,94,0.12)', color: '#4ade80',
@@ -591,12 +624,15 @@ export default function TrialExhaustedModal({
           </div>
 
           {/* Kolom Kanan: Pilihan Paket & Form Voucher */}
-          <div style={{
-            flex: '1 1 440px',
-            padding: '20px',
-            display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-            boxSizing: 'border-box',
-          }}>
+          <div
+            className="trial-modal-content-col"
+            style={{
+              flex: '1 1 440px',
+              padding: '20px',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              boxSizing: 'border-box',
+            }}
+          >
             <div>
               {/* Pilihan Paket */}
               {billing?.packages && billing.packages.length > 0 && (
@@ -613,7 +649,7 @@ export default function TrialExhaustedModal({
                   </div>
 
                   <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                     gap: '8px', width: '100%',
                   }}>
                     {billing.packages.map((pkg, idx) => {
@@ -799,6 +835,43 @@ export default function TrialExhaustedModal({
           50% { transform: scale(1.08); }
           70% { transform: scale(0.95); }
           100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* ─── iOS Safari & Dynamic Island Scroll Fix ─── */
+        .trial-modal-backdrop {
+          -webkit-overflow-scrolling: touch !important;
+          touch-action: pan-y !important;
+        }
+
+        @media (max-width: 768px) {
+          .trial-modal-backdrop {
+            padding-top: max(24px, env(safe-area-inset-top, 24px)) !important;
+            padding-bottom: max(40px, env(safe-area-inset-bottom, 40px)) !important;
+            padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
+            padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
+            display: block !important;
+          }
+          .trial-modal-container {
+            margin: 0 auto 20px auto !important;
+            border-radius: 20px !important;
+            max-width: 100% !important;
+          }
+          .trial-modal-columns {
+            flex-direction: column !important;
+          }
+          .trial-modal-qris-col {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            padding: 20px 14px !important;
+          }
+          .trial-modal-content-col {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            padding: 20px 14px !important;
+          }
         }
       `}</style>
     </div>

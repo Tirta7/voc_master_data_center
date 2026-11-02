@@ -350,16 +350,32 @@ export default function ActivatePage() {
     : 'Verifikasi Lisensi...';
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 999999,
-      background: 'radial-gradient(ellipse at top, #0f172a 0%, #020617 70%, #000000 100%)',
-      fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif",
-      overflowY: 'auto',
-      display: 'flex', flexDirection: 'column',
-      justifyContent: 'center', alignItems: 'center',
-      padding: '20px',
-      boxSizing: 'border-box',
-    }}>
+    <div
+      className="activate-root-wrapper"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100%',
+        minHeight: '100dvh',
+        zIndex: 999999,
+        background: 'radial-gradient(ellipse at top, #0f172a 0%, #020617 70%, #000000 100%)',
+        fontFamily: "'Inter', 'Plus Jakarta Sans', sans-serif",
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
+        overscrollBehaviorY: 'contain',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        paddingTop: 'max(20px, env(safe-area-inset-top, 20px))',
+        paddingBottom: 'max(36px, env(safe-area-inset-bottom, 36px))',
+        paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
+        paddingRight: 'max(14px, env(safe-area-inset-right, 14px))',
+        boxSizing: 'border-box',
+      }}
+    >
       {/* Animasi partikel latar belakang halus */}
       <div style={{
         position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none',
@@ -377,22 +393,26 @@ export default function ActivatePage() {
       </div>
 
       {/* Main Unified Modal Container */}
-      <div style={{
-        width: '100%',
-        maxWidth: '1000px',
-        background: 'rgba(15, 23, 42, 0.75)',
-        backdropFilter: 'blur(36px)',
-        WebkitBackdropFilter: 'blur(36px)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '24px',
-        boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255,255,255,0.03)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        zIndex: 1,
-        margin: 'auto 0',
-      }}>
+      <div
+        className="activate-card-container"
+        style={{
+          width: '100%',
+          maxWidth: '1000px',
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(36px)',
+          WebkitBackdropFilter: 'blur(36px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '24px',
+          boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255,255,255,0.03)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          zIndex: 1,
+          margin: 'auto 0',
+          flexShrink: 0,
+        }}
+      >
 
         {/* Card Header Terintegrasi */}
         <div style={{
@@ -552,27 +572,35 @@ export default function ActivatePage() {
           </div>
         ) : (
         /* Card Body (Two Columns Unified Layout) */
-        <div style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'stretch',
-          flexWrap: 'wrap',
-        }}>
+        <div
+          className="activate-body-columns"
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'stretch',
+            flexWrap: 'wrap',
+            width: '100%',
+          }}
+        >
 
           {/* Kolom Kiri: QRIS & Pembayaran */}
           {billing && (
-            <div id="billing-panel" style={{
-              flex: '0 0 360px',
-              background: 'rgba(0, 0, 0, 0.22)',
-              borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-              padding: '24px 22px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              boxSizing: 'border-box',
-              textAlign: 'center',
-            }}>
+            <div
+              id="billing-panel"
+              className="activate-qris-col"
+              style={{
+                flex: '0 0 360px',
+                background: 'rgba(0, 0, 0, 0.22)',
+                borderRight: '1px solid rgba(255, 255, 255, 0.06)',
+                padding: '24px 22px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxSizing: 'border-box',
+                textAlign: 'center',
+              }}
+            >
               {/* Badge & Total Tagihan */}
               <div style={{ width: '100%' }}>
                 <div style={{
@@ -684,14 +712,17 @@ export default function ActivatePage() {
           )}
 
           {/* Kolom Kanan: Pilihan Paket & Konfirmasi Aktivasi */}
-          <div style={{
-            flex: '1 1 480px',
-            padding: '24px 26px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxSizing: 'border-box',
-          }}>
+          <div
+            className="activate-content-col"
+            style={{
+              flex: '1 1 480px',
+              padding: '24px 26px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxSizing: 'border-box',
+            }}
+          >
             <div>
               {/* Header Pilihan Paket */}
               {billing?.packages && billing.packages.length > 0 && (
@@ -716,7 +747,7 @@ export default function ActivatePage() {
                   {/* Grid Paket 2 Kolom Rapi */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                     gap: '8px',
                     width: '100%',
                   }}>
@@ -948,6 +979,43 @@ export default function ActivatePage() {
         .billing-wa-btn:hover {
           transform: translateY(-1px);
           box-shadow: 0 8px 20px rgba(34,197,94,0.45) !important;
+        }
+
+        /* ─── iOS / Safari / Dynamic Island Scroll Fix ─── */
+        .activate-root-wrapper {
+          -webkit-overflow-scrolling: touch !important;
+          touch-action: pan-y !important;
+        }
+
+        @media (max-width: 840px) {
+          .activate-root-wrapper {
+            padding-top: max(24px, env(safe-area-inset-top, 24px)) !important;
+            padding-bottom: max(40px, env(safe-area-inset-bottom, 40px)) !important;
+            padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
+            padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
+            display: block !important; /* Block flow agar scroll di iOS selalu lancar tanpa flex height trap */
+          }
+          .activate-card-container {
+            margin: 0 auto 20px auto !important;
+            border-radius: 20px !important;
+            max-width: 100% !important;
+          }
+          .activate-body-columns {
+            flex-direction: column !important;
+          }
+          .activate-qris-col {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+            padding: 20px 14px !important;
+          }
+          .activate-content-col {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            padding: 20px 14px !important;
+          }
         }
       `}</style>
     </div>
