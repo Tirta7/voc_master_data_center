@@ -110,10 +110,6 @@ export default function ActivatePage() {
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });
-
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 3000);
       } else {
         alert("Pembayaran belum terverifikasi oleh server. Pastikan Anda telah melakukan transfer sesuai nominal (termasuk kode unik).");
       }
@@ -239,39 +235,18 @@ export default function ActivatePage() {
       }
 
       if (isCurrentlyActive) {
-        // Jika sebelumnya terkunci di halaman ini, dan sekarang aktif kembali:
-        if (wasLockedRef.current) {
-          wasLockedRef.current = false;
+        // Tampilkan layar sukses pembayaran tanpa langsung redirect otomatis,
+        // memberi waktu kepada pengguna membaca rincian dan mengklik tombol lanjut.
+        const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : "Lisensi Aktif");
+        const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
 
-          const isExtended = !!(
-            data.expiredAt &&
-            initialExpiredAtRef.current &&
-            new Date(data.expiredAt).getTime() > new Date(initialExpiredAtRef.current).getTime()
-          );
-
-          if (isExtended || selectedPackage) {
-            const pkgName = selectedPackage?.name || selectedPackage?.label || (selectedPackage?.days ? `Paket ${selectedPackage.days} Hari` : "Lisensi Aktif");
-            const paidAmt = selectedPackage?.amount ?? selectedPackage?.final_amount ?? currentAmount;
-
-            setPaymentSuccess({
-              packageName: pkgName,
-              amountPaid: paidAmt > 0 ? paidAmt : (billing?.amount || 0),
-              expiredAt: data.expiredAt || "",
-              daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
-            });
-
-            setTimeout(() => {
-              window.location.href = "/";
-            }, 3200);
-            return;
-          }
-
-          // Jika hanya dibuka kuncinya oleh admin VOCML tanpa pembayaran:
-          window.location.href = "/";
-          return;
-        }
-
-        window.location.href = "/";
+        setPaymentSuccess((prev) => prev || {
+          packageName: pkgName,
+          amountPaid: paidAmt > 0 ? paidAmt : (billing?.amount || 0),
+          expiredAt: data.expiredAt || "",
+          daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
+        });
+        return;
       }
     };
 
@@ -561,18 +536,19 @@ export default function ActivatePage() {
               type="button"
               onClick={() => { window.location.href = '/'; }}
               style={{
-                width: '100%', maxWidth: '460px', padding: '13px 24px',
+                width: '100%', maxWidth: '460px', padding: '14px 24px',
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 borderRadius: '12px', border: 'none', color: '#ffffff',
-                fontSize: '13px', fontWeight: '800', cursor: 'pointer',
+                fontSize: '14px', fontWeight: '800', cursor: 'pointer',
                 boxShadow: '0 4px 16px rgba(16, 185, 129, 0.4)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'transform 0.15s ease',
               }}
             >
-              <CheckCircle size={16} /> Buka Aplikasi Sekarang
+              <CheckCircle size={18} /> Lanjutkan ke Aplikasi
             </button>
-            <p style={{ color: '#64748b', fontSize: '11px', marginTop: '12px', marginBottom: 0 }}>
-              Membuka aplikasi secara otomatis dalam beberapa detik...
+            <p style={{ color: '#94a3b8', fontSize: '12px', marginTop: '14px', marginBottom: 0, fontWeight: '500' }}>
+              Silakan periksa rincian di atas, lalu klik tombol untuk melanjutkan.
             </p>
           </div>
         ) : (
