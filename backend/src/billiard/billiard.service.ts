@@ -2416,25 +2416,29 @@ export class BilliardService implements OnModuleInit {
           const finalSyncDetails =
             table.sessionType === 'prepaid'
               ? undefined
-              : {
-                title: fareNameLabel || 'Open Table',
-                duration: session.durationMinutes,
-                subtotal: billiardCost,
-                startTimeFormatted: (table.startTime || transaction.startTime)
-                  ?.toLocaleTimeString('en-GB', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                  .replace(/:/g, '.'),
-                endTimeFormatted: session.endTime
-                  .toLocaleTimeString('en-GB', {
-                    hour12: false,
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                  .replace(/:/g, '.'),
-              };
+              : Array.isArray(billingDetails) && billingDetails.length > 0
+                ? billingDetails
+                : [
+                    {
+                      title: fareNameLabel || 'Open Table',
+                      duration: session.durationMinutes,
+                      subtotal: billiardCost,
+                      startTimeFormatted: (table.startTime || transaction.startTime)
+                        ?.toLocaleTimeString('en-GB', {
+                          hour12: false,
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                        .replace(/:/g, '.'),
+                      endTimeFormatted: session.endTime
+                        .toLocaleTimeString('en-GB', {
+                          hour12: false,
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                        .replace(/:/g, '.'),
+                    },
+                  ];
 
           await this.transactionService.setBilliardTotal(
             transaction.id,

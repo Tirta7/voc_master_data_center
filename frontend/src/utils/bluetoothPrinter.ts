@@ -175,8 +175,39 @@ export async function printReceiptBluetooth(
     // Billiard Session
     const sessionTotals = tx?.sessionTotals || {};
     let billiardTotal = (sessionTotals.billiardTotal !== undefined) ? Number(sessionTotals.billiardTotal) : Number(tx?.billiardTotal || 0);
-    const segmentsSum = Array.isArray(tx?.billingDetails) ? tx.billingDetails.reduce((sum: any, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0) : 0;
-    if (segmentsSum > billiardTotal) {
+
+    // 🛡️ Sanitize OPEN table billingDetails to prevent double counting
+    let effectiveBillingDetails: any[] = Array.isArray(tx?.billingDetails) ? [...tx.billingDetails] : [];
+    if (tx?.sessionType === 'open' && effectiveBillingDetails.length > 1) {
+        const summaryEntry = effectiveBillingDetails.find(
+            (d: any) =>
+                Number(d.duration) >= 60 &&
+                (d.title === tx?.fareName ||
+                    d.title?.includes('PAKET') ||
+                    d.title?.includes('Open Table') ||
+                    d.title?.includes('REGULER'))
+        );
+        const slotEntries = effectiveBillingDetails.filter(
+            (d: any) => d.title?.includes(':') || d.title?.includes('-')
+        );
+        if (summaryEntry && slotEntries.length > 0) {
+            const slotDuration = slotEntries.reduce(
+                (s: number, x: any) => s + Number(x.duration || 0),
+                0
+            );
+            if (Number(summaryEntry.duration) >= slotDuration) {
+                effectiveBillingDetails = [summaryEntry];
+            } else {
+                effectiveBillingDetails = slotEntries;
+            }
+        }
+    }
+
+    const wasSanitized = effectiveBillingDetails.length < (Array.isArray(tx?.billingDetails) ? tx.billingDetails.length : 0);
+    const segmentsSum = effectiveBillingDetails.reduce((sum: any, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0);
+    if (tx?.sessionType === 'open' && segmentsSum > 0) {
+        billiardTotal = segmentsSum;
+    } else if (segmentsSum > billiardTotal) {
         billiardTotal = segmentsSum;
     }
 
@@ -216,9 +247,13 @@ export async function printReceiptBluetooth(
 
     // Summary
     const subtotal = billiardTotal + itemsSubtotalRaw;
-    const disc = Number(sessionTotals.discountAmount !== undefined ? sessionTotals.discountAmount : (tx?.discountAmount || 0));
-    const tax = Number(sessionTotals.vatAmount !== undefined ? sessionTotals.vatAmount : (tx?.vatAmount || 0)) + Number(sessionTotals.serviceChargeAmount !== undefined ? sessionTotals.serviceChargeAmount : (tx?.serviceChargeAmount || 0));
-    const grand = Number(sessionTotals.grandTotal !== undefined ? sessionTotals.grandTotal : (tx?.grandTotal || 0));
+    const disc = Number(sessionTotals.discountAmount !== undefined && !wasSanitized ? sessionTotals.discountAmount : (tx?.discountAmount || 0));
+    const tax = wasSanitized
+        ? Math.round((subtotal - disc) * 0.1)
+        : (Number(sessionTotals.vatAmount !== undefined ? sessionTotals.vatAmount : (tx?.vatAmount || 0)) + Number(sessionTotals.serviceChargeAmount !== undefined ? sessionTotals.serviceChargeAmount : (tx?.serviceChargeAmount || 0)));
+    const grand = wasSanitized
+        ? Math.ceil((subtotal - disc + tax) / 1000) * 1000
+        : Number(sessionTotals.grandTotal !== undefined ? sessionTotals.grandTotal : (tx?.grandTotal || 0));
 
     encoder.line(formatLine('Subtotal', subtotal.toLocaleString('id-ID'), width));
     if (disc > 0) {

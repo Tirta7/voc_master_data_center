@@ -49,9 +49,40 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         ? Number(sessionTotals.billiardTotal)
         : Number(tx.billiardTotal || 0);
 
+    // 🛡️ Sanitize OPEN table billingDetails to prevent double counting partial 60m slot vs final summary
+    let effectiveBillingDetails: any[] = Array.isArray(tx.billingDetails) ? [...tx.billingDetails] : [];
+    if (tx.sessionType === 'open' && effectiveBillingDetails.length > 1) {
+        const summaryEntry = effectiveBillingDetails.find(
+            (d: any) =>
+                Number(d.duration) >= 60 &&
+                (d.title === tx.fareName ||
+                    d.title?.includes('PAKET') ||
+                    d.title?.includes('Open Table') ||
+                    d.title?.includes('REGULER'))
+        );
+        const slotEntries = effectiveBillingDetails.filter(
+            (d: any) => d.title?.includes(':') || d.title?.includes('-')
+        );
+        if (summaryEntry && slotEntries.length > 0) {
+            const slotDuration = slotEntries.reduce(
+                (s: number, x: any) => s + Number(x.duration || 0),
+                0
+            );
+            if (Number(summaryEntry.duration) >= slotDuration) {
+                effectiveBillingDetails = [summaryEntry];
+            } else {
+                effectiveBillingDetails = slotEntries;
+            }
+        }
+    }
+
+    const wasSanitized = effectiveBillingDetails.length < (Array.isArray(tx.billingDetails) ? tx.billingDetails.length : 0);
+
     // Fallback/Force-sync: Use segments if they sum to more than the reported total (ensures consistency for multi-day sessions)
-    const segmentsSum = Array.isArray(tx.billingDetails) ? tx.billingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0) : 0;
-    if (segmentsSum > currentBilliardPortion) {
+    const segmentsSum = effectiveBillingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0);
+    if (tx.sessionType === 'open' && segmentsSum > 0) {
+        currentBilliardPortion = segmentsSum;
+    } else if (segmentsSum > currentBilliardPortion) {
         currentBilliardPortion = segmentsSum;
     }
 
@@ -175,7 +206,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     // Subtotal (Original price before discounts)
     const itemsSubtotalRaw = items.reduce((sum: number, i: any) => sum + (Number(i.priceAtOrder || 0) * Number(i.quantity || 0)), 0);
-    const subtotal = (sessionTotals.billiardTotal !== undefined)
+    const subtotal = (sessionTotals.billiardTotal !== undefined && !wasSanitized)
         ? (Number(sessionTotals.billiardTotal) + itemsSubtotalRaw)
         : (itemsSubtotal + currentBilliardPortion);
 
@@ -185,19 +216,19 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
 
-    const scAmount = (sessionTotals.serviceChargeAmount !== undefined)
+    const scAmount = (sessionTotals.serviceChargeAmount !== undefined && !wasSanitized)
         ? Number(sessionTotals.serviceChargeAmount)
-        : (isSubset ? Math.round(discountedSubtotal * (Number(settings.serviceChargePercentage || 0) / 100)) : Number(tx.serviceChargeAmount || 0));
+        : (isSubset || wasSanitized ? Math.round(discountedSubtotal * (Number(settings.serviceChargePercentage || 0) / 100)) : Number(tx.serviceChargeAmount || 0));
 
-    const taxAmount = (sessionTotals.vatAmount !== undefined)
+    const taxAmount = (sessionTotals.vatAmount !== undefined && !wasSanitized)
         ? Number(sessionTotals.vatAmount)
-        : (isSubset ? Math.round((discountedSubtotal + scAmount) * (Number(settings.ppnPercentage || 0) / 100)) : Number(tx.vatAmount || 0));
+        : (isSubset || wasSanitized ? Math.round((discountedSubtotal + scAmount) * (Number(settings.ppnPercentage || 0) / 100)) : Number(tx.vatAmount || 0));
 
     const rawTotal = discountedSubtotal + scAmount + taxAmount;
     const kelipatan = Math.max(1, Number(settings.roundingKelipatan || 1));
-    const grandTotal = (sessionTotals.grandTotal !== undefined)
+    const grandTotal = (sessionTotals.grandTotal !== undefined && !wasSanitized)
         ? Number(sessionTotals.grandTotal)
-        : (isSubset ? (Math.ceil(rawTotal / kelipatan) * kelipatan) : Number(tx.grandTotal || 0));
+        : (isSubset || wasSanitized ? (Math.ceil(rawTotal / kelipatan) * kelipatan) : Number(tx.grandTotal || 0));
 
     const vchDisc = Number(tx.voucherDiscountAmount || 0);
     let originalGrandTotal = grandTotal;
@@ -214,11 +245,11 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         originalGrandTotal = Math.ceil(originalRawTotal / originalKelipatan) * originalKelipatan;
     }
 
-    const rounding = (sessionTotals.roundingAmount !== undefined)
+    const rounding = (sessionTotals.roundingAmount !== undefined && !wasSanitized)
         ? Number(sessionTotals.roundingAmount)
-        : (isSubset ? (grandTotal - rawTotal) : Number(tx.roundingAmount || 0));
+        : (isSubset || wasSanitized ? (grandTotal - rawTotal) : Number(tx.roundingAmount || 0));
 
-    const paid = isSubset ? grandTotal : Number(tx.paidAmount || 0);
+    const paid = isSubset || wasSanitized ? grandTotal : Number(tx.paidAmount || 0);
     const latestPmtRecord = (tx.paymentDetails && tx.paymentDetails?.length > 0) ? tx.paymentDetails[tx.paymentDetails.length - 1] : null;
     const method = paymentMethodOverride || ((isSubset && latestPmtRecord) ? latestPmtRecord.method : (isReprint ? (tx.paymentDetails?.[(tx.paymentDetails?.length || 0) - 1]?.method || 'TUNAI') : (tx.paymentDetails?.[0]?.method || (tx.payments?.[0]?.paymentMethod) || 'TUNAI')));
 
@@ -254,8 +285,8 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     };
 
     const calculatedDuration = () => {
-        if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
-            const totalMins = tx.billingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.duration) || 0), 0);
+        if (effectiveBillingDetails && effectiveBillingDetails.length > 0) {
+            const totalMins = effectiveBillingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.duration) || 0), 0);
             if (totalMins > 0) { 
                 const h = Math.floor(totalMins / 60);
                 const m = totalMins % 60;
@@ -480,10 +511,10 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
                         {/* Billing breakdown segments */}
                         <div className="mt-1 space-y-1 pl-4 border-l border-slate-100 ml-2">
-                            {Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0 ? (
+                            {effectiveBillingDetails.length > 0 ? (
                                 (() => {
-                                    const initial = tx.billingDetails.filter((seg: any) => !seg.isExtension);
-                                    const extensions = tx.billingDetails.filter((seg: any) => seg.isExtension);
+                                    const initial = effectiveBillingDetails.filter((seg: any) => !seg.isExtension);
+                                    const extensions = effectiveBillingDetails.filter((seg: any) => seg.isExtension);
 
                                     return (
                                         <>
@@ -560,13 +591,13 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         const billiardDiscVal = Math.round(currentBilliardPortion * (billiardDiscPercent / 100));
 
                         // Only show the summary block if there's a discount or if segments are empty
-                        const showSummary = billiardDiscPercent > 0 || !Array.isArray(tx.billingDetails) || tx.billingDetails.length === 0;
+                        const showSummary = billiardDiscPercent > 0 || effectiveBillingDetails.length === 0;
 
                         if (!showSummary) return null;
 
                         return (
                             <div className="text-[11px] px-1 space-y-0.5 mt-1 border-t border-slate-100 pt-1 font-bold">
-                                {(!Array.isArray(tx.billingDetails) || tx.billingDetails.length === 0) && (
+                                {effectiveBillingDetails.length === 0 && (
                                     <div className="flex justify-between">
                                         <span>Subtotal Sesi</span>
                                         <span>Rp{fmt(currentBilliardPortion)}</span>

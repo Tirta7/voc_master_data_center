@@ -167,7 +167,43 @@ export class InvoiceService {
     }
 
     // BILLING SEGREGATION: Check if billiard was already paid via member wallet
-    const billiardTotal = Number(transaction.billiardTotal || 0);
+    let effectiveBillingDetails = Array.isArray(transaction.billingDetails)
+      ? [...transaction.billingDetails]
+      : [];
+    if (transaction.sessionType === 'open' && effectiveBillingDetails.length > 1) {
+      const summaryEntry = effectiveBillingDetails.find(
+        (d: any) =>
+          Number(d.duration) >= 60 &&
+          (d.title === transaction.fareName ||
+            d.title?.includes('PAKET') ||
+            d.title?.includes('Open Table') ||
+            d.title?.includes('REGULER')),
+      );
+      const slotEntries = effectiveBillingDetails.filter(
+        (d: any) => d.title?.includes(':') || d.title?.includes('-'),
+      );
+      if (summaryEntry && slotEntries.length > 0) {
+        const slotDuration = slotEntries.reduce(
+          (s: number, x: any) => s + Number(x.duration || 0),
+          0,
+        );
+        if (Number(summaryEntry.duration) >= slotDuration) {
+          effectiveBillingDetails = [summaryEntry];
+        } else {
+          effectiveBillingDetails = slotEntries;
+        }
+      }
+    }
+
+    const segmentsSum = effectiveBillingDetails.reduce(
+      (sum: number, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)),
+      0,
+    );
+    const billiardTotal =
+      transaction.sessionType === 'open' && segmentsSum > 0
+        ? segmentsSum
+        : Number(transaction.billiardTotal || 0);
+
     const memberBilliardPaid = (transaction.payments || [])
       .filter(
         (p: any) =>
@@ -186,14 +222,11 @@ export class InvoiceService {
         lines.push(`Total Table : Rp. ${billiardTotal.toLocaleString()}`);
 
         // Breakdown segments (matching frontend UI)
-        if (
-          Array.isArray(transaction.billingDetails) &&
-          transaction.billingDetails.length > 0
-        ) {
-          const initial = transaction.billingDetails.filter(
+        if (effectiveBillingDetails.length > 0) {
+          const initial = effectiveBillingDetails.filter(
             (seg: any) => !seg.isExtension,
           );
-          const extensions = transaction.billingDetails.filter(
+          const extensions = effectiveBillingDetails.filter(
             (seg: any) => seg.isExtension,
           );
 
