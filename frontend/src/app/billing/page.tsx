@@ -61,9 +61,8 @@ function BillingContent() {
         try {
             const response = await axios.get(`/settings`);
             setSettings(response.data);
-            if (response.data?.availablePaymentMethods?.length > 0) {
-                setPaymentMethod(response.data.availablePaymentMethods[0].toUpperCase());
-            }
+            // Sesuai konsep: jangan auto-select metode bayar saat baru masuk.
+            // Biarkan kasir bertanya ke customer terlebih dahulu.
         } catch (error) {
             console.error('Failed to fetch settings:', error);
         }
@@ -120,15 +119,44 @@ function BillingContent() {
     const handleSelectPaymentMethod = (method: string) => {
         const upper = method.toUpperCase();
         setPaymentMethod(upper);
+        const rem = getRemainingBalance();
+        const targetAmount = rem > 0 ? rem : (Number(paymentAmount) || 0);
+
         if (upper === 'QRIS') {
-            const rem = getRemainingBalance();
-            const targetAmount = rem > 0 ? rem : (Number(paymentAmount) || 0);
             if (targetAmount > 0) {
                 setPaymentAmount(targetAmount.toString());
                 fetchDynamicQris(targetAmount);
             }
         } else {
             setDynamicQrisString('');
+            if (!paymentAmount || Number(paymentAmount) <= 0) {
+                setPaymentAmount(targetAmount.toString());
+            }
+            // Emit langsung perubahan metode bayar ke CFD
+            if (transaction) {
+                const currentTableId = tableId || transaction.tableId || transaction.table?.id || transaction.cafeTable?.id;
+                const changeAmt = Math.max(0, (Number(paymentAmount) || targetAmount) - rem);
+                const payload = {
+                    tableId: currentTableId ? Number(currentTableId) : null,
+                    transactionId: transaction.id,
+                    tableName: transaction.table?.tableName || transaction.cafeTable?.tableName || 'Order Cabinet',
+                    grandTotal: Number(transaction.grandTotal),
+                    paidAmount: Number(transaction.paidAmount),
+                    remaining: rem,
+                    paymentAmount: Number(paymentAmount) || targetAmount,
+                    paymentMethod: upper,
+                    change: changeAmt,
+                    changeAmount: changeAmt, 
+                    customerName: transaction.customerName || (transaction.member ? transaction.member.name : ''),
+                    cashierName: user?.name || '',
+                    status: 'BILLING_IN_PROGRESS',
+                    terminalId: terminalId,
+                    lastUpdate: new Date().toISOString(),
+                    dynamicQrisString: undefined
+                };
+                publish(currentTableId ? `cfd/table/${currentTableId}` : `cfd/tx/${transaction.id}`, payload);
+                socket.emit('billing_payment_state', payload);
+            }
         }
     };
 
@@ -1030,9 +1058,11 @@ function BillingContent() {
                                             <ShieldCheck className={`w-4.5 h-4.5 sm:w-6 sm:h-6 ${remainingBalance === 0 || (paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance) ? 'animate-pulse text-white' : 'text-white/20'}`} />
                                         </div>
                                         <div className="text-left">
-                                            <span className="block text-[8px] sm:text-[10px] font-black uppercase opacity-60 tracking-[0.3em] sm:tracking-[0.4em] mb-0.5">{remainingBalance === 0 ? 'Verified Paid' : 'Ready to Settle'}</span>
+                                            <span className="block text-[8px] sm:text-[10px] font-black uppercase opacity-60 tracking-[0.3em] sm:tracking-[0.4em] mb-0.5">
+                                                {remainingBalance === 0 ? 'Verified Paid' : !paymentMethod ? 'Tanyakan ke Customer' : `Metode: ${paymentMethod}`}
+                                            </span>
                                             <span className="text-lg sm:text-2xl font-black tracking-tight leading-none uppercase">
-                                                {remainingBalance === 0 ? 'SELESAIKAN MEJA' : 'LUNASKAN'}
+                                                {remainingBalance === 0 ? 'SELESAIKAN MEJA' : !paymentMethod ? 'PILIH METODE BAYAR' : 'LUNASKAN'}
                                             </span>
                                         </div>
                                     </div>

@@ -2879,11 +2879,28 @@ function SmartDisplayContent() {
  <p className="text-[8px] font-black uppercase tracking-widest opacity-60">Payment Process</p>
  </div>
  <div className="flex-1 overflow-hidden flex flex-col gap-4">
- <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight ">
- {paymentState.paymentMethod || 'Processing...'}
+ <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+ {paymentState.paymentMethod ? (
+ <>
+ <span>{paymentState.paymentMethod}</span>
  {paymentState.isPartial && <span className="ml-2 text-[8px] bg-white/20 px-2 py-1 rounded-full align-middle font-black">PARTIAL</span>}
+ </>
+ ) : (
+ <span className="text-amber-300 animate-pulse text-base sm:text-lg">Menunggu Pilihan Pembayaran...</span>
+ )}
  </h3>
 
+ {!paymentState.paymentMethod ? (
+ <div className="mt-2 p-4 rounded-2xl bg-white/10 border border-white/15 text-center">
+ <p className="text-xs text-white/90 font-bold mb-1">Total Tagihan:</p>
+ <p className="text-3xl sm:text-4xl font-black text-white font-mono tracking-tight mb-2">
+ Rp {Number(paymentState.remaining || paymentState.grandTotal || 0).toLocaleString('id-ID')}
+ </p>
+ <p className="text-[10px] text-white/70 uppercase tracking-widest font-extrabold">
+ Silakan beri tahu kasir: QRIS • Tunai • EDC
+ </p>
+ </div>
+ ) : (
  <div className="mt-2 sm:mt-4 grid grid-cols-2 gap-4">
  <div>
  <p className="text-[7px] font-black uppercase opacity-60 mb-1">Amount Paid</p>
@@ -2893,7 +2910,7 @@ function SmartDisplayContent() {
  animate={{ y: 0, opacity: 1 }}
  className="text-sm sm:text-lg font-black font-mono"
  >
- Rp {paymentState.paymentAmount.toLocaleString()}
+ Rp {Number(paymentState.paymentAmount || 0).toLocaleString('id-ID')}
  </motion.p>
  </div>
  <div className="text-right">
@@ -2904,10 +2921,11 @@ function SmartDisplayContent() {
  animate={{ scale: 1, color: '#6ee7b7' }}
  className="text-lg sm:text-2xl font-black font-mono"
  >
- Rp {paymentState.changeAmount.toLocaleString()}
+ Rp {Number(paymentState.changeAmount || 0).toLocaleString('id-ID')}
  </motion.p>
  </div>
  </div>
+ )}
 
  {paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString && (
  <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-4 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
