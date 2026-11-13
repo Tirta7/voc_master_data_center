@@ -3193,47 +3193,60 @@ function SmartDisplayContent() {
  </div>
  </div>
  
- {/* RATING POPUP MODAL (ULTRA SIMPLE iOS) */}
+ {/* RATING POPUP MODAL (TOUCH-FRIENDLY & LARGE CFD DISPLAY) */}
         <AnimatePresence>
             {paymentState && showRatingPopup && (
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 p-4">
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md p-6">
                     {!ratingSubmitted ? (
-                        <div className="bg-[#1C1C1E] border border-white/10 p-8 rounded-[2rem] w-full max-w-sm shadow-2xl flex flex-col items-center animate-in fade-in zoom-in duration-300">
-                            <h2 className="text-white text-xl font-bold mb-1 text-center">
+                        <div className="bg-[#18191E]/95 border-2 border-white/15 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3rem] w-full max-w-2xl shadow-[0_25px_70px_-15px_rgba(0,0,0,0.9)] flex flex-col items-center animate-in fade-in zoom-in duration-300 relative overflow-hidden">
+                            {/* Decorative Top Accent Glow */}
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-2 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-300 rounded-full blur-sm opacity-80" />
+
+                            <h2 className="text-white text-2xl sm:text-3xl md:text-4xl font-black mb-2 text-center tracking-tight">
                                 Halo kak {paymentState?.customerName || member?.name || tx?.member?.name || tx?.customerName || ''}! 👋
                             </h2>
-                            <p className="text-[#EBEBF5]/60 text-xs mb-8 text-center">Bantu nilai pelayanan kami hari ini yuk!</p>
+                            <p className="text-slate-300 text-sm sm:text-base md:text-lg mb-8 text-center font-medium">
+                                Bantu nilai pelayanan kami hari ini yuk!
+                            </p>
 
                             <div className="w-full space-y-6">
-                                {/* Waiter Rating */}
-                                <div className="flex flex-col items-center">
-                                    <p className="text-[10px] font-semibold text-[#EBEBF5]/60 uppercase tracking-widest mb-3">Waiter: {tx?.commissionUser?.name || tx?.openedBy?.name || 'Staff'}</p>
-                                    <div className="flex justify-center gap-4">
+                                {/* Waiter Rating Card */}
+                                <div className="bg-white/[0.04] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-6 flex flex-col items-center shadow-inner">
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-black text-xs sm:text-sm uppercase tracking-wider mb-4">
+                                        <span>WAITER</span>
+                                        <span className="text-white/40">•</span>
+                                        <span className="text-white">{tx?.commissionUser?.name || tx?.openedBy?.name || 'Staff'}</span>
+                                    </div>
+                                    <div className="flex justify-center items-center gap-3 sm:gap-5">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button 
                                                 key={'w'+star}
+                                                type="button"
                                                 onClick={() => setWaiterRating(star)}
-                                                className="focus:outline-none transition-transform active:scale-90"
+                                                className="p-2 sm:p-3 rounded-2xl focus:outline-none transition-all duration-150 active:scale-90 hover:scale-110"
                                             >
-                                                <Star className={`w-8 h-8 ${waiterRating >= star ? 'fill-[#FFD60A] text-[#FFD60A]' : 'fill-[#3A3A3C] text-[#3A3A3C]'}`} />
+                                                <Star className={`w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 transition-colors ${waiterRating >= star ? 'fill-[#FFD60A] text-[#FFD60A] drop-shadow-[0_0_16px_rgba(255,214,10,0.7)]' : 'fill-white/10 text-white/20 hover:text-white/40'}`} />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div className="w-full h-px bg-white/10 my-4"></div>
-
-                                {/* Kasir Rating */}
-                                <div className="flex flex-col items-center">
-                                    <p className="text-[10px] font-semibold text-[#EBEBF5]/60 uppercase tracking-widest mb-3">Kasir: {paymentState?.cashierName || tx?.createdBy?.name || 'Kasir'}</p>
-                                    <div className="flex justify-center gap-4">
+                                {/* Kasir Rating Card */}
+                                <div className="bg-white/[0.04] border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-6 flex flex-col items-center shadow-inner">
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-black text-xs sm:text-sm uppercase tracking-wider mb-4">
+                                        <span>KASIR</span>
+                                        <span className="text-white/40">•</span>
+                                        <span className="text-white">{paymentState?.cashierName || tx?.createdBy?.name || 'Kasir'}</span>
+                                    </div>
+                                    <div className="flex justify-center items-center gap-3 sm:gap-5">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button 
                                                 key={'k'+star}
+                                                type="button"
                                                 onClick={() => setKasirRating(star)}
-                                                className="focus:outline-none transition-transform active:scale-90"
+                                                className="p-2 sm:p-3 rounded-2xl focus:outline-none transition-all duration-150 active:scale-90 hover:scale-110"
                                             >
-                                                <Star className={`w-8 h-8 ${kasirRating >= star ? 'fill-[#FFD60A] text-[#FFD60A]' : 'fill-[#3A3A3C] text-[#3A3A3C]'}`} />
+                                                <Star className={`w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 transition-colors ${kasirRating >= star ? 'fill-[#FFD60A] text-[#FFD60A] drop-shadow-[0_0_16px_rgba(255,214,10,0.7)]' : 'fill-white/10 text-white/20 hover:text-white/40'}`} />
                                             </button>
                                         ))}
                                     </div>
@@ -3242,6 +3255,7 @@ function SmartDisplayContent() {
 
                             <div className="w-full mt-8">
                                 <button
+                                    type="button"
                                     onClick={async () => {
                                         try {
                                             const targetTxId = txIdRef.current || paymentState?.transactionId || tx?.id;
@@ -3260,19 +3274,23 @@ function SmartDisplayContent() {
                                             setShowRatingPopup(false); 
                                         }
                                     }}
-                                    className={`w-full py-4 rounded-xl font-semibold text-sm transition-colors text-white ${waiterRating === 0 && kasirRating === 0 ? 'bg-[#3A3A3C] active:bg-[#2C2C2E]' : 'bg-[#0A84FF] active:bg-[#086dd3]'}`}
+                                    className={`w-full py-5 sm:py-6 rounded-2xl font-black text-base sm:text-lg md:text-xl uppercase tracking-wider transition-all duration-200 active:scale-95 shadow-xl ${
+                                        waiterRating === 0 && kasirRating === 0 
+                                            ? 'bg-white/10 hover:bg-white/15 text-slate-300' 
+                                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-emerald-500/30'
+                                    }`}
                                 >
-                                    {waiterRating === 0 && kasirRating === 0 ? 'Lewati' : 'Kirim'}
+                                    {waiterRating === 0 && kasirRating === 0 ? 'LEWATI' : 'KIRIM PENILAIAN'}
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-[#1C1C1E] border border-white/10 p-8 rounded-[2rem] w-full max-w-sm shadow-2xl flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
-                            <div className="w-16 h-16 bg-[#30D158]/20 rounded-full flex items-center justify-center mb-4">
-                                <CheckCircle2 className="w-8 h-8 text-[#30D158]" />
+                        <div className="bg-[#18191E]/95 border-2 border-emerald-500/40 p-10 sm:p-14 rounded-[2.5rem] sm:rounded-[3rem] w-full max-w-lg shadow-[0_25px_70px_-15px_rgba(0,0,0,0.9)] flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+                                <CheckCircle2 className="w-10 h-10 sm:w-14 sm:h-14 text-emerald-400" />
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2">Terima Kasih!</h3>
-                            <p className="text-xs text-[#EBEBF5]/60">Penilaian Anda telah tersimpan.</p>
+                            <h3 className="text-2xl sm:text-3xl font-black text-white mb-3">Terima Kasih!</h3>
+                            <p className="text-sm sm:text-base text-slate-300 font-medium">Penilaian Anda telah tersimpan dengan aman.</p>
                         </div>
                     )}
                 </div>
