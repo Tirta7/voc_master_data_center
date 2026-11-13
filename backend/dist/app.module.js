@@ -49,6 +49,7 @@ const _licenseguard = require("./license/license.guard");
 const _vouchermodule = require("./voucher/voucher.module");
 const _categorymodule = require("./category/category.module");
 const _pushnotificationmodule = require("./push-notification/push-notification.module");
+const _webhookmodule = require("./webhook/webhook.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -155,7 +156,8 @@ AppModule = _ts_decorate([
             _licensemodule.LicenseModule,
             _vouchermodule.VoucherModule,
             _categorymodule.CategoryModule,
-            _pushnotificationmodule.PushNotificationModule
+            _pushnotificationmodule.PushNotificationModule,
+            _webhookmodule.WebhookModule
         ],
         controllers: [
             _appcontroller.AppController

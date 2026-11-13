@@ -150,7 +150,25 @@ let InvoiceService = class InvoiceService {
             lines.push(separator);
         }
         // BILLING SEGREGATION: Check if billiard was already paid via member wallet
-        const billiardTotal = Number(transaction.billiardTotal || 0);
+        let effectiveBillingDetails = Array.isArray(transaction.billingDetails) ? [
+            ...transaction.billingDetails
+        ] : [];
+        if (transaction.sessionType === 'open' && effectiveBillingDetails.length > 1) {
+            const summaryEntry = effectiveBillingDetails.find((d)=>Number(d.duration) >= 60 && (d.title === transaction.fareName || d.title?.includes('PAKET') || d.title?.includes('Open Table') || d.title?.includes('REGULER')));
+            const slotEntries = effectiveBillingDetails.filter((d)=>d.title?.includes(':') || d.title?.includes('-'));
+            if (summaryEntry && slotEntries.length > 0) {
+                const slotDuration = slotEntries.reduce((s, x)=>s + Number(x.duration || 0), 0);
+                if (Number(summaryEntry.duration) >= slotDuration) {
+                    effectiveBillingDetails = [
+                        summaryEntry
+                    ];
+                } else {
+                    effectiveBillingDetails = slotEntries;
+                }
+            }
+        }
+        const segmentsSum = effectiveBillingDetails.reduce((sum, seg)=>sum + Number(seg.subtotal || seg.amount || 0), 0);
+        const billiardTotal = transaction.sessionType === 'open' && segmentsSum > 0 ? segmentsSum : Number(transaction.billiardTotal || 0);
         const memberBilliardPaid = (transaction.payments || []).filter((p)=>p.paymentMethod === 'MEMBER' && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
         const billiardIsPrepaidWallet = memberBilliardPaid >= billiardTotal && billiardTotal > 0;
         if (billiardTotal > 0) {
@@ -159,9 +177,9 @@ let InvoiceService = class InvoiceService {
             } else {
                 lines.push(`Total Table : Rp. ${billiardTotal.toLocaleString()}`);
                 // Breakdown segments (matching frontend UI)
-                if (Array.isArray(transaction.billingDetails) && transaction.billingDetails.length > 0) {
-                    const initial = transaction.billingDetails.filter((seg)=>!seg.isExtension);
-                    const extensions = transaction.billingDetails.filter((seg)=>seg.isExtension);
+                if (effectiveBillingDetails.length > 0) {
+                    const initial = effectiveBillingDetails.filter((seg)=>!seg.isExtension);
+                    const extensions = effectiveBillingDetails.filter((seg)=>seg.isExtension);
                     // 1. Initial Modes
                     initial.forEach((seg)=>{
                         const durLabel = typeof seg.duration === 'string' ? seg.duration : seg.duration > 0 ? `${seg.duration}m` : '';
@@ -193,7 +211,40 @@ let InvoiceService = class InvoiceService {
             `Sudah Dibayar : Rp. ${Number(transaction.paidAmount).toLocaleString()}`,
             `Sisa Tagihan  : Rp. ${Math.max(0, Number(transaction.grandTotal) - Number(transaction.paidAmount)).toLocaleString()}`,
             separator
-        ] : [], `Method : ${transaction.paymentDetails?.[transaction.paymentDetails.length - 1]?.method || 'Cash'}`, `Tendered Amount: Rp. ${Number(transaction.paymentDetails?.reduce((sum, p)=>sum + Number(p.tenderedAmount || p.amount), 0) || transaction.paidAmount).toLocaleString()}`, `Change Money   : Rp. ${Number(transaction.paymentDetails?.reduce((sum, p)=>sum + Number(p.changeAmount || 0), 0) || Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal))).toLocaleString()}`, separator, ...transaction.memberId ? [
+        ] : [], `Method : ${transaction.paymentDetails?.[transaction.paymentDetails.length - 1]?.method || 'Cash'}`, `Tendered Amount: Rp. ${Number(transaction.paymentDetails?.reduce((sum, p)=>sum + Number(p.tenderedAmount || p.amount), 0) || transaction.paidAmount).toLocaleString()}`, `Change Money   : Rp. ${Number(transaction.paymentDetails?.reduce((sum, p)=>sum + Number(p.changeAmount || 0), 0) || Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal))).toLocaleString()}`, separator, ...transaction.memberId && transaction.member ? (()=>{
+            const mem = transaction.member;
+            let memPaid = 0;
+            if (Array.isArray(transaction.payments)) {
+                const p = transaction.payments.filter((x)=>[
+                        'MEMBER',
+                        'MEMBERSHIP'
+                    ].includes((x.paymentMethod || '').toUpperCase()));
+                memPaid += p.reduce((s, x)=>s + Number(x.totalPaid || 0), 0);
+            }
+            if (memPaid === 0 && transaction.paymentDetails) {
+                const details = Array.isArray(transaction.paymentDetails) ? transaction.paymentDetails : [
+                    transaction.paymentDetails
+                ];
+                const memDetails = details.filter((p)=>[
+                        'MEMBER',
+                        'MEMBERSHIP'
+                    ].includes((p.method || p.paymentMethod || '').toUpperCase()));
+                memPaid += memDetails.reduce((s, p)=>s + Number(p.amount || p.totalPaid || 0), 0);
+            }
+            const curBal = Number(mem.balance || 0);
+            const initBal = curBal + memPaid;
+            return [
+                `Member : ${mem.name || 'Member'}${mem.memberCode ? ` (${mem.memberCode})` : ''}`,
+                `Saldo Awal  : Rp. ${initBal.toLocaleString('id-ID')}`,
+                ...memPaid > 0 ? [
+                    `Pemakaian   : -Rp. ${memPaid.toLocaleString('id-ID')}`
+                ] : [],
+                `Sisa Saldo  : Rp. ${curBal.toLocaleString('id-ID')}`,
+                `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
+                `Total Poin Anda : ${(mem.points || 0).toLocaleString('id-ID')}`,
+                separator
+            ];
+        })() : transaction.memberId ? [
             `Member : ${transaction.member?.name || 'Member'}`,
             `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
             `Total Poin Anda : ${transaction.member?.points || 0}`,

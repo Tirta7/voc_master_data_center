@@ -261,6 +261,15 @@ function BillingContent() {
                 }
                 setIsPaymentSuccess(true);
 
+                // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
+                socket.emit('cfd_payment_success', {
+                    amount: Number(data.amount || 0),
+                    source_name: sourceName,
+                    tableName: transaction?.table?.tableName || transaction?.cafeTable?.tableName || `Meja ${tableId}`,
+                    customerName: transaction?.customerName || transaction?.member?.name || 'Walk-in Guest',
+                    transactionId: transaction?.id,
+                });
+
                 // 4. Otomatis cetak struk kasir
                 setTimeout(() => {
                     handlePrint();
@@ -427,6 +436,14 @@ function BillingContent() {
                 router.push(tableType === 'cafe' ? '/cafe' : '/');
             } else {
                 // Jangan langsung navigate — biarkan kasir cetak struk dulu
+                // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
+                socket.emit('cfd_payment_success', {
+                    amount: Number(paymentAmount || transaction.grandTotal || 0),
+                    source_name: paymentMethod || 'CASH',
+                    tableName: transaction?.table?.tableName || transaction?.cafeTable?.tableName || `Meja ${tableId}`,
+                    customerName: transaction?.customerName || transaction?.member?.name || 'Walk-in Guest',
+                    transactionId: transaction.id,
+                });
                 setIsPaymentSuccess(true);
             }
         } catch (error) {

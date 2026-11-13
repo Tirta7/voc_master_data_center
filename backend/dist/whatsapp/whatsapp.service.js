@@ -193,17 +193,47 @@ let WhatsAppService = class WhatsAppService {
             return null;
         }
     }
-    async sendImage(target, caption, url) {
+    async sendImage(target, caption, imageSource) {
         if (this.connectionStatus !== 'CONNECTED' || !this.sock) {
             this.logger.warn(`WhatsApp not connected. Image to ${target} aborted.`);
             return null;
         }
         try {
             const formattedTarget = target.includes('@s.whatsapp.net') ? target : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+            let imagePayload;
+            if (Buffer.isBuffer(imageSource)) {
+                imagePayload = imageSource;
+            } else if (typeof imageSource === 'string') {
+                const localCandidate = _path.isAbsolute(imageSource) ? imageSource : _path.join(process.cwd(), imageSource);
+                if (_fs.existsSync(localCandidate)) {
+                    imagePayload = _fs.readFileSync(localCandidate);
+                } else if (imageSource.startsWith('http://') || imageSource.startsWith('https://')) {
+                    try {
+                        const urlObj = new URL(imageSource);
+                        const pathname = urlObj.pathname;
+                        const publicCandidate = _path.join(process.cwd(), 'public', pathname.startsWith('/') ? pathname.slice(1) : pathname);
+                        if (_fs.existsSync(publicCandidate)) {
+                            imagePayload = _fs.readFileSync(publicCandidate);
+                        } else {
+                            imagePayload = {
+                                url: imageSource
+                            };
+                        }
+                    } catch  {
+                        imagePayload = {
+                            url: imageSource
+                        };
+                    }
+                } else {
+                    imagePayload = {
+                        url: imageSource
+                    };
+                }
+            } else {
+                imagePayload = imageSource;
+            }
             await this.sock.sendMessage(formattedTarget, {
-                image: {
-                    url
-                },
+                image: imagePayload,
                 caption
             });
             return {

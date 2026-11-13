@@ -1503,7 +1503,23 @@ let BilliardService = class BilliardService {
                     }
                 });
                 if (activeSession && activeSession.id !== tableId) {
-                    throw new _common.ConflictException(`Member ini sedang digunakan di Meja ${activeSession.tableName}. Harap selesaikan sesi sebelumnya.`);
+                    throw new _common.ConflictException(`Member ini sedang digunakan di Meja Billiard ${activeSession.tableName}. Harap selesaikan sesi sebelumnya terlebih dahulu.`);
+                }
+                const activeCafeTx = await this.dataSource.getRepository(_transactionentity.Transaction).findOne({
+                    where: {
+                        memberId,
+                        status: (0, _typeorm1.In)([
+                            _transactionentity.TransactionStatus.UNPAID,
+                            _transactionentity.TransactionStatus.PARTIAL
+                        ]),
+                        type: _transactionentity.TransactionType.CAFE
+                    },
+                    relations: [
+                        'cafeTable'
+                    ]
+                });
+                if (activeCafeTx && activeCafeTx.cafeTable) {
+                    throw new _common.ConflictException(`Member ini sedang digunakan di Meja Cafe ${activeCafeTx.cafeTable.tableName}. Harap selesaikan sesi sebelumnya terlebih dahulu.`);
                 }
             }
             let selectedPackage = null;
@@ -2018,6 +2034,14 @@ let BilliardService = class BilliardService {
                     const minutes = Math.floor(durationSecs % 3600 / 60);
                     const seconds = durationSecs % 60;
                     const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    let humanDuration = '';
+                    if (hours > 0) {
+                        humanDuration = minutes > 0 ? `${hours} Jam ${minutes} Menit` : `${hours} Jam`;
+                    } else if (minutes > 0) {
+                        humanDuration = `${minutes} Menit`;
+                    } else {
+                        humanDuration = `${Math.max(1, seconds)} Detik`;
+                    }
                     const fareNameLabel = table.packageId ? (await this.packageRepository.findOne({
                         where: {
                             id: table.packageId
@@ -2028,21 +2052,23 @@ let BilliardService = class BilliardService {
                     // For PREPAID: We do NOT append a summary item because the breakdown was already
                     // created by startSession and extendSession. We only sync the final total and end time.
                     // For OPEN: We append the calculated details breakdown.
-                    const finalSyncDetails = table.sessionType === 'prepaid' ? undefined : {
-                        title: fareNameLabel || 'Open Table',
-                        duration: session.durationMinutes,
-                        subtotal: billiardCost,
-                        startTimeFormatted: (table.startTime || transaction.startTime)?.toLocaleTimeString('en-GB', {
-                            hour12: false,
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        }).replace(/:/g, '.'),
-                        endTimeFormatted: session.endTime.toLocaleTimeString('en-GB', {
-                            hour12: false,
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        }).replace(/:/g, '.')
-                    };
+                    const finalSyncDetails = table.sessionType === 'prepaid' ? undefined : Array.isArray(billingDetails) && billingDetails.length > 0 ? billingDetails : [
+                        {
+                            title: fareNameLabel || 'Open Table',
+                            duration: session.durationMinutes,
+                            subtotal: billiardCost,
+                            startTimeFormatted: (table.startTime || transaction.startTime)?.toLocaleTimeString('en-GB', {
+                                hour12: false,
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            }).replace(/:/g, '.'),
+                            endTimeFormatted: session.endTime.toLocaleTimeString('en-GB', {
+                                hour12: false,
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            }).replace(/:/g, '.')
+                        }
+                    ];
                     await this.transactionService.setBilliardTotal(transaction.id, billiardCost, finalSyncDetails, userName, session.endTime, true);
                     // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Open Table/Hourly) ---
                     if (table.memberId) {
@@ -2068,7 +2094,7 @@ let BilliardService = class BilliardService {
                             const finalSnap = await this.transactionService.getTransactionById(transaction.id);
                             this.memberService.sendSessionCompletionNotification(finalSnap.memberId, {
                                 tableName: table.tableName,
-                                duration: finalSnap.sessionDuration,
+                                duration: humanDuration || finalSnap.sessionDuration || (session?.durationMinutes ? `${session.durationMinutes} Menit` : '-'),
                                 billiardTotal: Number(finalSnap.billiardTotal || 0),
                                 cafeTotal: Number(finalSnap.cafeTotal || 0),
                                 grandTotal: Number(finalSnap.grandTotal || 0),

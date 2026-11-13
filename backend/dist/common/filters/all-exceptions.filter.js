@@ -58,9 +58,9 @@ let AllExceptionsFilter = class AllExceptionsFilter {
                 message = err?.message || 'Terjadi kesalahan internal pada server.';
             }
         }
-        // Filter out 401/403 logs to be less noisy (normal auth events)
-        if (status === _common.HttpStatus.UNAUTHORIZED || status === _common.HttpStatus.FORBIDDEN) {
-            this.logger.warn(`[${request.method}] ${request.url} - Status: ${status} - ${JSON.stringify(message)}`);
+        // Filter out 4xx client errors (400, 401, 403, 404, 409) as business warnings (less noisy, no stack trace)
+        if (status < _common.HttpStatus.INTERNAL_SERVER_ERROR) {
+            this.logger.warn(`[${request.method}] ${request.url} - Status: ${status} - ${typeof message === 'object' ? JSON.stringify(message) : message}`);
         } else {
             console.error(`!!! EXCEPTION CAUGHT !!! [${request.method}] ${request.url}`);
             console.error(`Status: ${status}, Message: ${JSON.stringify(message)}`);

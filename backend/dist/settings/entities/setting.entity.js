@@ -175,6 +175,13 @@ _ts_decorate([
         type: 'text',
         nullable: true
     }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "paymentWebhookSecret", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
     _ts_metadata("design:type", Object)
 ], Setting.prototype, "tftWallpaper", void 0);
 _ts_decorate([

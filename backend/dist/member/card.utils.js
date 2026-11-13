@@ -98,7 +98,7 @@ let CardUtils = class CardUtils {
             <text x="1750" y="2800" class="date-val">${data.expiryDate}</text>
         </svg>
         `;
-        const filename = `card_${data.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`;
+        const filename = `card_${data.memberCode.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
         const outputPath = _path.join(this.OUTPUT_DIR, filename);
         // 3. Composite everything using sharp (NO RESIZE - original dimensions)
         await (0, _sharp.default)(this.TEMPLATE_PATH).composite([

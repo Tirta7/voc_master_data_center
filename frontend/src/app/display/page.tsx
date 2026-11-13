@@ -696,17 +696,17 @@ function SmartDisplayContent() {
  console.log('[CFD] Received cfd_payment_success:', data);
  if (!data) return;
  setCfdPaymentSuccess({
- amount: data.amount,
+ amount: Number(data.amount || 0),
  source_name: data.source_name || data.provider || data.method || 'EDC / QRIS',
- tableName: data.tableName,
- customerName: data.customerName,
+ tableName: data.tableName || table?.tableName || '',
+ customerName: data.customerName || paymentState?.customerName || 'Walk-in Guest',
  });
  playPaymentSuccessAudio();
  setTimeout(() => {
  setCfdPaymentSuccess(null);
  setPaymentState(null);
  setFocusedTableInfo(null);
- }, 5000);
+ }, 6000);
  };
 
  socket.on('request_display_scan', handleRequestScan);
@@ -2041,73 +2041,21 @@ function SmartDisplayContent() {
  );
  };
 
- // --- MAIN RENDER LOGIC ---
- if (!focusedTableInfo || (!table && !standaloneTransaction)) {
- return (
- <div className="h-screen w-full bg-[#000000] flex flex-col items-center justify-center text-center relative overflow-hidden select-none">
- <style jsx global>{` 
- body { overflow: hidden; background: #020617; font-family: var(--font-plus-jakarta-sans), sans-serif; } 
- .glass-card { background: rgba(28, 28, 30, 0.7); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); }
- .terminal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
- .text-fluid-h1 { font-size: clamp(1.75rem, 8vw, 4rem); }
- .promo-gradient { background: radial-gradient(circle at center, rgba(79, 70, 229, 0.15) 0%, transparent 70%); }
- `}</style>
-
- <BackgroundAnimation />
-
- {/* Global Remote Scanner Overlay */}
- {scanRequestId && (
- <div className="fixed inset-0 z-[300]">
- <QRScanner
- title={
- scanRequestType === 'TOPUP_VALIDATION' ? 'INISIASI TOPUP' :
- scanRequestType === 'TOPUP_COMMITMENT' ? 'VERIFIKASI TRANSAKSI' :
- scanRequestType === 'REWARD_CLAIM' ? 'TUKAR POIN HADIAH' :
- 'CEK SALDO & POIN'
- }
- subtitle={
- scanRequestType === 'TOPUP_VALIDATION' ? 'Scan untuk mulai pengisian saldo' :
- scanRequestType === 'TOPUP_COMMITMENT' ? 'Scan lagi untuk sinkronisasi' :
- 'Scan QR Member Anda'
- }
- onScanSuccess={(code) => {
- socket.emit('display_scan_result', {
- terminalId,
- uuid: scanRequestId,
- code,
- type: scanRequestType
- });
- setScanRequestId(null);
- setScanRequestType(null);
- }}
- onClose={() => {
- socket.emit('display_scan_result', { terminalId, uuid: scanRequestId, code: null });
- setScanRequestId(null);
- setScanRequestType(null);
- }}
- />
- </div>
- )}
-
- <AnimatePresence>
- {scannedMember && renderMemberInfoView()}
- </AnimatePresence>
-
- {/* Webhook Universal Payment Success Fullscreen Overlay on CFD */}
+  const renderPaymentSuccessOverlay = () => (
  <AnimatePresence>
  {cfdPaymentSuccess && (
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  exit={{ opacity: 0 }}
- className="fixed inset-0 z-[9999] flex flex-col items-center justify-center p-6 bg-black/90 backdrop-blur-2xl"
+ className="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 bg-black/95 backdrop-blur-2xl select-none"
  >
  <motion.div
  initial={{ scale: 0.8, y: 50, opacity: 0 }}
  animate={{ scale: 1, y: 0, opacity: 1 }}
  exit={{ scale: 0.8, y: 20, opacity: 0 }}
  transition={{ type: "spring", damping: 25, stiffness: 300 }}
- className="w-full max-w-xl bg-gradient-to-b from-slate-900 via-slate-900 to-black border-2 border-emerald-500/50 rounded-[3rem] p-10 md:p-14 text-center shadow-[0_0_100px_rgba(16,185,129,0.35)] relative overflow-hidden"
+ className="w-full max-w-xl bg-gradient-to-b from-slate-900 via-[#0B1120] to-black border-2 border-emerald-500/50 rounded-[3rem] p-10 md:p-14 text-center shadow-[0_0_100px_rgba(16,185,129,0.35)] relative overflow-hidden"
  >
  <div className="absolute -top-32 -left-32 w-72 h-72 bg-emerald-500/20 rounded-full blur-[90px] pointer-events-none" />
  <div className="absolute -bottom-32 -right-32 w-72 h-72 bg-teal-500/20 rounded-full blur-[90px] pointer-events-none" />
@@ -2182,6 +2130,66 @@ function SmartDisplayContent() {
  </motion.div>
  )}
  </AnimatePresence>
+ );
+
+ // --- MAIN RENDER LOGIC ---
+ const tx = table?.activeTransaction || standaloneTransaction;
+
+ // Jika tidak ada meja yang difokuskan ATAU meja tidak memiliki transaksi aktif:
+ // Tampilkan Mode Standby / Promosi (JANGAN PERNAH RETURN NULL AGAR LAYAR TIDAK HITAM!)
+ if (!focusedTableInfo || !tx) {
+ return (
+ <div className="h-screen w-full bg-[#000000] flex flex-col items-center justify-center text-center relative overflow-hidden select-none">
+ <style jsx global>{` 
+ body { overflow: hidden; background: #020617; font-family: var(--font-plus-jakarta-sans), sans-serif; } 
+ .glass-card { background: rgba(28, 28, 30, 0.7); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.1); }
+ .terminal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; }
+ .text-fluid-h1 { font-size: clamp(1.75rem, 8vw, 4rem); }
+ .promo-gradient { background: radial-gradient(circle at center, rgba(79, 70, 229, 0.15) 0%, transparent 70%); }
+ `}</style>
+
+ <BackgroundAnimation />
+
+ {/* Global Remote Scanner Overlay */}
+ {scanRequestId && (
+ <div className="fixed inset-0 z-[300]">
+ <QRScanner
+ title={
+ scanRequestType === 'TOPUP_VALIDATION' ? 'INISIASI TOPUP' :
+ scanRequestType === 'TOPUP_COMMITMENT' ? 'VERIFIKASI TRANSAKSI' :
+ scanRequestType === 'REWARD_CLAIM' ? 'TUKAR POIN HADIAH' :
+ 'CEK SALDO & POIN'
+ }
+ subtitle={
+ scanRequestType === 'TOPUP_VALIDATION' ? 'Scan untuk mulai pengisian saldo' :
+ scanRequestType === 'TOPUP_COMMITMENT' ? 'Scan lagi untuk sinkronisasi' :
+ 'Scan QR Member Anda'
+ }
+ onScanSuccess={(code) => {
+ socket.emit('display_scan_result', {
+ terminalId,
+ uuid: scanRequestId,
+ code,
+ type: scanRequestType
+ });
+ setScanRequestId(null);
+ setScanRequestType(null);
+ }}
+ onClose={() => {
+ socket.emit('display_scan_result', { terminalId, uuid: scanRequestId, code: null });
+ setScanRequestId(null);
+ setScanRequestType(null);
+ }}
+ />
+ </div>
+ )}
+
+ <AnimatePresence>
+ {scannedMember && renderMemberInfoView()}
+ </AnimatePresence>
+
+ {/* Webhook Universal Payment Success Fullscreen Overlay on CFD */}
+ {renderPaymentSuccessOverlay()}
 
  {/* Topup Success Global Notification Overlay */}
  <AnimatePresence>
@@ -2733,8 +2741,8 @@ function SmartDisplayContent() {
  );
  }
 
- const tx = table?.activeTransaction || standaloneTransaction;
- if (!tx) return null; // Safety check
+ // tx is guaranteed to exist here because if (!focusedTableInfo || !tx) handled above
+ if (!tx) return null;
 
  return (
  <div className="h-[100dvh] w-screen bg-[#000000] flex flex-col select-none relative overflow-hidden text-white font-sans">
@@ -3256,6 +3264,9 @@ function SmartDisplayContent() {
                 </div>
             )}
         </AnimatePresence>
+
+ {/* Payment Success Overlay in Active Table Mode */}
+ {renderPaymentSuccessOverlay()}
  </div>
  );
 }

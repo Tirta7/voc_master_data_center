@@ -24,6 +24,38 @@ const _qrutils = require("./qr.utils");
 const _cardutils = require("./card.utils");
 const _settingsservice = require("../settings/settings.service");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
+const _path = /*#__PURE__*/ _interop_require_wildcard(require("path"));
+const _fs = /*#__PURE__*/ _interop_require_wildcard(require("fs"));
+function _getRequireWildcardCache(nodeInterop) {
+    if (typeof WeakMap !== "function") return null;
+    var cacheBabelInterop = new WeakMap();
+    var cacheNodeInterop = new WeakMap();
+    return (_getRequireWildcardCache = function(nodeInterop) {
+        return nodeInterop ? cacheNodeInterop : cacheBabelInterop;
+    })(nodeInterop);
+}
+function _interop_require_wildcard(obj, nodeInterop) {
+    if (!nodeInterop && obj && obj.__esModule) return obj;
+    if (obj === null || typeof obj !== "object" && typeof obj !== "function") return {
+        default: obj
+    };
+    var cache = _getRequireWildcardCache(nodeInterop);
+    if (cache && cache.has(obj)) return cache.get(obj);
+    var newObj = {
+        __proto__: null
+    };
+    var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
+    for(var key in obj){
+        if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
+            var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+            if (desc && (desc.get || desc.set)) Object.defineProperty(newObj, key, desc);
+            else newObj[key] = obj[key];
+        }
+    }
+    newObj.default = obj;
+    if (cache) cache.set(obj, newObj);
+    return newObj;
+}
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") {
@@ -120,7 +152,7 @@ let MemberService = class MemberService {
         });
         return members.map((m)=>({
                 ...m,
-                cardUrl: `${this.getApiBaseUrl()}/member-cards/card_${m.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`
+                cardUrl: `${this.getApiBaseUrl()}/member-cards/card_${m.memberCode.replace(/[^a-zA-Z0-9]/g, '_')}.png`
             }));
     }
     async getMemberById(id) {
@@ -133,7 +165,7 @@ let MemberService = class MemberService {
             ]
         });
         if (!member) throw new _common.NotFoundException('Member not found');
-        const cardUrl = `${this.getApiBaseUrl()}/member-cards/card_${member.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`;
+        const cardUrl = `${this.getApiBaseUrl()}/member-cards/card_${member.memberCode.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
         return {
             ...member,
             cardUrl
@@ -410,9 +442,19 @@ let MemberService = class MemberService {
                 t: Date.now()
             });
             const cardFilename = await this.getOrGenerateCard(member, qrToken);
-            const finalImageUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
-            // 3. Send the Image
-            await this.whatsappService.sendImage(member.phone, `Kartu Digital Member Anda - ${member.name}`, finalImageUrl);
+            const cardLocalPath = _path.join(process.cwd(), 'public/member-cards', cardFilename);
+            // 3. Send the Image (Prioritaskan Buffer file lokal agar 100% terkirim tanpa tergantung APP_URL / HTTP)
+            let imagePayload = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
+            if (_fs.existsSync(cardLocalPath)) {
+                try {
+                    imagePayload = _fs.readFileSync(cardLocalPath);
+                } catch (readErr) {
+                    console.warn(`Gagal membaca file kartu lokal, fallback ke URL: ${readErr.message}`);
+                }
+            }
+            await this.whatsappService.sendImage(member.phone, `Kartu Digital Member Anda - ${member.name} (${member.memberCode})`, imagePayload);
+            // Berikan jeda 800ms agar pesan gambar dan pesan teks tidak tabrakan di WhatsApp
+            await new Promise((resolve)=>setTimeout(resolve, 800));
             // 4. Send Text Notification with Details
             const settings = await this.settingsService.getSettings();
             const tierName = member.tier?.name || 'REGULER';
@@ -702,7 +744,11 @@ Terima kasih telah bermain di VOC Billiard!`;
             const formatCurrency = (amount)=>{
                 return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
             };
-            const finalMsg = template.replace(/{{name}}/g, member.name).replace(/{{table}}/g, data.tableName).replace(/{{duration}}/g, data.duration).replace(/{{billiard_total}}/g, formatCurrency(data.billiardTotal)).replace(/{{cafe_total}}/g, formatCurrency(data.cafeTotal)).replace(/{{grand_total}}/g, formatCurrency(data.grandTotal)).replace(/{{balance}}/g, formatCurrency(Number(member.balance))).replace(/{{points_earned}}/g, (data.awardedPoints || 0).toLocaleString('id-ID')).replace(/{{order_details}}/g, orderDetailsStr);
+            let safeDuration = String(data.duration ?? '').trim();
+            if (!safeDuration || safeDuration === 'null' || safeDuration === 'undefined') {
+                safeDuration = '-';
+            }
+            const finalMsg = template.replace(/{{name}}/g, member.name).replace(/{{table}}/g, data.tableName).replace(/{{duration}}/g, safeDuration).replace(/{{billiard_total}}/g, formatCurrency(data.billiardTotal)).replace(/{{cafe_total}}/g, formatCurrency(data.cafeTotal)).replace(/{{grand_total}}/g, formatCurrency(data.grandTotal)).replace(/{{balance}}/g, formatCurrency(Number(member.balance))).replace(/{{points_earned}}/g, (data.awardedPoints || 0).toLocaleString('id-ID')).replace(/{{order_details}}/g, orderDetailsStr);
             await this.whatsappService.sendMessage(member.phone, finalMsg);
         } catch (err) {
             console.error('Failed to send session completion notification:', err);

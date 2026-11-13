@@ -14,6 +14,7 @@ const _typeorm1 = require("typeorm");
 const _cafetableentity = require("./entities/cafe-table.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
+const _tableentity = require("../billiard/entities/table.entity");
 const _billiardservice = require("../billiard/billiard.service");
 const _eventemitter = require("@nestjs/event-emitter");
 const _financeservice = require("../finance/finance.service");
@@ -223,16 +224,34 @@ let CafeTableService = class CafeTableService {
             if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
             if (table.status === _cafetableentity.CafeTableStatus.OCCUPIED) throw new _common.BadRequestException('Meja sudah terpakai');
             if (memberId) {
-                const activeSession = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                // 1. Cek sesi meja billiard yang sedang berjalan
+                const activeBilliard = await queryRunner.manager.findOne(_tableentity.Table, {
+                    where: {
+                        memberId,
+                        status: (0, _typeorm1.Not)(_tableentity.TableStatus.AVAILABLE)
+                    }
+                });
+                if (activeBilliard) {
+                    throw new _common.ConflictException(`Member ini sedang aktif digunakan di Meja Billiard ${activeBilliard.tableName}. Harap selesaikan sesi sebelumnya terlebih dahulu.`);
+                }
+                // 2. Cek transaksi aktif meja cafe lain
+                const activeCafeSession = await queryRunner.manager.findOne(_transactionentity.Transaction, {
                     where: {
                         memberId,
                         status: (0, _typeorm1.In)([
                             _transactionentity.TransactionStatus.UNPAID,
                             _transactionentity.TransactionStatus.PARTIAL
                         ])
-                    }
+                    },
+                    relations: [
+                        'cafeTable',
+                        'table'
+                    ]
                 });
-                if (activeSession) throw new _common.ConflictException('Member ini sudah memiliki sesi aktif.');
+                if (activeCafeSession) {
+                    const tableLabel = activeCafeSession.cafeTable?.tableName ? `Meja Cafe ${activeCafeSession.cafeTable.tableName}` : activeCafeSession.table?.tableName ? `Meja Billiard ${activeCafeSession.table.tableName}` : 'meja lain';
+                    throw new _common.ConflictException(`Member ini sedang digunakan di ${tableLabel}. Harap selesaikan sesi sebelumnya terlebih dahulu.`);
+                }
             }
             const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
             const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;

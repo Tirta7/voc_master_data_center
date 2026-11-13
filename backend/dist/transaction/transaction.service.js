@@ -370,8 +370,28 @@ let TransactionService = class TransactionService {
         // This prevents stale/corrupt billiardTotal values from sticking when multi-day sessions are active.
         let billiardTotal = Number(transaction.billiardTotal || 0);
         if (Array.isArray(transaction.billingDetails) && transaction.billingDetails.length > 0) {
-            const segmentsSum = transaction.billingDetails.reduce((sum, seg)=>sum + Number(seg.subtotal || seg.amount || 0), 0);
-            if (segmentsSum > billiardTotal) {
+            // 🛡️ Sanitize OPEN table: if billingDetails has both a package summary entry and slot breakdowns,
+            // deduplicate to prevent double-charging legacy transactions.
+            let effectiveDetails = transaction.billingDetails;
+            if (transaction.sessionType === 'open' && effectiveDetails.length > 1) {
+                const summaryEntry = effectiveDetails.find((d)=>Number(d.duration) >= 60 && (d.title === transaction.fareName || d.title?.includes('PAKET') || d.title?.includes('Open Table')));
+                const slotEntries = effectiveDetails.filter((d)=>d.title?.includes(':') || d.title?.includes('-'));
+                if (summaryEntry && slotEntries.length > 0) {
+                    const slotDuration = slotEntries.reduce((s, x)=>s + Number(x.duration || 0), 0);
+                    if (Number(summaryEntry.duration) >= slotDuration) {
+                        effectiveDetails = [
+                            summaryEntry
+                        ];
+                    } else {
+                        effectiveDetails = slotEntries;
+                    }
+                    transaction.billingDetails = effectiveDetails;
+                }
+            }
+            const segmentsSum = effectiveDetails.reduce((sum, seg)=>sum + Number(seg.subtotal || seg.amount || 0), 0);
+            if (transaction.sessionType === 'open') {
+                billiardTotal = segmentsSum;
+            } else if (segmentsSum > billiardTotal) {
                 billiardTotal = segmentsSum;
             }
         }
@@ -1696,12 +1716,27 @@ let TransactionService = class TransactionService {
         if (endTime) {
             transaction.endTime = endTime;
         }
+        if (transaction.startTime && transaction.endTime) {
+            const diffMs = new Date(transaction.endTime).getTime() - new Date(transaction.startTime).getTime();
+            const totalMins = Math.round(diffMs / 60000);
+            if (!isNaN(totalMins) && totalMins >= 0) {
+                const hours = Math.floor(totalMins / 60);
+                const minutes = totalMins % 60;
+                transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+            }
+        }
         if (isManualOverride && userName && Number(amount) !== oldAmount) {
             await this.reportService.logAction('BILLIARD_PRICE_OVERRIDE', userName, `Ubah harga billiard manual dari Rp ${oldAmount.toLocaleString()} ke Rp ${Number(amount).toLocaleString()}`, transaction.tableId ?? undefined, transaction.invoiceNumber);
         }
         if (details) {
             if (Array.isArray(details)) {
                 transaction.billingDetails = details;
+            } else if (transaction.sessionType === 'open') {
+                // OPEN TABLE is a single continuous session from start to finish.
+                // It must cleanly replace billingDetails instead of appending partial segments.
+                transaction.billingDetails = [
+                    details
+                ];
             } else {
                 // If this is a final summary object from stopSession, it often duplicates the breakdown.
                 // We intelligently replace or append. For now, let's ensure we don't duplicate.

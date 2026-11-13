@@ -501,6 +501,11 @@ export class EventsGateway
     this.server.emit('display_topup_success', data);
   }
 
+  @SubscribeMessage('cfd_payment_success')
+  handleCfdPaymentSuccess(@MessageBody() data: any) {
+    this.server.emit('cfd_payment_success', data);
+  }
+
   @SubscribeMessage('redeem_request')
   handleRedeemRequest(@MessageBody() data: any) {
     // Broadcast only to relevant staff roles

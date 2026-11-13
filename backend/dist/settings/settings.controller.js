@@ -87,17 +87,21 @@ let SettingsController = class SettingsController {
     }
     async getDynamicQris(amount) {
         const settings = await this.settingsService.getSettings();
-        if (!settings.clientQrisString) {
-            throw new Error('Client QRIS string not configured');
+        const staticQris = settings.clientQrisString?.trim();
+        if (!staticQris) {
+            throw new _common.BadRequestException('QRIS Merchant belum dikonfigurasi di Pengaturan Kasir.');
         }
-        const amt = parseInt(amount, 10);
+        const amt = Math.round(Number(amount));
         if (isNaN(amt) || amt <= 0) {
-            throw new Error('Invalid amount');
+            throw new _common.BadRequestException('Nominal pembayaran QRIS tidak valid.');
         }
-        const dynamicQris = _qrisutil.QrisUtil.generateDynamicQris(settings.clientQrisString, amt);
+        const dynamicQris = _qrisutil.QrisUtil.generateDynamicQris(staticQris, amt);
+        const merchantName = settings.qrisMerchantName?.trim() || _qrisutil.QrisUtil.getMerchantName(staticQris) || 'MERCHANT';
         return {
             qrisString: dynamicQris,
-            amount: amt
+            amount: amt,
+            merchantName: merchantName,
+            templatePath: settings.qrisTemplatePath || null
         };
     }
     async getNetworkInfo() {

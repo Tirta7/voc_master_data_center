@@ -73,6 +73,9 @@ let EventsGateway = class EventsGateway {
     handleLicenseUpdated(payload) {
         this.server.emit('license_updated', payload);
     }
+    handleLicenseRenewed(payload) {
+        this.server.emit('license_renewed', payload);
+    }
     async handleConnection(client) {
         const userId = client.handshake.query.userId;
         if (userId) {
@@ -403,6 +406,9 @@ let EventsGateway = class EventsGateway {
     handleDisplayTopupSuccess(data) {
         this.server.emit('display_topup_success', data);
     }
+    handleCfdPaymentSuccess(data) {
+        this.server.emit('cfd_payment_success', data);
+    }
     handleRedeemRequest(data) {
         // Broadcast only to relevant staff roles
         this.server.to([
@@ -642,6 +648,14 @@ _ts_decorate([
     _ts_metadata("design:returntype", void 0)
 ], EventsGateway.prototype, "handleLicenseUpdated", null);
 _ts_decorate([
+    (0, _eventemitter.OnEvent)('license.renewed'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleLicenseRenewed", null);
+_ts_decorate([
     (0, _websockets.SubscribeMessage)('presence_ping'),
     _ts_param(0, (0, _websockets.ConnectedSocket)()),
     _ts_param(1, (0, _websockets.MessageBody)()),
@@ -768,6 +782,15 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], EventsGateway.prototype, "handleDisplayTopupSuccess", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('cfd_payment_success'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleCfdPaymentSuccess", null);
 _ts_decorate([
     (0, _websockets.SubscribeMessage)('redeem_request'),
     _ts_param(0, (0, _websockets.MessageBody)()),
