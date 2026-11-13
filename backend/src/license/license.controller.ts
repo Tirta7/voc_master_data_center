@@ -10,9 +10,10 @@ export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
 
   @Get('status')
-  async getStatus(@Query('force') force?: string) {
+  async getStatus(@Query('force') force?: string, @Res({ passthrough: true }) res?: Response) {
+    res?.setHeader('Cache-Control', 'no-store');
     if (force === 'true') {
-      await this.licenseService.checkLicense(true);
+      await this.licenseService.checkLicense(true, true);
     }
     return this.licenseService.getState();
   }
@@ -55,17 +56,23 @@ export class LicenseController {
       filter((v) => v !== null),
       map((state) => ({ type: 'license', data: JSON.stringify(state) }))
     );
-    return merge(initial$, licenseInitial$, data$, license$, keepAlive$);
+    const renew$ = this.licenseService.licenseRenewed$.pipe(
+      map((state) => ({ type: 'renew', data: JSON.stringify(state) }))
+    );
+    return merge(initial$, licenseInitial$, data$, license$, renew$, keepAlive$);
   }
 
   /**
-   * Tagihan QRIS terakhir (snapshot). GET /api/license/billing
+   * Tagihan QRIS terbaru langsung dari VOCML (tanpa cache saat fresh=true/default).
+   * GET /api/license/billing?fresh=true
    */
   @Get('billing')
-  async getBilling() {
-    let b = this.licenseService.getBilling();
-    if (!b || !b.packages || b.packages.length === 0) {
-      b = await this.licenseService.fetchBillingFromVocml();
+  async getBilling(@Query('fresh') fresh?: string, @Res({ passthrough: true }) res?: Response) {
+    res?.setHeader('Cache-Control', 'no-store');
+    const forceFresh = fresh !== 'false';
+    let b = await this.licenseService.fetchBillingFromVocml(forceFresh);
+    if (!b) {
+      b = this.licenseService.getBilling();
     }
     const s = this.licenseService.getState();
     return { status: s.status, billing: b };

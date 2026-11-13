@@ -73,17 +73,50 @@ export function LicenseSettingsPanel() {
 
   useEffect(() => {
     fetchStatus();
-    // Real-time: update instan via WebSocket & SSE saat kuota trial terpotong atau lisensi berubah
-    const onLicenseUpdate = () => fetchStatus();
+    // Real-time: update instan via WebSocket & SSE saat kuota trial terpotong, lisensi berubah, atau renew
+    const onLicenseUpdate = (payload?: any) => {
+      if (payload && payload.status && payload.lastChecked) {
+        setState(payload);
+      } else {
+        fetchStatus();
+      }
+    };
+    const onLicenseRenewed = (payload?: any) => {
+      if (payload && payload.status && payload.lastChecked) {
+        setState(payload);
+      }
+      fetchStatus();
+      setShowPackageModal(false);
+    };
     socket.on('license_updated', onLicenseUpdate);
+    socket.on('license_renewed', onLicenseRenewed);
 
     const es = new EventSource(`${getSocketUrl()}/api/license/status-stream`);
     es.onmessage = (e) => { if (e.data) fetchStatus(); };
+
+    const streamEs = new EventSource(`${getSocketUrl()}/api/license/stream`);
+    streamEs.addEventListener('license', (e) => {
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data);
+        if (parsed && parsed.status) setState(parsed);
+      } catch {}
+    });
+    streamEs.addEventListener('renew', (e) => {
+      try {
+        const parsed = JSON.parse((e as MessageEvent).data);
+        onLicenseRenewed(parsed);
+      } catch {
+        onLicenseRenewed();
+      }
+    });
+
     const fallback = setInterval(() => fetchStatus(), 60000);
     const clock = setInterval(() => setNow(Date.now()), 15000); // update label "x detik lalu"
     return () => {
       socket.off('license_updated', onLicenseUpdate);
+      socket.off('license_renewed', onLicenseRenewed);
       es.close();
+      streamEs.close();
       clearInterval(fallback);
       clearInterval(clock);
     };

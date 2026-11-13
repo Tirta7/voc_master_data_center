@@ -93,6 +93,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   } | null>(null);
   /** Snapshot status lisensi lengkap (incl. billing) untuk SSE /api/license/stream. */
   readonly license$ = new BehaviorSubject<LicenseState | null>(null);
+  /** Event khusus saat lisensi berhasil diperpanjang (event: renew dari VOCML atau terdeteksi saat check). */
+  readonly licenseRenewed$ = new Subject<LicenseState>();
   
   private lastEmittedStatus: string = '';
 
@@ -149,6 +151,8 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
   }
 
   private vocmlStreamReq: any = null;
+  private vocmlStreamReconnectTimer: NodeJS.Timeout | null = null;
+  private pendingStreamRecheck = false;
 
   async onModuleInit() {
     this.logger.log(`LicenseService init. Machine ID: ${this.machineId}`);
@@ -159,11 +163,27 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     }, 3000);
   }
 
+  private scheduleVocmlStreamReconnect(delayMs = 5000) {
+    if (this.vocmlStreamReconnectTimer) {
+      clearTimeout(this.vocmlStreamReconnectTimer);
+    }
+    this.vocmlStreamReconnectTimer = setTimeout(() => {
+      this.vocmlStreamReconnectTimer = null;
+      this.connectVocmlStream();
+    }, delayMs);
+  }
+
   /**
-   * Koneksi SSE langsung ke VOCML untuk menerima event lock/unlock/billing seketika (<100ms)
+   * Koneksi SSE langsung ke VOCML (/api/v1/stream) untuk menerima event renew, lock, dan unlock secara real-time.
+   * Auto-reconnect setiap 5 detik bila koneksi terputus.
    */
   private connectVocmlStream() {
     if (!this.machineId || !this.vocmlServerUrl) return;
+
+    if (this.vocmlStreamReconnectTimer) {
+      clearTimeout(this.vocmlStreamReconnectTimer);
+      this.vocmlStreamReconnectTimer = null;
+    }
 
     try {
       if (this.vocmlStreamReq) {
@@ -171,48 +191,88 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         this.vocmlStreamReq = null;
       }
 
-      const streamUrl = new URL(`${this.vocmlServerUrl}/api/v1/stream?machine_id=${this.machineId}&product=billiard`);
-      const httpLib = streamUrl.protocol === "https:" ? require("https") : require("http");
+      const qs = new URLSearchParams({ machine_id: this.machineId, product: 'billiard' });
+      const streamUrl = new URL(`${this.vocmlServerUrl}/api/v1/stream?${qs}`);
+      const httpLib = streamUrl.protocol === 'https:' ? require('https') : require('http');
+      const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
 
-      const req = httpLib.get(streamUrl.toString(), (res: any) => {
+      const reqOptions: any = {
+        headers: {
+          Accept: 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}),
+        },
+      };
+
+      const req = httpLib.get(streamUrl.toString(), reqOptions, (res: any) => {
         if (res.statusCode !== 200) {
+          this.logger.warn(`[VOCML Stream] HTTP ${res.statusCode}, reconnect dalam 5 detik...`);
           req.destroy();
-          setTimeout(() => this.connectVocmlStream(), 10000);
+          this.scheduleVocmlStreamReconnect(5000);
           return;
         }
 
-        let buffer = "";
-        res.on("data", (chunk: Buffer) => {
-          buffer += chunk.toString();
-          const parts = buffer.split("\n\n");
-          buffer = parts.pop() || "";
+        this.logger.log(`[VOCML Stream] Terhubung ke ${streamUrl.pathname} (real-time SSE)`);
+        let buffer = '';
+        res.on('data', (chunk: Buffer) => {
+          buffer += chunk.toString().replace(/\r\n/g, '\n');
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
 
           for (const block of parts) {
+            const eventLine = block
+              .split('\n')
+              .find((line) => line.startsWith('event:'));
+            const eventName = eventLine ? eventLine.slice(6).trim().toLowerCase() : '';
+
             if (
-              block.includes("event: lock") ||
-              block.includes("event: unlock") ||
-              block.includes("event: update") ||
-              block.includes("event: renew") ||
-              block.includes("event: billing")
+              eventName === 'renew' ||
+              eventName === 'lock' ||
+              eventName === 'unlock' ||
+              eventName === 'update' ||
+              eventName === 'billing' ||
+              block.includes('event: renew') ||
+              block.includes('event: lock') ||
+              block.includes('event: unlock') ||
+              block.includes('event: update') ||
+              block.includes('event: billing')
             ) {
-              this.logger.log(`[VOCML Stream] Event diterima dari server -> update lisensi seketika!`);
-              this.checkLicense();
+              const isRenew = eventName === 'renew' || block.includes('event: renew');
+              this.logger.log(`[VOCML Stream] Event "${eventName || 'update'}" diterima -> panggil /api/v1/check seketika!`);
+              if (isRenew) {
+                this.billingCache = null;
+                this.renewalCache = null;
+              }
+              void (async () => {
+                await this.checkLicense(true, true);
+                if (isRenew) {
+                  this.licenseRenewed$.next(this.state);
+                  this.eventEmitter.emit('license.renewed', this.state);
+                }
+              })();
             }
           }
         });
 
-        res.on("end", () => {
-          setTimeout(() => this.connectVocmlStream(), 5000);
+        res.on('end', () => {
+          this.logger.warn('[VOCML Stream] Koneksi berakhir, reconnect dalam 5 detik...');
+          this.scheduleVocmlStreamReconnect(5000);
+        });
+
+        res.on('close', () => {
+          this.scheduleVocmlStreamReconnect(5000);
         });
       });
 
-      req.on("error", () => {
-        setTimeout(() => this.connectVocmlStream(), 8000);
+      req.on('error', (err: any) => {
+        this.logger.warn(`[VOCML Stream] Error: ${err?.message || err}, reconnect dalam 5 detik...`);
+        this.scheduleVocmlStreamReconnect(5000);
       });
 
       this.vocmlStreamReq = req;
-    } catch {
-      setTimeout(() => this.connectVocmlStream(), 10000);
+    } catch (err: any) {
+      this.logger.warn(`[VOCML Stream] Exception: ${err?.message || err}, reconnect dalam 5 detik...`);
+      this.scheduleVocmlStreamReconnect(5000);
     }
   }
 
@@ -307,16 +367,23 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
   private lastForceCheckAt = 0;
 
-  async checkLicense(force = false) {
+  async checkLicense(force = false, bypassCooldown = false) {
     const now = Date.now();
-    // Cegah spam force check minimal 15 detik agar server VOCML tidak terkena HTTP 429
-    if (force && (now - this.lastForceCheckAt < 15_000)) {
+    // Cegah burst double-click/spam < 2 detik, tapi tetap dukung polling cepat 3 detik & SSE real-time
+    if (force && !bypassCooldown && now - this.lastForceCheckAt < 2_000) {
       return;
     }
-    if (this.isCheckingLicense) return;
+    if (this.isCheckingLicense) {
+      if (bypassCooldown) this.pendingStreamRecheck = true;
+      return;
+    }
     this.isCheckingLicense = true;
     if (force) this.lastForceCheckAt = now;
     try {
+      const prevStatus = this.state.status;
+      const prevExpiredAt = this.state.expiredAt ? new Date(this.state.expiredAt).getTime() : 0;
+      const prevLicenseKey = this.state.licenseKey || '';
+
       const storeName = this.configService.get<string>('LOCATION_NAME') || 'Billiard VOC';
       const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');
       
@@ -389,15 +456,24 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
       this.logger.log(`VOCML License check: ${this.state.status} | Days left: ${this.state.daysLeft}${billing ? ` | Tagihan: ${billing.amount_text}` : ''}`);
 
+      const newExpiredAt = this.state.expiredAt ? new Date(this.state.expiredAt).getTime() : 0;
+      const newLicenseKey = this.state.licenseKey || '';
+      const wasRenewed =
+        (prevExpiredAt > 0 && newExpiredAt > prevExpiredAt) ||
+        (!!prevLicenseKey && !!newLicenseKey && newLicenseKey !== prevLicenseKey) ||
+        ((prevStatus === 'BLOCKED' || prevStatus === 'EXPIRED') &&
+          (mappedStatus === 'ACTIVE' || mappedStatus === 'GRACE'));
+
       const emitKey = JSON.stringify([
         this.state.status,
         this.state.expiredAt || '',
+        this.state.daysLeft,
         this.state.licenseKey || '',
         this.state.message || '',
         billing ? [billing.amount, billing.qris, billing.note, billing.contact, billing.reason, billing.packages] : null,
         this.state.trial ? [this.state.trial.remaining, this.state.trial.used] : null,
       ]);
-      if (emitKey !== this.lastEmittedStatus) {
+      if (emitKey !== this.lastEmittedStatus || wasRenewed) {
         this.lastEmittedStatus = emitKey;
         this.statusChange$.next({
           status: this.state.status,
@@ -409,11 +485,21 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         });
         this.license$.next(this.state);
         this.eventEmitter.emit('license.updated', this.state);
+        if (wasRenewed) {
+          this.billingCache = null;
+          this.renewalCache = null;
+          this.licenseRenewed$.next(this.state);
+          this.eventEmitter.emit('license.renewed', this.state);
+        }
       }
     } catch (err) {
       this.logger.error('Error checking VOCML license', err);
     } finally {
       this.isCheckingLicense = false;
+      if (this.pendingStreamRecheck) {
+        this.pendingStreamRecheck = false;
+        setImmediate(() => void this.checkLicense(true, true));
+      }
     }
   }
 
@@ -484,24 +570,31 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
   private billingCache: { at: number; data: LicenseBilling } | null = null;
 
-  async fetchBillingFromVocml(): Promise<LicenseBilling | null> {
-    if (this.billingCache && Date.now() - this.billingCache.at < 300_000) {
+  async fetchBillingFromVocml(forceFresh = false): Promise<LicenseBilling | null> {
+    if (!forceFresh && this.billingCache && Date.now() - this.billingCache.at < 300_000) {
       return this.billingCache.data;
     }
     try {
       const apiKey = this.configService.get<string>('VOCML_API_KEY') || '';
-      const qs = new URLSearchParams({ machine_id: this.machineId, product: 'billiard' });
+      const qs = new URLSearchParams({
+        machine_id: this.machineId,
+        product: 'billiard',
+        ...(forceFresh ? { _t: String(Date.now()) } : {}),
+      });
       const res = await fetch(`${this.vocmlServerUrl}/api/v1/billing?${qs}`, {
-        headers: { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) },
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store',
+          ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}),
+        },
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) return null;
       const data: any = await res.json();
       if (data?.billing) {
         this.billingCache = { at: Date.now(), data: data.billing };
-        if (!this.state.billing || !this.state.billing.packages?.length) {
-          this.state.billing = data.billing;
-        }
+        this.state.billing = data.billing;
         return data.billing;
       }
     } catch (err: any) {

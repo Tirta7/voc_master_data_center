@@ -154,7 +154,7 @@ export default function ActivatePage() {
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
         });
       } else {
-        alert("Pembayaran belum terverifikasi oleh server. Pastikan Anda telah melakukan transfer sesuai nominal (termasuk kode unik).");
+        alert("Pembayaran belum terdeteksi, mohon tunggu beberapa detik lalu coba lagi");
       }
     } catch {
       alert("Terjadi kendala jaringan saat memeriksa pembayaran. Silakan coba beberapa saat lagi.");
@@ -394,24 +394,37 @@ export default function ActivatePage() {
     };
 
     fetchStatus();
+    // Ambil billing terbaru tanpa cache saat layar terkunci dengan QRIS terbuka
+    fetch(`${getApiUrl()}/api/license/billing?fresh=true&_t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((bData) => {
+        if (!cancelled && bData?.billing) {
+          setCachedBilling(bData.billing);
+          setLicenseState((prev: any) => (prev ? { ...prev, billing: bData.billing } : prev));
+        }
+      })
+      .catch(() => {});
 
-    // Polling berkala (cadangan bila SSE terputus)
+    // Polling cepat setiap 3 detik (cadangan bila SSE terputus)
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${getApiUrl()}/api/license/status`);
+        const res = await fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         if (data && !data.statusCode && data.status) {
           applyState(data);
         }
       } catch { /* abaikan polling error */ }
-    }, 3500);
+    }, 3000);
 
-    // SSE: status lisensi + billing real-time (event bernama `license`)
+    // SSE: status lisensi + billing + event renew real-time
     let es: EventSource | null = null;
     try {
       es = new EventSource(`${getSocketUrl()}/api/license/stream`);
       es.addEventListener('license', (ev) => {
+        try { applyState(JSON.parse((ev as MessageEvent).data)); } catch {}
+      });
+      es.addEventListener('renew', (ev) => {
         try { applyState(JSON.parse((ev as MessageEvent).data)); } catch {}
       });
     } catch { /* polling tetap berjalan */ }

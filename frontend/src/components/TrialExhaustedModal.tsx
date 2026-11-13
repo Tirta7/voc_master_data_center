@@ -73,6 +73,23 @@ export default function TrialExhaustedModal({
     daysLeft?: number;
   } | null>(null);
   const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
+  const [qrRefreshNonce, setQrRefreshNonce] = useState<number>(() => Date.now());
+
+  const refreshFreshBilling = React.useCallback(async () => {
+    try {
+      const bRes = await fetch(`${getApiUrl()}/api/license/billing?fresh=true&_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        if (bData?.billing) {
+          setBilling(bData.billing);
+          setQrFailed(false);
+          setQrRefreshNonce(Date.now());
+        }
+      }
+    } catch {}
+  }, []);
 
   const currentAmount = selectedPackage
     ? (selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0)
@@ -111,11 +128,17 @@ export default function TrialExhaustedModal({
       return;
     }
 
-    // Ambil baseline lisensi saat modal pertama kali dibuka
-    fetch(`${getApiUrl()}/api/license/status`)
+    let cancelled = false;
+    let fastPollInterval: NodeJS.Timeout | null = null;
+
+    // 1. Selalu ambil data terbaru dari /api/v1/billing (tanpa cache) saat modal dibuka
+    refreshFreshBilling();
+
+    // 2. Simpan baseline expires_at / license_key / status sebelum modal dibuka
+    fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => {
-        if (!initialLicenseRef.current && d) {
+        if (!cancelled && !initialLicenseRef.current && d) {
           initialLicenseRef.current = {
             expiredAt: d.expiredAt || '',
             licenseKey: d.licenseKey || '',
@@ -126,108 +149,67 @@ export default function TrialExhaustedModal({
       })
       .catch(() => {});
 
+    const finishRenewal = (newData: any) => {
+      if (cancelled) return;
+      if (fastPollInterval) {
+        clearInterval(fastPollInterval);
+        fastPollInterval = null;
+      }
+      initialLicenseRef.current = {
+        expiredAt: newData?.expiredAt || '',
+        licenseKey: newData?.licenseKey || '',
+        daysLeft: newData?.daysLeft,
+        status: newData?.status,
+      };
+      if (onVoucherClaimed) onVoucherClaimed();
+      window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: newData }));
+      onClose();
+    };
+
     const detectPaymentSuccess = (newData: any) => {
       const init = initialLicenseRef.current;
       if (!init || !newData) return false;
 
-      // HANYA anggap sukses jika masa berlaku benar-benar bertambah maju (perpanjangan durasi)
-      // ATAU lisensi sebelumnya EXPIRED / BLOCKED dan sekarang berubah menjadi ACTIVE / GRACE
       const initExp = init.expiredAt ? new Date(init.expiredAt).getTime() : 0;
       const newExp = newData.expiredAt ? new Date(newData.expiredAt).getTime() : 0;
-      const expiredExtended = initExp > 0 && newExp > initExp;
+      const expiredExtended = newExp > initExp && (initExp > 0 || newExp > Date.now());
+      const keyChanged = !!(init.licenseKey && newData.licenseKey && newData.licenseKey !== init.licenseKey);
       const unblocked = (init.status === 'EXPIRED' || init.status === 'BLOCKED') &&
                         (newData.status === 'ACTIVE' || newData.status === 'GRACE') &&
-                        newExp >= Date.now();
+                        (newExp === 0 || newExp >= Date.now());
 
-      if (expiredExtended || unblocked) {
-        const daysDiff = (initExp > 0 && newExp > initExp)
-          ? Math.round((newExp - initExp) / (1000 * 60 * 60 * 24))
-          : 0;
-
-        const packages = billing?.packages || [];
-        let pkg = selectedPackageRef.current;
-        if (!pkg) {
-          try {
-            const saved = sessionStorage.getItem('last_selected_package');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days)) || null;
-              if (!pkg) pkg = parsed;
-            }
-          } catch {}
-        }
-
-        if (daysDiff > 0 && packages.length > 0) {
-          const matchedByDays = packages.find((p: any) => p.days === daysDiff);
-          if (matchedByDays) {
-            pkg = matchedByDays;
-          }
-        }
-
-        if (!pkg && packages.length > 0) {
-          pkg = packages[0];
-        }
-
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : 'Paket Lisensi'));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || billing?.amount || 0));
-
-        setPaymentSuccess({
-          packageName: pkgName,
-          amountPaid: paidAmt,
-          expiredAt: newData.expiredAt || '',
-          daysLeft: typeof newData.daysLeft === 'number' ? newData.daysLeft : 1,
-        });
-
-        // Update baseline agar tidak ter-trigger ganda
-        initialLicenseRef.current = {
-          expiredAt: newData.expiredAt || '',
-          licenseKey: newData.licenseKey || '',
-          daysLeft: newData.daysLeft,
-          status: newData.status,
-        };
-
-        if (onVoucherClaimed) onVoucherClaimed();
+      if (expiredExtended || keyChanged || unblocked) {
+        finishRenewal(newData);
         return true;
       }
       return false;
     };
 
-    const fetchLatestBilling = async () => {
+    // 3. Polling cepat setiap 3 detik ke GET /api/v1/check (via /api/license/status?force=true) sebagai cadangan jika SSE terputus
+    const fastCheckStatus = async () => {
       try {
-        const res = await fetch(`${getApiUrl()}/api/license/status`);
+        const res = await fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, {
+          cache: 'no-store',
+        });
         if (res.ok) {
           const d = await res.json();
           detectPaymentSuccess(d);
-          if (d.billing && d.billing.packages && d.billing.packages.length > 0) {
-            setBilling(d.billing);
-            setQrFailed(false);
-            return;
-          }
-        }
-        const bRes = await fetch(`${getApiUrl()}/api/license/billing`);
-        if (bRes.ok) {
-          const bData = await bRes.json();
-          if (bData?.billing && bData.billing.packages?.length > 0) {
-            setBilling(bData.billing);
-            setQrFailed(false);
-          }
         }
       } catch {}
     };
 
-    fetchLatestBilling();
-    // Polling cadangan wajar 15 detik (tanpa force=true agar tidak memicu rate limit)
-    const interval = setInterval(fetchLatestBilling, 15000);
+    fastPollInterval = setInterval(fastCheckStatus, 3000);
 
     const onLicenseUpdated = (data: any) => {
       if (data) {
         detectPaymentSuccess(data);
-        if (data.billing) {
-          setBilling(data.billing);
-        }
       }
     };
+    const onLicenseRenewed = (data: any) => {
+      finishRenewal(data);
+    };
     socket.on('license_updated', onLicenseUpdated);
+    socket.on('license_renewed', onLicenseRenewed);
 
     let es: EventSource | null = null;
     try {
@@ -237,20 +219,27 @@ export default function TrialExhaustedModal({
           const state = JSON.parse((ev as MessageEvent).data);
           if (state) {
             detectPaymentSuccess(state);
-            if (state.billing) {
-              setBilling(state.billing);
-            }
           }
         } catch {}
+      });
+      es.addEventListener('renew', (ev) => {
+        try {
+          const state = JSON.parse((ev as MessageEvent).data);
+          finishRenewal(state);
+        } catch {
+          finishRenewal({});
+        }
       });
     } catch {}
 
     return () => {
-      clearInterval(interval);
+      cancelled = true;
+      if (fastPollInterval) clearInterval(fastPollInterval);
       socket.off('license_updated', onLicenseUpdated);
+      socket.off('license_renewed', onLicenseRenewed);
       es?.close();
     };
-  }, [isOpen]);
+  }, [isOpen, refreshFreshBilling, onClose, onVoucherClaimed]);
 
   // Pilih paket default
   useEffect(() => {
@@ -313,58 +302,26 @@ export default function TrialExhaustedModal({
     setCheckingPayment(true);
     setPaymentNotice(null);
     try {
-      const res = await fetch(`${getApiUrl()}/api/license/status?force=true`);
+      const res = await fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
       const init = initialLicenseRef.current;
 
       const initExp = init?.expiredAt ? new Date(init.expiredAt).getTime() : 0;
       const newExp = data?.expiredAt ? new Date(data.expiredAt).getTime() : 0;
-      const expiredExtended = initExp > 0 && newExp > initExp;
+      const expiredExtended = newExp > initExp && (initExp > 0 || newExp > Date.now());
+      const keyChanged = !!(init?.licenseKey && data?.licenseKey && data.licenseKey !== init.licenseKey);
       const unblocked = (init?.status === 'EXPIRED' || init?.status === 'BLOCKED') &&
                         (data.status === 'ACTIVE' || data.status === 'GRACE') &&
-                        newExp >= Date.now();
+                        (newExp === 0 || newExp >= Date.now());
 
-      if (expiredExtended || unblocked) {
-        const daysDiff = (initExp > 0 && newExp > initExp)
-          ? Math.round((newExp - initExp) / (1000 * 60 * 60 * 24))
-          : 0;
-
-        const packages = billing?.packages || [];
-        let pkg = selectedPackageRef.current;
-        if (!pkg) {
-          try {
-            const saved = sessionStorage.getItem('last_selected_package');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              pkg = packages.find((p: any) => (p.id && p.id === parsed.id) || (p.days && p.days === parsed.days)) || null;
-              if (!pkg) pkg = parsed;
-            }
-          } catch {}
-        }
-
-        if (daysDiff > 0 && packages.length > 0) {
-          const matchedByDays = packages.find((p: any) => p.days === daysDiff);
-          if (matchedByDays) {
-            pkg = matchedByDays;
-          }
-        }
-
-        if (!pkg && packages.length > 0) {
-          pkg = packages[0];
-        }
-
-        const pkgName = pkg?.name || pkg?.label || (pkg?.days ? `Paket ${pkg.days} Hari` : (daysDiff > 0 ? `Paket ${daysDiff} Hari` : 'Paket Lisensi'));
-        const paidAmt = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || billing?.amount || 0));
-
-        setPaymentSuccess({
-          packageName: pkgName,
-          amountPaid: paidAmt,
-          expiredAt: data.expiredAt || '',
-          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : 1,
-        });
+      if (expiredExtended || keyChanged || unblocked) {
         if (onVoucherClaimed) onVoucherClaimed();
+        window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: data }));
+        onClose();
       } else {
-        setPaymentNotice('Sedang memverifikasi mutasi transfer QRIS Anda... Mohon tunggu 5-10 detik jika baru saja transfer dari m-banking/e-wallet.');
+        setPaymentNotice('Pembayaran belum terdeteksi, mohon tunggu beberapa detik lalu coba lagi');
         setTimeout(() => setPaymentNotice(null), 8000);
       }
     } catch {
@@ -617,7 +574,7 @@ export default function TrialExhaustedModal({
                   {currentAmount > 0 ? (
                     <img
                       ref={qrImgRef}
-                      src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
+                      src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${qrRefreshNonce}`}
                       alt={`QRIS ${currentAmountText}`}
                       width={164}
                       height={164}
@@ -735,12 +692,12 @@ export default function TrialExhaustedModal({
                           key={pkg.id || `pkg-${idx}`}
                           type="button"
                           onClick={() => {
-                            if (isSelected) return;
                             setSelectedPackage(pkg);
                             selectedPackageRef.current = pkg;
                             try {
                               sessionStorage.setItem('last_selected_package', JSON.stringify(pkg));
                             } catch {}
+                            void refreshFreshBilling();
                           }}
                           style={{
                             position: 'relative', textAlign: 'left', padding: '8px 10px',

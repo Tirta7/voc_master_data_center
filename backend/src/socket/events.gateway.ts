@@ -101,6 +101,11 @@ export class EventsGateway
     this.server.emit('license_updated', payload);
   }
 
+  @OnEvent('license.renewed')
+  handleLicenseRenewed(payload: any) {
+    this.server.emit('license_renewed', payload);
+  }
+
   async handleConnection(client: Socket) {
     const userId = client.handshake.query.userId;
     if (userId) {

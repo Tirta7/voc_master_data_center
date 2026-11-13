@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, AlertTriangle, Info, CheckCircle, AlertOctagon } from 'lucide-react';
+import { X, AlertTriangle, Info, CheckCircle, AlertOctagon, ShieldCheck } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
+import { socket } from '@/lib/socket';
 
 /**
  * Notifikasi "Dynamic Island" untuk pesan yang dikirim dari VOCML dashboard.
@@ -44,6 +45,27 @@ export function BroadcastToast() {
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
   const [visibleKeys, setVisibleKeys] = useState<string[]>([]);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [renewedPopup, setRenewedPopup] = useState<{
+    expiredAt?: string | null;
+    daysLeft?: number;
+  } | null>(null);
+
+  const lastRenewPopupAtRef = useRef<number>(0);
+  const renewTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showRenewedPopup = useCallback((detail?: any) => {
+    const now = Date.now();
+    if (now - lastRenewPopupAtRef.current < 5000) return;
+    lastRenewPopupAtRef.current = now;
+    setRenewedPopup({
+      expiredAt: detail?.expiredAt || null,
+      daysLeft: typeof detail?.daysLeft === 'number' ? detail.daysLeft : undefined,
+    });
+    if (renewTimerRef.current) clearTimeout(renewTimerRef.current);
+    renewTimerRef.current = setTimeout(() => {
+      setRenewedPopup(null);
+    }, 10000);
+  }, []);
 
   const messagesRef = useRef<BroadcastMessage[]>([]);
   const visibleRef = useRef<Set<string>>(new Set());
@@ -126,24 +148,40 @@ export function BroadcastToast() {
         if (!event.data) return;
         try { applyMessages(JSON.parse(event.data)); } catch {}
       };
+      evtSource.addEventListener('renew', (event) => {
+        try {
+          const data = (event as MessageEvent).data ? JSON.parse((event as MessageEvent).data) : {};
+          showRenewedPopup(data);
+        } catch {
+          showRenewedPopup();
+        }
+      });
       evtSource.onerror = () => {
         evtSource?.close();
-        retry = setTimeout(connect, 15000); // reconnect, bukan polling
+        retry = setTimeout(connect, 5000); // auto-reconnect tiap 5 detik
       };
     };
     connect();
+
+    const onSocketRenewed = (data: any) => showRenewedPopup(data);
+    const onWindowRenewed = (ev: Event) => showRenewedPopup((ev as CustomEvent)?.detail);
+    socket.on('license_renewed', onSocketRenewed);
+    window.addEventListener('vocml:license_renewed', onWindowRenewed);
 
     const tick = setInterval(evaluate, 1000);
     return () => {
       evtSource?.close();
       if (retry) clearTimeout(retry);
+      if (renewTimerRef.current) clearTimeout(renewTimerRef.current);
+      socket.off('license_renewed', onSocketRenewed);
+      window.removeEventListener('vocml:license_renewed', onWindowRenewed);
       clearInterval(tick);
       Object.values(hideTimersRef.current).forEach(clearTimeout);
     };
-  }, [applyMessages, evaluate]);
+  }, [applyMessages, evaluate, showRenewedPopup]);
 
   const visible = messages.filter(m => visibleKeys.includes(msgKey(m)));
-  if (visible.length === 0) return null;
+  if (visible.length === 0 && !renewedPopup) return null;
 
   return (
     <div style={{
@@ -158,6 +196,58 @@ export function BroadcastToast() {
       alignItems: 'center',
       pointerEvents: 'none',
     }}>
+      {renewedPopup && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+            borderRadius: '18px',
+            padding: '14px 18px',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'center',
+            width: 'min(440px, 92vw)',
+            pointerEvents: 'auto',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.45), 0 0 0 1px rgba(52,211,153,0.45)',
+            animation: 'vocIslandIn .4s cubic-bezier(0.16, 1, 0.3, 1)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+          }}
+        >
+          <div style={{
+            background: '#10b981',
+            width: '36px', height: '36px', borderRadius: '12px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            boxShadow: '0 0 16px rgba(16,185,129,0.55)',
+          }}>
+            <ShieldCheck size={20} color="#fff" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, color: '#fff', fontSize: '14px', fontWeight: 800 }}>
+              Lisensi anda berhasil diperpanjang
+            </p>
+            {(renewedPopup.expiredAt || typeof renewedPopup.daysLeft === 'number') && (
+              <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
+                {renewedPopup.expiredAt
+                  ? `Berlaku s/d ${new Date(renewedPopup.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : ''}
+                {typeof renewedPopup.daysLeft === 'number'
+                  ? `${renewedPopup.expiredAt ? ' • ' : ''}Sisa ${renewedPopup.daysLeft} Hari`
+                  : ''}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setRenewedPopup(null)}
+            style={{
+              flexShrink: 0, background: 'rgba(255,255,255,0.14)', border: 'none',
+              width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#fff', borderRadius: '50%',
+            }}
+            title="Tutup"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
       {visible.map((m) => {
         const key = msgKey(m);
         const cfg = TOAST_CONFIG[m.tipe] || TOAST_CONFIG.INFO;
