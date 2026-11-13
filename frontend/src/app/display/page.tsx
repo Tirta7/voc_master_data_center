@@ -182,6 +182,7 @@ function SmartDisplayContent() {
  tableName?: string;
  customerName?: string;
  } | null>(null);
+ const cfdSuccessTimerRef = useRef<NodeJS.Timeout | null>(null);
 
  const playPaymentSuccessAudio = useCallback(() => {
  try {
@@ -702,11 +703,20 @@ function SmartDisplayContent() {
  customerName: data.customerName || paymentState?.customerName || 'Walk-in Guest',
  });
  playPaymentSuccessAudio();
- setTimeout(() => {
+ if (cfdSuccessTimerRef.current) clearTimeout(cfdSuccessTimerRef.current);
+ cfdSuccessTimerRef.current = setTimeout(() => {
  setCfdPaymentSuccess(null);
  setPaymentState(null);
  setFocusedTableInfo(null);
- }, 6000);
+ }, 15000);
+ };
+
+ const handleCfdPaymentReset = () => {
+ console.log('[CFD] Received cfd_payment_reset -> closing payment success overlay immediately');
+ if (cfdSuccessTimerRef.current) clearTimeout(cfdSuccessTimerRef.current);
+ setCfdPaymentSuccess(null);
+ setPaymentState(null);
+ setFocusedTableInfo(null);
  };
 
  socket.on('request_display_scan', handleRequestScan);
@@ -718,6 +728,7 @@ function SmartDisplayContent() {
  socket.on('cfd_payment_success', handleCfdPaymentSuccess);
  socket.on('payment_webhook_received', handleCfdPaymentSuccess);
  socket.on('payment_notification_success', handleCfdPaymentSuccess);
+ socket.on('cfd_payment_reset', handleCfdPaymentReset);
  socket.on('redeem_confirmed', handleRedeemConfirmed); // Add this
  socket.on('connect', syncFocus);
 
@@ -734,6 +745,7 @@ function SmartDisplayContent() {
  socket.off('cfd_payment_success', handleCfdPaymentSuccess);
  socket.off('payment_webhook_received', handleCfdPaymentSuccess);
  socket.off('payment_notification_success', handleCfdPaymentSuccess);
+ socket.off('cfd_payment_reset', handleCfdPaymentReset);
  socket.off('redeem_confirmed', handleRedeemConfirmed); // Add this
  socket.off('redeem_reset', handleRedeemReset);
  socket.off('connect', syncFocus);

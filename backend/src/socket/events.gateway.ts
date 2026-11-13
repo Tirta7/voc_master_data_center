@@ -506,6 +506,11 @@ export class EventsGateway
     this.server.emit('cfd_payment_success', data);
   }
 
+  @SubscribeMessage('cfd_payment_reset')
+  handleCfdPaymentReset(@MessageBody() data: any) {
+    this.server.emit('cfd_payment_reset', data);
+  }
+
   @SubscribeMessage('redeem_request')
   handleRedeemRequest(@MessageBody() data: any) {
     // Broadcast only to relevant staff roles

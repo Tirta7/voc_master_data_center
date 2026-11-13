@@ -57,6 +57,7 @@ function BillingContent() {
     const [customerRatings, setCustomerRatings] = useState<{ waiter: number, kasir: number } | null>(null);
     const [customerMessage, setCustomerMessage] = useState<string>('');
     const [webhookToast, setWebhookToast] = useState<{ amount: number; source: string; invoiceNumber?: string } | null>(null);
+    const [paymentSuccessModal, setPaymentSuccessModal] = useState<{ amount: number; source: string; invoiceNumber?: string } | null>(null);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -232,16 +233,13 @@ function BillingContent() {
                 // 1. Tutup modal konfirmasi tagihan jika terbuka
                 setIsConfirmModalOpen(false);
 
-                // 2. Tampilkan toast konfirmasi pembayaran NON-BLOCKING (tanpa popup blocking & tanpa tombol OK)
+                // 2. Tampilkan modal konfirmasi pembayaran persis Gambar 3 (OK & CETAK)
                 const sourceName = data.source_name || data.method || 'EDC / QRIS';
-                setWebhookToast({
+                setPaymentSuccessModal({
                     amount: Number(data.amount || 0),
                     source: sourceName,
                     invoiceNumber: data.invoiceNumber || transaction?.invoiceNumber
                 });
-                setTimeout(() => {
-                    setWebhookToast(null);
-                }, 5000);
 
                 // 3. Update status pembayaran kasir
                 const finalMethod = sourceName;
@@ -270,10 +268,7 @@ function BillingContent() {
                     transactionId: transaction?.id,
                 });
 
-                // 4. Otomatis cetak struk kasir
-                setTimeout(() => {
-                    handlePrint();
-                }, 600);
+                // JANGAN LANGSUNG handlePrint()! Biarkan modal Gambar 3 tetap tampil dan kasir bisa klik CETAK di bawah OK
             }
         };
 
@@ -435,7 +430,13 @@ function BillingContent() {
                 setLastPaymentInfo(null);
                 router.push(tableType === 'cafe' ? '/cafe' : '/');
             } else {
-                // Jangan langsung navigate — biarkan kasir cetak struk dulu
+                // Jangan langsung navigate — biarkan kasir melihat modal sukses & tombol cetak
+                setIsConfirmModalOpen(false);
+                setPaymentSuccessModal({
+                    amount: Number(paymentAmount || transaction.grandTotal || 0),
+                    source: paymentMethod || 'CASH',
+                    invoiceNumber: transaction?.invoiceNumber
+                });
                 // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
                 socket.emit('cfd_payment_success', {
                     amount: Number(paymentAmount || transaction.grandTotal || 0),
@@ -451,6 +452,19 @@ function BillingContent() {
             setIsSubmitting(false);
             showAlert('Gagal', 'Pembayaran gagal.', { variant: 'error' });
         }
+    };
+
+    const handleModalDone = () => {
+        socket.emit('cfd_payment_reset');
+        setPaymentSuccessModal(null);
+        handlePaymentDone();
+    };
+
+    const handleModalPrintAndDone = () => {
+        socket.emit('cfd_payment_reset');
+        handlePrint();
+        setPaymentSuccessModal(null);
+        handlePaymentDone();
     };
 
     const handlePaymentDone = async () => {
@@ -1212,6 +1226,46 @@ function BillingContent() {
         </div>
 
 
+
+        {/* MODAL PEMBAYARAN DITERIMA (GAMBAR 3) DENGAN TOMBOL OK DAN CETAK */}
+        {paymentSuccessModal && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm print:hidden overscroll-contain animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 sm:p-8 text-center animate-in zoom-in-95 duration-200 border border-slate-100 relative">
+                    <div className="flex justify-center mb-4">
+                        <div className="p-3.5 rounded-full bg-emerald-50 text-emerald-500 shadow-inner">
+                            <CheckCircle2 className="w-12 h-12" />
+                        </div>
+                    </div>
+
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-800 mb-2 leading-tight">
+                        Pembayaran Diterima
+                    </h3>
+
+                    <p className="text-slate-500 text-sm font-medium leading-relaxed mb-6">
+                        Pembayaran Rp {Number(paymentSuccessModal.amount || 0).toLocaleString('id-ID')} diterima via {paymentSuccessModal.source}!
+                    </p>
+
+                    <div className="flex flex-col gap-2.5">
+                        {/* TOMBOL OK */}
+                        <button
+                            onClick={handleModalDone}
+                            className="w-full py-3.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-sm shadow-lg shadow-emerald-600/30 transition-all uppercase tracking-wider"
+                        >
+                            OK
+                        </button>
+
+                        {/* TOMBOL CETAK DI BAWAH TOMBOL OK */}
+                        <button
+                            onClick={handleModalPrintAndDone}
+                            className="w-full py-3 px-5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 font-black text-xs border border-slate-200 flex items-center justify-center gap-2 transition-all uppercase tracking-wider shadow-sm"
+                        >
+                            <Printer className="w-4 h-4 text-slate-600" />
+                            <span>CETAK INVOICE / STRUK</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* PRINT ONLY SECTION - Located outside the main h-screen to avoid layout shifts */}
         <div id="printable-invoice" className="hidden print:block font-mono text-[10px]">
