@@ -3137,6 +3137,13 @@ function SmartDisplayContent() {
  </div>
  </div>
  )}
+                            {paymentState.paymentMethod === 'QRIS' && !paymentState.dynamicQrisString && (
+                                <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
+                                    <div className="w-12 h-12 border-4 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                                    <p className="text-xs font-black uppercase tracking-widest text-emerald-300 animate-pulse">Menyiapkan QRIS Dinamis...</p>
+                                    <p className="text-[10px] text-white/50">Mohon tunggu sebentar...</p>
+                                </div>
+                            )}
  {paymentState.isPartial && paymentState.items?.length > 0 && (
  <div className="mt-4 flex-1 overflow-y-auto noscrollbar bg-black/10 rounded-xl p-3 border border-white/10">
  <p className="text-[7px] font-black uppercase opacity-30 mb-2">Item Split</p>

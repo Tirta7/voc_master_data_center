@@ -73,7 +73,7 @@ function BillingContent() {
     const getRemainingBalance = useCallback(() => {
         if (!transaction) return 0;
         const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
-        return rem <= 1 ? 0 : rem;
+        return rem;
     }, [transaction]);
 
     const fetchDynamicQris = useCallback(async (amount: number) => {
@@ -122,7 +122,7 @@ function BillingContent() {
         const upper = method.toUpperCase();
         setPaymentMethod(upper);
         const rem = getRemainingBalance();
-        const targetAmount = rem > 0 ? rem : (Number(paymentAmount) || 0);
+        const targetAmount = (Number(paymentAmount) && Number(paymentAmount) > 0) ? Number(paymentAmount) : (rem > 0 ? rem : Number(transaction?.grandTotal || 0));
 
         if (upper === 'QRIS') {
             if (targetAmount > 0) {
@@ -171,7 +171,7 @@ function BillingContent() {
             const response = await axios.get(url);
             setTransaction(response.data);
             const rem = Math.max(0, Number(response.data.grandTotal || 0) - Number(response.data.paidAmount || 0));
-            setPaymentAmount(rem <= 1 ? '0' : Math.round(rem).toString());
+            setPaymentAmount(rem <= 0 ? '0' : Math.round(rem).toString());
         } catch (error) {
             console.error('Failed to fetch transaction:', error);
             showAlert('Data Tidak Ditemukan', 'Tidak ada billing aktif.', { variant: 'error' });
@@ -258,6 +258,15 @@ function BillingContent() {
                     fetchTransaction();
                 }
                 setIsPaymentSuccess(true);
+
+                // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
+                socket.emit('cfd_payment_success', {
+                    amount: Number(data.amount || 0),
+                    source_name: sourceName,
+                    tableName: transaction?.table?.tableName || transaction?.cafeTable?.tableName || `Meja ${tableId}`,
+                    customerName: transaction?.customerName || transaction?.member?.name || 'Walk-in Guest',
+                    transactionId: transaction?.id,
+                });
 
                 // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
                 socket.emit('cfd_payment_success', {
@@ -436,6 +445,14 @@ function BillingContent() {
                     amount: Number(paymentAmount || transaction.grandTotal || 0),
                     source: paymentMethod || 'CASH',
                     invoiceNumber: transaction?.invoiceNumber
+                });
+                // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
+                socket.emit('cfd_payment_success', {
+                    amount: Number(paymentAmount || transaction.grandTotal || 0),
+                    source_name: paymentMethod || 'CASH',
+                    tableName: transaction?.table?.tableName || transaction?.cafeTable?.tableName || `Meja ${tableId}`,
+                    customerName: transaction?.customerName || transaction?.member?.name || 'Walk-in Guest',
+                    transactionId: transaction.id,
                 });
                 // Trigger animasi & audio sukses ke layar CFD (Customer Facing Display)
                 socket.emit('cfd_payment_success', {
@@ -909,6 +926,9 @@ function BillingContent() {
                                             onChange={(e) => {
                                                 const val = e.target.value.replace(/[^0-9]/g, '');
                                                 setPaymentAmount(val);
+                                                if (paymentMethod === 'QRIS' && Number(val) > 0) {
+                                                    fetchDynamicQris(Number(val));
+                                                }
                                             }}
                                             placeholder="0"
                                             className="bg-transparent text-right text-3xl sm:text-6xl font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5 leading-none selection:bg-indigo-500/40"
@@ -934,7 +954,13 @@ function BillingContent() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
-                                    <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="h-9 sm:h-12 bg-white/5 border border-white/10 text-white text-[8px] sm:text-[10px] font-extrabold rounded-lg sm:rounded-2xl uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-1 sm:gap-2">
+                                    <button onClick={() => {
+                                        const amtStr = remainingBalance.toString();
+                                        setPaymentAmount(amtStr);
+                                        if (paymentMethod === 'QRIS' && Number(amtStr) > 0) {
+                                            fetchDynamicQris(Number(amtStr));
+                                        }
+                                    }} className="h-9 sm:h-12 bg-white/5 border border-white/10 text-white text-[8px] sm:text-[10px] font-extrabold rounded-lg sm:rounded-2xl uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-1 sm:gap-2">
                                         <MousePointer2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-400" /> Exact Change
                                     </button>
                                     <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="h-9 sm:h-12 bg-white/5 border border-white/10 text-white text-[8px] sm:text-[10px] font-extrabold rounded-lg sm:rounded-2xl uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-1 sm:gap-2">
