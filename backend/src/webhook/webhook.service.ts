@@ -144,8 +144,8 @@ export class WebhookService {
       relations: [
         'table',
         'cafeTable',
-        'orders',
-        'orders.menuItem',
+        'orderItems',
+        'orderItems.menuItem',
         'payments',
         'member',
       ],
