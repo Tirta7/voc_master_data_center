@@ -412,10 +412,12 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         mappedStatus = 'GRACE';
       }
 
-      // Jika mesin terdaftar sebagai mode trial (memiliki kuota coba gratis):
-      // HANYA gunakan status TRIAL bila status dari server adalah trial atau pending.
-      // JANGAN PERNAH menimpa status BLOCKED (locked) atau EXPIRED!
-      if (lic.trial && lic.trial.enabled && (lic.status === "trial" || lic.status === "pending")) {
+      // Jika mesin terdaftar sebagai mode trial (memiliki kuota coba gratis yang masih tersisa):
+      // Maka mesin tetap diizinkan memakai status TRIAL selama tidak dikunci manual (BLOCKED / locked).
+      const hasRemainingTrial = lic.trial && lic.trial.enabled && (typeof lic.trial.remaining === 'number' ? lic.trial.remaining > 0 : true);
+      if (hasRemainingTrial && lic.status !== 'locked' && mappedStatus !== 'ACTIVE' && mappedStatus !== 'GRACE') {
+        mappedStatus = 'TRIAL';
+      } else if (lic.trial && lic.trial.enabled && (lic.status === "trial" || lic.status === "pending")) {
         mappedStatus = "TRIAL";
       }
 

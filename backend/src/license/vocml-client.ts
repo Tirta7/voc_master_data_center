@@ -191,6 +191,23 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
       return result(false, 'offline', { reason: 'Tidak dapat terhubung ke server lisensi', offline: true });
     }
     const billing = normalizeBilling(cache.billing);
+    const hasRemainingTrial = (payload?.trial?.enabled && (typeof payload.trial.remaining === 'number' ? payload.trial.remaining > 0 : true)) ||
+                              (cache?.trial?.enabled && (typeof cache.trial.remaining === 'number' ? cache.trial.remaining > 0 : true));
+
+    // Jika memiliki kuota trial yang masih ada dan tidak dikunci manual, izinkan mode trial
+    if (hasRemainingTrial && payload.status !== 'locked') {
+      return result(true, 'trial', {
+        expiresAt: payload.expires_at || cache.expires_at || null,
+        licenseKey: payload.license_key || cache.license_key || null,
+        daysLeft: typeof payload.days_left === 'number' ? payload.days_left : 0,
+        lockReason: '',
+        billing,
+        trial: cache.trial || payload.trial || null,
+        uniqueCode: cache.unique_code || payload.unique_code || null,
+        offline: true,
+      });
+    }
+
     // Snapshot terakhir dari server berstatus expired/locked → tetap terkunci,
     // walaupun key lama masih "berlaku" secara offline.
     if (payload.status === 'locked' || payload.status === 'expired') {
