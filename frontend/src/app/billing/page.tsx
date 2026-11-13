@@ -56,6 +56,7 @@ function BillingContent() {
     const [customerRatingStatus, setCustomerRatingStatus] = useState<'PENDING' | 'SUBMITTED'>('PENDING');
     const [customerRatings, setCustomerRatings] = useState<{ waiter: number, kasir: number } | null>(null);
     const [customerMessage, setCustomerMessage] = useState<string>('');
+    const [webhookToast, setWebhookToast] = useState<{ amount: number; source: string; invoiceNumber?: string } | null>(null);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -228,16 +229,19 @@ function BillingContent() {
                             (data.invoiceNumber && transaction?.invoiceNumber && data.invoiceNumber === transaction.invoiceNumber);
 
             if (isMatch) {
-                // 1. Tutup modal konfirmasi tagihan
+                // 1. Tutup modal konfirmasi tagihan jika terbuka
                 setIsConfirmModalOpen(false);
 
-                // 2. Tampilkan toast konfirmasi pembayaran
+                // 2. Tampilkan toast konfirmasi pembayaran NON-BLOCKING (tanpa popup blocking & tanpa tombol OK)
                 const sourceName = data.source_name || data.method || 'EDC / QRIS';
-                showAlert(
-                    'Pembayaran Diterima',
-                    `Pembayaran Rp ${Number(data.amount || 0).toLocaleString('id-ID')} diterima via ${sourceName}!`,
-                    { variant: 'success' }
-                );
+                setWebhookToast({
+                    amount: Number(data.amount || 0),
+                    source: sourceName,
+                    invoiceNumber: data.invoiceNumber || transaction?.invoiceNumber
+                });
+                setTimeout(() => {
+                    setWebhookToast(null);
+                }, 5000);
 
                 // 3. Update status pembayaran kasir
                 const finalMethod = sourceName;
@@ -450,6 +454,8 @@ function BillingContent() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
+                const isQrisWaiting = paymentMethod === 'QRIS' && remainingBalance > 0;
+                if (isQrisWaiting) return; // Menunggu mutasi QRIS customer, jangan lunaskan manual via Enter
                 const canPay = !isSubmitting && paymentMethod && Number(paymentAmount) >= remainingBalance;
                 if (canPay && !isConfirmModalOpen) {
                     if (remainingBalance === 0) {
@@ -1033,44 +1039,71 @@ function BillingContent() {
                             </div>
 
                             {/* LUNASKAN BUTTON */}
-                            <button
-                                onClick={() => {
-                                    if (remainingBalance === 0) {
-                                        if (transaction.status === 'PAID' || transaction.status === 'COMPLETED') {
-                                            handlePaymentDone();
-                                        } else {
-                                            processPayment();
-                                        }
-                                    } else {
-                                        setIsConfirmModalOpen(true);
-                                    }
-                                }}
-                                disabled={isSubmitting || (remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance))}
-                                className={`w-full group relative overflow-hidden h-14 sm:h-20 rounded-xl sm:rounded-[2rem] font-black transition-all duration-500 ${
-                                    (isSubmitting || (remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance)))
-                                    ? 'bg-white/5 text-white/10 border border-white/5 cursor-not-allowed grayscale'
-                                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:shadow-[0_20px_50px_rgba(16,185,129,0.5)] hover:-translate-y-1 active:translate-y-0.5'
-                                }`}
-                            >
-                                <div className="flex items-center justify-between px-3 sm:px-6 relative z-10">
-                                    <div className="flex items-center gap-2.5 sm:gap-5">
-                                        <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${((remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance))) ? 'bg-white/5' : 'bg-white/20'}`}>
-                                            <ShieldCheck className={`w-4.5 h-4.5 sm:w-6 sm:h-6 ${remainingBalance === 0 || (paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance) ? 'animate-pulse text-white' : 'text-white/20'}`} />
+                            {(() => {
+                                const isQrisWaiting = paymentMethod === 'QRIS' && remainingBalance > 0;
+                                const isButtonDisabled = isSubmitting || isQrisWaiting || (remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance));
+
+                                return (
+                                    <button
+                                        onClick={() => {
+                                            if (isQrisWaiting) return;
+                                            if (remainingBalance === 0) {
+                                                if (transaction.status === 'PAID' || transaction.status === 'COMPLETED') {
+                                                    handlePaymentDone();
+                                                } else {
+                                                    processPayment();
+                                                }
+                                            } else {
+                                                setIsConfirmModalOpen(true);
+                                            }
+                                        }}
+                                        disabled={isButtonDisabled}
+                                        className={`w-full group relative overflow-hidden h-14 sm:h-20 rounded-xl sm:rounded-[2rem] font-black transition-all duration-500 ${
+                                            isQrisWaiting
+                                            ? 'bg-slate-900/90 border-2 border-indigo-500/40 text-indigo-300 cursor-not-allowed shadow-[0_0_30px_rgba(99,102,241,0.2)]'
+                                            : isButtonDisabled
+                                            ? 'bg-white/5 text-white/10 border border-white/5 cursor-not-allowed grayscale'
+                                            : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:shadow-[0_20px_50px_rgba(16,185,129,0.5)] hover:-translate-y-1 active:translate-y-0.5'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between px-3 sm:px-6 relative z-10">
+                                            <div className="flex items-center gap-2.5 sm:gap-5">
+                                                <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${
+                                                    isQrisWaiting ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                                                    isButtonDisabled ? 'bg-white/5' : 'bg-white/20'
+                                                }`}>
+                                                    {isQrisWaiting ? (
+                                                        <QrCode className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 animate-pulse" />
+                                                    ) : (
+                                                        <ShieldCheck className={`w-4.5 h-4.5 sm:w-6 sm:h-6 ${remainingBalance === 0 || (paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance) ? 'animate-pulse text-white' : 'text-white/20'}`} />
+                                                    )}
+                                                </div>
+                                                <div className="text-left">
+                                                    <span className={`block text-[8px] sm:text-[10px] font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] mb-0.5 ${
+                                                        isQrisWaiting ? 'text-indigo-400 animate-pulse' : 'opacity-60'
+                                                    }`}>
+                                                        {isQrisWaiting ? 'OTOMATIS LUNAS SAAT MUTASI MASUK' : remainingBalance === 0 ? 'Verified Paid' : !paymentMethod ? 'Tanyakan ke Customer' : `Metode: ${paymentMethod}`}
+                                                    </span>
+                                                    <span className={`text-base sm:text-xl md:text-2xl font-black tracking-tight leading-none uppercase ${
+                                                        isQrisWaiting ? 'text-indigo-300' : ''
+                                                    }`}>
+                                                        {isQrisWaiting ? 'MENUNGGU SCAN QRIS...' : remainingBalance === 0 ? 'SELESAIKAN MEJA' : !paymentMethod ? 'PILIH METODE BAYAR' : 'LUNASKAN'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {isQrisWaiting ? (
+                                                <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-[9px] font-black text-indigo-300 uppercase tracking-widest animate-pulse">
+                                                    <span>STANDBY</span>
+                                                </div>
+                                            ) : (
+                                                <ChevronRight className="w-5 h-5 sm:w-8 sm:h-8 opacity-20 group-hover:translate-x-4 transition-transform duration-500" />
+                                            )}
                                         </div>
-                                        <div className="text-left">
-                                            <span className="block text-[8px] sm:text-[10px] font-black uppercase opacity-60 tracking-[0.3em] sm:tracking-[0.4em] mb-0.5">
-                                                {remainingBalance === 0 ? 'Verified Paid' : !paymentMethod ? 'Tanyakan ke Customer' : `Metode: ${paymentMethod}`}
-                                            </span>
-                                            <span className="text-lg sm:text-2xl font-black tracking-tight leading-none uppercase">
-                                                {remainingBalance === 0 ? 'SELESAIKAN MEJA' : !paymentMethod ? 'PILIH METODE BAYAR' : 'LUNASKAN'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="w-5 h-5 sm:w-8 sm:h-8 opacity-20 group-hover:translate-x-4 transition-transform duration-500" />
-                                </div>
-                                <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
-                                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.2),transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                            </button>
+                                        <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
+                                        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.2),transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                    </button>
+                                );
+                            })()}
                         </div>
                     </div>
                 </section>
@@ -1122,6 +1155,41 @@ function BillingContent() {
                     onPaymentSuccess={(updatedTx) => { if (updatedTx) setTransaction(updatedTx); else fetchTransaction(); }}
                     onClose={() => setIsSplitBillOpen(false)}
                 />
+            )}
+
+            {/* FLOATING NON-BLOCKING TOAST (PRINT HIDDEN - TIDAK MENUTUPI STRUK / TIDAK MEMERLUKAN KLIK OK) */}
+            {webhookToast && (
+                <div className="fixed top-6 right-6 z-[99999] print:hidden max-w-md w-full animate-in slide-in-from-top-4 fade-in duration-300 pointer-events-auto">
+                    <div className="bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white p-4 rounded-2xl shadow-2xl border border-emerald-400/30 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+                            <CheckCircle2 className="w-7 h-7 text-white animate-bounce" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-black uppercase tracking-widest bg-white/20 px-2 py-0.5 rounded-full">
+                                    MUTASI DITERIMA
+                                </span>
+                                {webhookToast.invoiceNumber && (
+                                    <span className="text-[10px] text-emerald-200 font-mono">
+                                        {webhookToast.invoiceNumber}
+                                    </span>
+                                )}
+                            </div>
+                            <h4 className="text-base font-black truncate mt-1">
+                                Rp {webhookToast.amount.toLocaleString('id-ID')} via {webhookToast.source}
+                            </h4>
+                            <p className="text-[11px] text-emerald-100 font-medium">
+                                Transaksi lunas otomatis. Invoice sedang dicetak...
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => setWebhookToast(null)} 
+                            className="p-1 hover:bg-white/10 rounded-lg text-white/70 hover:text-white"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
             )}
 
         </div>

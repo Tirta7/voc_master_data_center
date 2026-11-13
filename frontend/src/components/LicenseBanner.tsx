@@ -109,7 +109,7 @@ export function LicenseBanner() {
     return (
       <>
         {!dismissed && (
-          <div style={{
+          <div className="print:hidden license-banner-container" style={{
             position: 'fixed',
             top: 'max(32px, calc(env(safe-area-inset-top) + 16px))',
             left: '50%',

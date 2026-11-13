@@ -716,6 +716,8 @@ function SmartDisplayContent() {
  socket.on('loyalty_updated', handleLoyaltyUpdated); // Listen for real-time settings update
  socket.on('display_topup_success', handleTopupSuccess);
  socket.on('cfd_payment_success', handleCfdPaymentSuccess);
+ socket.on('payment_webhook_received', handleCfdPaymentSuccess);
+ socket.on('payment_notification_success', handleCfdPaymentSuccess);
  socket.on('redeem_confirmed', handleRedeemConfirmed); // Add this
  socket.on('connect', syncFocus);
 
@@ -730,6 +732,8 @@ function SmartDisplayContent() {
  socket.off('loyalty_updated', handleLoyaltyUpdated);
  socket.off('display_topup_success', handleTopupSuccess);
  socket.off('cfd_payment_success', handleCfdPaymentSuccess);
+ socket.off('payment_webhook_received', handleCfdPaymentSuccess);
+ socket.off('payment_notification_success', handleCfdPaymentSuccess);
  socket.off('redeem_confirmed', handleRedeemConfirmed); // Add this
  socket.off('redeem_reset', handleRedeemReset);
  socket.off('connect', syncFocus);
@@ -2787,48 +2791,120 @@ function SmartDisplayContent() {
  </div>
 
  <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
- {/* Left side: Bill Details */}
- <div className="w-full md:w-[58%] h-auto md:h-full p-4 md:p-6 lg:p-10 flex flex-col gap-4 md:gap-8 border-b md:border-b-0 md:border-r border-white/10 overflow-visible md:overflow-hidden relative">
- <div className="flex items-center justify-between relative z-10">
- <div className="space-y-1 sm:space-y-2">
- <p className="text-[8px] sm:text-[10px] text-[#0A84FF] font-black uppercase tracking-[0.5em]">Current Session</p>
- <h3 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tight leading-none truncate max-w-[180px] sm:max-w-none">
+ {/* Left side: Bill Details & Loyalty Info */}
+ <div className="w-full md:w-[56%] lg:w-[58%] h-auto md:h-full p-4 md:p-6 lg:p-8 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-white/10 bg-gradient-to-br from-slate-950 via-[#0a0f1d] to-[#020617] overflow-y-auto noscrollbar relative">
+ {/* Ambient backdrop lights */}
+ <div className="absolute top-0 left-0 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+ <div className="absolute bottom-0 right-0 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+
+ {/* Header Current Session */}
+ <div className="flex items-center justify-between relative z-10 shrink-0">
+ <div className="space-y-1">
+ <div className="flex items-center gap-2">
+ <span className="text-[9px] text-[#0A84FF] font-black uppercase tracking-[0.3em]">Current Session</span>
+ <span className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] font-mono text-slate-400">
+ {table?.tableName || tx?.invoiceNumber || 'TABLE'}
+ </span>
+ </div>
+ <h3 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight leading-none truncate max-w-[240px] sm:max-w-none">
  {paymentState?.customerName || member?.name || tx?.member?.name || tx?.customerName || 'Walk-in Guest'}
  </h3>
  </div>
- <div className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3 glass-card border ${tx?.isPaid ? 'border-[#30D158]/30 text-[#30D158]' : 'border-amber-500/30 text-amber-400'}`}>
- <div className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full ${tx?.isPaid ? 'bg-[#30D158] shadow-2xl' : 'bg-amber-500 animate-pulse shadow-2xl'}`}></div>
- <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{tx?.isPaid ? 'Paid' : 'Unpaid'}</span>
+ <div className={`px-4 py-2 rounded-xl flex items-center gap-2.5 glass-card border ${tx?.isPaid ? 'border-[#30D158]/30 text-[#30D158] bg-[#30D158]/10' : 'border-amber-500/30 text-amber-400 bg-amber-500/10'}`}>
+ <div className={`w-2 h-2 rounded-full ${tx?.isPaid ? 'bg-[#30D158] shadow-[0_0_10px_#30D158]' : 'bg-amber-500 animate-pulse shadow-[0_0_10px_#f59e0b]'}`}></div>
+ <span className="text-[9px] font-black uppercase tracking-widest">{tx?.isPaid ? 'PAID / LUNAS' : 'MENUNGGU PEMBAYARAN'}</span>
  </div>
  </div>
 
- <div className="flex-1 space-y-4 flex flex-col relative z-10 md:overflow-hidden">
- <div className="flex-1 md:overflow-y-auto noscrollbar space-y-3">
+ {/* Main Content Area */}
+ <div className="flex-1 flex flex-col gap-3 relative z-10">
+ {/* Scrollable Items List */}
+ <div className="space-y-2.5 max-h-[220px] md:max-h-[260px] overflow-y-auto noscrollbar pr-1">
  {Number(tx?.billiardTotal) > 0 && (
- <div className="p-5 sm:p-6 rounded-[2rem] item-card flex justify-between items-center bg-indigo-500/[0.02]">
- <div className="flex gap-4 sm:gap-6 items-center">
- <div className="w-10 h-10 sm:w-14 sm:h-14 bg-indigo-500/10 text-[#0A84FF] rounded-xl sm:rounded-2xl flex items-center justify-center shadow-inner"><Timer className="w-5 h-5 sm:w-6 sm:h-6" /></div>
- <div className="space-y-0.5 sm:space-y-1">
- <p className="font-black text-white text-sm sm:text-lg uppercase tracking-tight ">{tx.fareName || 'Billiard Session'}</p>
- <p className="text-slate-500 font-black text-[8px] sm:text-[10px] uppercase tracking-[0.2em]">{tx.sessionDuration || '00:00:00'} Playing</p>
+ <div className="p-4 rounded-2xl item-card flex justify-between items-center bg-indigo-500/[0.04] border border-indigo-500/20 shadow-inner">
+ <div className="flex gap-4 items-center">
+ <div className="w-11 h-11 bg-indigo-500/15 text-[#0A84FF] rounded-xl flex items-center justify-center shadow-inner shrink-0">
+ <Timer className="w-5 h-5 text-indigo-400" />
+ </div>
+ <div className="space-y-0.5">
+ <p className="font-black text-white text-sm uppercase tracking-tight">{tx.fareName || 'Billiard Session'}</p>
+ <div className="flex items-center gap-2">
+ <span className="text-indigo-300 font-mono text-[10px] font-bold">{tx.sessionDuration || '00:00:00'} Playing</span>
+ {tx.pricingType && <span className="text-[8px] bg-indigo-900/50 text-indigo-300 px-1.5 py-0.5 rounded uppercase font-black">{tx.pricingType}</span>}
  </div>
  </div>
- <p className="text-lg sm:text-2xl font-black text-white font-mono tracking-tight">Rp {Number(tx.billiardTotal).toLocaleString()}</p>
+ </div>
+ <p className="text-base sm:text-xl font-black text-white font-mono tracking-tight">Rp {Number(tx.billiardTotal).toLocaleString('id-ID')}</p>
  </div>
  )}
 
  {(tx?.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED' && i.status?.toUpperCase() !== 'CANCEL_REQUESTED').map((item: any, idx: number) => (
- <div key={idx} className="p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] item-card flex justify-between items-center">
- <div className="flex gap-4 sm:gap-6 items-center">
- <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/[0.03] text-slate-500 rounded-lg sm:rounded-xl flex items-center justify-center"><Coffee className="w-4 h-4 sm:w-5 sm:h-5" /></div>
+ <div key={idx} className="p-3.5 rounded-2xl item-card flex justify-between items-center bg-white/[0.02]">
+ <div className="flex gap-3.5 items-center">
+ <div className="w-10 h-10 bg-white/[0.05] text-slate-400 rounded-xl flex items-center justify-center shrink-0">
+ <Coffee className="w-4 h-4 text-amber-300" />
+ </div>
  <div className="space-y-0.5">
- <p className="font-bold text-slate-200 text-xs sm:text-sm uppercase tracking-wide truncate max-w-[140px] sm:max-w-none">{item.menuItem?.name || 'Cafe Order'}</p>
- <p className="text-slate-600 font-black text-[8px] sm:text-[9px] uppercase tracking-widest">{Number(item.quantity)}x @ {item.priceAtOrder.toLocaleString()}</p>
+ <p className="font-bold text-slate-200 text-xs uppercase tracking-wide truncate max-w-[160px] sm:max-w-none">{item.menuItem?.name || 'Cafe Order'}</p>
+ <p className="text-slate-500 font-mono text-[9px] uppercase tracking-wider">{Number(item.quantity)}x @ Rp {Number(item.priceAtOrder).toLocaleString('id-ID')}</p>
  </div>
  </div>
- <p className="font-black text-slate-300 text-sm sm:text-lg font-mono tracking-tight">Rp {Number(item.priceAtOrder * item.quantity).toLocaleString()}</p>
+ <p className="font-black text-slate-300 text-sm font-mono tracking-tight">Rp {Number(item.priceAtOrder * item.quantity).toLocaleString('id-ID')}</p>
  </div>
  ))}
+ </div>
+
+ {/* Bill Summary Breakdown (SELALU DITAMPILKAN DI SISI KIRI) */}
+ <div className="glass-card rounded-2xl p-4 sm:p-5 space-y-2.5 border border-white/10 bg-slate-900/60 shadow-xl">
+ <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest">
+ <span>Subtotal Pesanan</span>
+ <span className="text-slate-200 font-mono">Rp {Number((tx?.billiardTotal || 0) + (tx?.cafeTotal || 0)).toLocaleString('id-ID')}</span>
+ </div>
+ {(Number(tx?.vatAmount || 0) > 0 || Number(tx?.serviceChargeAmount || 0) > 0) && (
+ <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest">
+ <span>Pajak & Layanan</span>
+ <span className="text-slate-200 font-mono">Rp {Number((tx?.vatAmount || 0) + (tx?.serviceChargeAmount || 0)).toLocaleString('id-ID')}</span>
+ </div>
+ )}
+ {Number(tx?.discountAmount || 0) > 0 && (
+ <div className="flex justify-between items-center text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+ <span>Diskon / Voucher</span>
+ <span className="font-mono">- Rp {Number(tx.discountAmount).toLocaleString('id-ID')}</span>
+ </div>
+ )}
+ <div className="pt-2 border-t border-white/10 flex justify-between items-baseline">
+ <div>
+ <span className="text-[8px] font-black uppercase tracking-[0.3em] text-[#0A84FF] block">Total Tagihan</span>
+ <span className="text-[10px] text-slate-500 font-bold">Harus Dibayar</span>
+ </div>
+ <div className="text-right">
+ <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+ Rp {Number(splitState?.totalBill || tx?.grandTotal || 0).toLocaleString('id-ID')}
+ </span>
+ </div>
+ </div>
+ </div>
+
+ {/* COSMO POOL LOYALTY & FACILITY BANNER (MENGISI AREA BAWAH - TIDAK ADA LAYAR HITAM KOSONG) */}
+ <div className="rounded-2xl p-4 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-slate-900/60 border border-indigo-500/20 shadow-lg relative overflow-hidden">
+ <div className="flex items-start gap-3">
+ <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-md">
+ <Sparkles className="w-5 h-5 text-amber-200" />
+ </div>
+ <div className="space-y-1 min-w-0">
+ <div className="flex items-center gap-2">
+ <span className="text-[9px] font-black uppercase tracking-widest text-indigo-300">
+ COSMO LOYALTY CLUB
+ </span>
+ <span className="px-1.5 py-0.2 bg-amber-400/20 text-amber-300 text-[8px] font-black rounded uppercase">
+ REWARDS
+ </span>
+ </div>
+ <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+ Dapatkan Poin Hadiah di setiap sesi bermain. Nikmati fasilitas Wi-Fi berkecepatan tinggi, meja standar turnamen, dan penawaran spesial Happy Hour.
+ </p>
+ </div>
+ </div>
  </div>
  </div>
  </div>
@@ -2873,7 +2949,7 @@ function SmartDisplayContent() {
  </motion.div>
  ) : (paymentState && (!paymentState.terminalId || paymentState.terminalId === terminalId || paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId && table?.id && paymentState.tableId.toString() === table.id.toString()))) ? (
  <motion.div key="payment" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="h-full">
- <div className="p-6 sm:p-8 bg-[#0A84FF] rounded-[2rem] text-white shadow-2xl h-full flex flex-col">
+ <div className="p-6 sm:p-8 bg-gradient-to-b from-slate-900/95 via-indigo-950/70 to-slate-950/95 border border-indigo-500/30 rounded-[2.5rem] text-white shadow-2xl backdrop-blur-2xl h-full flex flex-col relative overflow-hidden">
  <div className="flex items-center gap-3 mb-4">
  <CreditCard className="w-4 h-4 opacity-50" />
  <p className="text-[8px] font-black uppercase tracking-widest opacity-60">Payment Process</p>
@@ -2928,7 +3004,16 @@ function SmartDisplayContent() {
  )}
 
  {paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString && (
- <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-4 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
+ <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-3 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
+ {/* Status bar diatas QRIS */}
+ <div className="w-full max-w-[380px] px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-[10px]">
+ <div className="flex items-center gap-2">
+ <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+ <span className="font-black text-emerald-300 uppercase tracking-widest text-[9px]">SIAP DI-SCAN</span>
+ </div>
+ <span className="text-slate-400 font-mono text-[9px]">OTOMATIS TERVERIFIKASI</span>
+ </div>
+
  <div style={{
  position: 'relative',
  width: '100%',
@@ -3009,9 +3094,15 @@ function SmartDisplayContent() {
  </div>
  </div>
 
- <div className="w-full max-w-[380px] mx-auto flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/10 shadow-2xl">
- <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
- <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
+ <div className="w-full max-w-[380px] mx-auto flex flex-col items-center gap-2 bg-white/5 p-3 rounded-2xl border border-white/10 shadow-2xl">
+ <div className="flex items-center justify-center gap-3 text-[9px] text-slate-300 font-bold uppercase tracking-wider">
+ <span>1. Buka M-Banking/E-Wallet</span>
+ <span className="text-white/20">•</span>
+ <span>2. Scan QR</span>
+ <span className="text-white/20">•</span>
+ <span>3. Bayar</span>
+ </div>
+ <div className="flex flex-wrap justify-center gap-1.5">
  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] shadow-sm">Mandiri</span>
  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#0066AE] shadow-sm">BCA</span>
  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00529C] shadow-sm">BRI</span>
