@@ -40,6 +40,7 @@ import { LicenseGuard } from './license/license.guard';
 import { VoucherModule } from './voucher/voucher.module';
 import { CategoryModule } from './category/category.module';
 import { PushNotificationModule } from './push-notification/push-notification.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
@@ -121,6 +122,7 @@ import { PushNotificationModule } from './push-notification/push-notification.mo
     VoucherModule,
     CategoryModule,
     PushNotificationModule,
+    WebhookModule,
   ],
 
   controllers: [AppController],

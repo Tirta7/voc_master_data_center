@@ -78,6 +78,13 @@ export class SettingsService implements OnModuleInit {
       await this.settingsRepository.save(settings);
     }
     
+    // Seed default paymentWebhookSecret if it doesn't exist
+    if (!settings.paymentWebhookSecret) {
+      const crypto = require('crypto');
+      settings.paymentWebhookSecret = `vocml_sec_${crypto.randomBytes(16).toString('hex')}`;
+      await this.settingsRepository.save(settings);
+    }
+    
     this.cachedSettings = settings;
     return settings;
   }

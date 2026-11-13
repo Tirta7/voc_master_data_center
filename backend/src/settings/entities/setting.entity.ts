@@ -70,6 +70,9 @@ export class Setting {
   qrisMerchantName: string;
 
   @Column({ type: 'text', nullable: true })
+  paymentWebhookSecret: string;
+
+  @Column({ type: 'text', nullable: true })
   tftWallpaper: string | null;
 
   // Invoice Specific

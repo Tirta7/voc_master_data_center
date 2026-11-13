@@ -93,14 +93,27 @@ export default function Dashboard() {
     };
     socket.on('license_updated', onLicenseUpdated);
 
+    const onWebhookPayment = (data: any) => {
+      if (data) {
+        showAlert(
+          'Pembayaran Diterima',
+          `Pembayaran Rp ${Number(data.amount || 0).toLocaleString('id-ID')} diterima via ${data.source_name || 'EDC/QRIS'} (${data.tableName || 'Meja'})!`,
+          { variant: 'success' }
+        );
+        refetchBilliard();
+      }
+    };
+    socket.on('payment_webhook_received', onWebhookPayment);
+
     const handleOpenTrialModal = () => setShowTrialExhaustedModal(true);
     window.addEventListener('open_trial_modal', handleOpenTrialModal);
 
     return () => {
       socket.off('license_updated', onLicenseUpdated);
+      socket.off('payment_webhook_received', onWebhookPayment);
       window.removeEventListener('open_trial_modal', handleOpenTrialModal);
     };
-  }, []);
+  }, [showAlert, refetchBilliard]);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Waiting list alert UI state

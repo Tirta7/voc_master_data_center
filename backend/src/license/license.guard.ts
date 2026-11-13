@@ -10,6 +10,8 @@ export class LicenseGuard implements CanActivate {
   private readonly ALLOWED_PATHS = [
     '/api/license',
     '/api/auth/login',
+    '/api/webhook',
+    '/webhook',
     '/',
   ];
 

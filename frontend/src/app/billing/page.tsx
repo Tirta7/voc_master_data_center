@@ -139,6 +139,62 @@ function BillingContent() {
         };
     }, [transaction?.id, transactionId]);
 
+    // REAL-TIME WEBHOOK PAYMENT NOTIFICATION LISTENER (EDC BCA, EDC Mandiri, QRIS Notifier, dsb.)
+    useEffect(() => {
+        const handleWebhookPayment = (data: any) => {
+            if (!data) return;
+            // Jika transaksi saat ini yang dilunaskan oleh webhook
+            const currentTxId = transaction?.id ? Number(transaction.id) : null;
+            const targetTxId = data.transactionId ? Number(data.transactionId) : null;
+            const isMatch = (currentTxId && targetTxId && currentTxId === targetTxId) ||
+                            (data.invoiceNumber && transaction?.invoiceNumber && data.invoiceNumber === transaction.invoiceNumber);
+
+            if (isMatch) {
+                // 1. Tutup modal konfirmasi tagihan
+                setIsConfirmModalOpen(false);
+
+                // 2. Tampilkan toast konfirmasi pembayaran
+                const sourceName = data.source_name || data.method || 'EDC / QRIS';
+                showAlert(
+                    'Pembayaran Diterima',
+                    `Pembayaran Rp ${Number(data.amount || 0).toLocaleString('id-ID')} diterima via ${sourceName}!`,
+                    { variant: 'success' }
+                );
+
+                // 3. Update status pembayaran kasir
+                const finalMethod = sourceName;
+                setPaymentMethod(finalMethod);
+                setPaymentAmount(String(data.amount));
+                setLastPaymentInfo({
+                    total: Number(data.amount || 0),
+                    method: finalMethod,
+                    payAmount: Number(data.amount || 0),
+                    change: 0
+                });
+
+                if (data.transaction) {
+                    setTransaction(data.transaction);
+                } else {
+                    fetchTransaction();
+                }
+                setIsPaymentSuccess(true);
+
+                // 4. Otomatis cetak struk kasir
+                setTimeout(() => {
+                    handlePrint();
+                }, 600);
+            }
+        };
+
+        socket.on('payment_webhook_received', handleWebhookPayment);
+        socket.on('payment_notification_success', handleWebhookPayment);
+
+        return () => {
+            socket.off('payment_webhook_received', handleWebhookPayment);
+            socket.off('payment_notification_success', handleWebhookPayment);
+        };
+    }, [transaction, showAlert, fetchTransaction]);
+
     // REAL-TIME CFD SYNC (MQTT & SOCKET)
     useEffect(() => {
         if (transaction) {

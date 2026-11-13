@@ -9,7 +9,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 
-import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Tv, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus, Power, PowerOff } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Tv, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus, Power, PowerOff, Copy, Key } from 'lucide-react';
 import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 import { QRCodeCanvas } from 'qrcode.react';
@@ -54,6 +54,27 @@ export default function BusinessSettings() {
     const [showSuccess, setShowSuccess] = useState(false);
 
     const [networkInfo, setNetworkInfo] = useState<{ primaryIp: string, ipAddresses: string[] } | null>(null);
+
+    const [copiedWebhook, setCopiedWebhook] = useState(false);
+    const [copiedSecret, setCopiedSecret] = useState(false);
+
+    const copyToClipboard = (text: string, type: 'url' | 'secret') => {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            if (type === 'url') {
+                setCopiedWebhook(true);
+                setTimeout(() => setCopiedWebhook(false), 2000);
+            } else {
+                setCopiedSecret(true);
+                setTimeout(() => setCopiedSecret(false), 2000);
+            }
+        }
+    };
+
+    const handleRegenerateSecret = () => {
+        const randomSec = 'vocml_sec_' + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        setSettings({ ...settings, paymentWebhookSecret: randomSec });
+    };
 
 
 
@@ -1473,6 +1494,97 @@ export default function BusinessSettings() {
 
                                             </div>
 
+                                        </div>
+
+                                        <div className="col-span-2 mt-6 md:mt-10 p-6 md:p-8 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl md:rounded-3xl border border-indigo-500/20 text-white relative overflow-hidden shadow-xl">
+                                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                            <div className="flex items-start justify-between gap-4 mb-5 relative z-10">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-3 bg-indigo-500/20 rounded-2xl border border-indigo-400/30">
+                                                        <Zap className="w-6 h-6 text-amber-400" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-base md:text-lg font-black tracking-tight uppercase flex items-center gap-2">
+                                                            Webhook Pembayaran Otomatis
+                                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold px-2.5 py-0.5 rounded-full tracking-wider">UNIVERSAL</span>
+                                                        </h4>
+                                                        <p className="text-xs text-slate-300 font-medium mt-0.5">
+                                                            Integrasi VOC ML Notifier untuk EDC BCA, EDC Mandiri, QRIS Dinamis, dan e-wallet.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                                                {/* Webhook Endpoint URL */}
+                                                <div className="col-span-1 md:col-span-2 bg-black/40 border border-white/10 rounded-xl md:rounded-2xl p-4">
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                            Endpoint Webhook URL (POST)
+                                                        </span>
+                                                        <span className="text-[10px] font-mono text-indigo-300 bg-indigo-900/40 px-2 py-0.5 rounded">
+                                                            Header: X-VOCML-Secret
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/payment-notification`}
+                                                            className="flex-1 bg-black/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs md:text-sm font-mono text-emerald-400 focus:outline-none select-all"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyToClipboard(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhook/payment-notification`, 'url')}
+                                                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
+                                                        >
+                                                            {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                                                            <span>{copiedWebhook ? 'Tersalin' : 'Salin URL'}</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Secret Key Input & Action */}
+                                                <div className="col-span-1 md:col-span-2 bg-black/40 border border-white/10 rounded-xl md:rounded-2xl p-4">
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                                            <Key className="w-3 h-3 text-amber-400" />
+                                                            Secret Key Kasir (Validasi Keamanan)
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={settings.paymentWebhookSecret || ''}
+                                                            onChange={(e) => setSettings({ ...settings, paymentWebhookSecret: e.target.value })}
+                                                            placeholder="vocml_sec_..."
+                                                            className="flex-1 bg-black/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs md:text-sm font-mono text-amber-300 focus:outline-none focus:border-indigo-400 select-all"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyToClipboard(settings.paymentWebhookSecret || '', 'secret')}
+                                                            className="bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95"
+                                                        >
+                                                            {copiedSecret ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                                                            <span>{copiedSecret ? 'Tersalin' : 'Salin Secret'}</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleRegenerateSecret}
+                                                            title="Generate Ulang Secret Key"
+                                                            className="bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-400/30 px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95"
+                                                        >
+                                                            <RefreshCw className="w-3.5 h-3.5" />
+                                                            <span>Acak Ulang</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                                                <span>* Simpan perubahan pengaturan di pojok kanan atas setelah mengubah Secret Key.</span>
+                                            </div>
                                         </div>
 
 

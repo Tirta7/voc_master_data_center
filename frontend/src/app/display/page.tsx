@@ -175,6 +175,48 @@ function SmartDisplayContent() {
  // Topup Success Notification
  const [topupSuccess, setTopupSuccess] = useState<any>(null);
 
+ // Webhook / Universal Payment Success Notification on CFD
+ const [cfdPaymentSuccess, setCfdPaymentSuccess] = useState<{
+ amount: number;
+ source_name: string;
+ tableName?: string;
+ customerName?: string;
+ } | null>(null);
+
+ const playPaymentSuccessAudio = useCallback(() => {
+ try {
+ const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+ if (AudioCtx) {
+ const ctx = new AudioCtx();
+ [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+ const osc = ctx.createOscillator();
+ const gain = ctx.createGain();
+ osc.type = 'sine';
+ osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.1);
+ gain.gain.setValueAtTime(0.2, ctx.currentTime + idx * 0.1);
+ gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.1 + 0.6);
+ osc.connect(gain);
+ gain.connect(ctx.destination);
+ osc.start(ctx.currentTime + idx * 0.1);
+ osc.stop(ctx.currentTime + idx * 0.1 + 0.7);
+ });
+ }
+ } catch {
+ // Audio autoplay restrictions
+ }
+ try {
+ if ('speechSynthesis' in window) {
+ window.speechSynthesis.cancel();
+ const u = new SpeechSynthesisUtterance('Pembayaran berhasil diterima');
+ u.lang = 'id-ID';
+ u.rate = 1.0;
+ window.speechSynthesis.speak(u);
+ }
+ } catch {
+ // Speech synthesis error
+ }
+ }, []);
+
  // Empty State View Management
  const [emptyView, setEmptyView] = useState<'PROMO' | 'TABLES' | 'WAITING_LIST' | 'WAITING_FORM' | 'ATTENDANCE'>('PROMO');
  const [attendancePin, setAttendancePin] = useState('');
@@ -650,12 +692,30 @@ function SmartDisplayContent() {
  });
  };
 
+ const handleCfdPaymentSuccess = (data: any) => {
+ console.log('[CFD] Received cfd_payment_success:', data);
+ if (!data) return;
+ setCfdPaymentSuccess({
+ amount: data.amount,
+ source_name: data.source_name || data.provider || data.method || 'EDC / QRIS',
+ tableName: data.tableName,
+ customerName: data.customerName,
+ });
+ playPaymentSuccessAudio();
+ setTimeout(() => {
+ setCfdPaymentSuccess(null);
+ setPaymentState(null);
+ setFocusedTableInfo(null);
+ }, 5000);
+ };
+
  socket.on('request_display_scan', handleRequestScan);
  socket.on('cancel_display_scan', handleCancelScan);
  socket.on('display_scan_result', handleScanResult);
  socket.on('memberBalanceUpdated', handleMemberBalanceUpdated);
  socket.on('loyalty_updated', handleLoyaltyUpdated); // Listen for real-time settings update
  socket.on('display_topup_success', handleTopupSuccess);
+ socket.on('cfd_payment_success', handleCfdPaymentSuccess);
  socket.on('redeem_confirmed', handleRedeemConfirmed); // Add this
  socket.on('connect', syncFocus);
 
@@ -669,6 +729,7 @@ function SmartDisplayContent() {
  socket.off('memberBalanceUpdated', handleMemberBalanceUpdated);
  socket.off('loyalty_updated', handleLoyaltyUpdated);
  socket.off('display_topup_success', handleTopupSuccess);
+ socket.off('cfd_payment_success', handleCfdPaymentSuccess);
  socket.off('redeem_confirmed', handleRedeemConfirmed); // Add this
  socket.off('redeem_reset', handleRedeemReset);
  socket.off('connect', syncFocus);
@@ -2026,6 +2087,96 @@ function SmartDisplayContent() {
 
  <AnimatePresence>
  {scannedMember && renderMemberInfoView()}
+ </AnimatePresence>
+
+ {/* Webhook Universal Payment Success Fullscreen Overlay on CFD */}
+ <AnimatePresence>
+ {cfdPaymentSuccess && (
+ <motion.div
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ className="fixed inset-0 z-[9999] flex flex-col items-center justify-center p-6 bg-black/90 backdrop-blur-2xl"
+ >
+ <motion.div
+ initial={{ scale: 0.8, y: 50, opacity: 0 }}
+ animate={{ scale: 1, y: 0, opacity: 1 }}
+ exit={{ scale: 0.8, y: 20, opacity: 0 }}
+ transition={{ type: "spring", damping: 25, stiffness: 300 }}
+ className="w-full max-w-xl bg-gradient-to-b from-slate-900 via-slate-900 to-black border-2 border-emerald-500/50 rounded-[3rem] p-10 md:p-14 text-center shadow-[0_0_100px_rgba(16,185,129,0.35)] relative overflow-hidden"
+ >
+ <div className="absolute -top-32 -left-32 w-72 h-72 bg-emerald-500/20 rounded-full blur-[90px] pointer-events-none" />
+ <div className="absolute -bottom-32 -right-32 w-72 h-72 bg-teal-500/20 rounded-full blur-[90px] pointer-events-none" />
+
+ <motion.div
+ initial={{ scale: 0 }}
+ animate={{ scale: [0, 1.2, 1] }}
+ transition={{ duration: 0.6, ease: "easeOut" }}
+ className="relative mx-auto w-28 h-28 md:w-32 md:h-32 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.6)] mb-8"
+ >
+ <motion.div
+ animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0, 0.6] }}
+ transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+ className="absolute inset-0 rounded-full border-4 border-emerald-400"
+ />
+ <CheckCircle2 className="w-16 h-16 md:w-20 md:h-20 text-white stroke-[2.5]" />
+ </motion.div>
+
+ <motion.div
+ initial={{ opacity: 0, y: 10 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ delay: 0.2 }}
+ >
+ <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight uppercase">
+ PEMBAYARAN BERHASIL!
+ </h2>
+ <p className="text-emerald-400 font-bold tracking-widest text-xs md:text-sm uppercase mt-2">
+ Transaksi Telah Terverifikasi Otomatis
+ </p>
+ </motion.div>
+
+ <motion.div
+ initial={{ opacity: 0, scale: 0.95 }}
+ animate={{ opacity: 1, scale: 1 }}
+ transition={{ delay: 0.3 }}
+ className="mt-8 py-6 px-8 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 backdrop-blur-md"
+ >
+ <p className="text-xs uppercase font-extrabold text-emerald-300 tracking-[0.25em] mb-1">
+ Total Pembayaran
+ </p>
+ <p className="text-4xl md:text-6xl font-black text-white tracking-tight tabular-nums">
+ Rp {Number(cfdPaymentSuccess.amount || 0).toLocaleString('id-ID')}
+ </p>
+ </motion.div>
+
+ <motion.div
+ initial={{ opacity: 0, y: 10 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ delay: 0.4 }}
+ className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm"
+ >
+ <span className="px-5 py-2 rounded-full bg-white/10 text-white font-bold border border-white/10 flex items-center gap-2">
+ <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+ Metode: {cfdPaymentSuccess.source_name}
+ </span>
+ {cfdPaymentSuccess.tableName && (
+ <span className="px-4 py-2 rounded-full bg-white/5 text-slate-300 font-medium border border-white/10">
+ {cfdPaymentSuccess.tableName}
+ </span>
+ )}
+ {cfdPaymentSuccess.customerName && (
+ <span className="px-4 py-2 rounded-full bg-white/5 text-slate-300 font-medium border border-white/10">
+ {cfdPaymentSuccess.customerName}
+ </span>
+ )}
+ </motion.div>
+
+ <p className="mt-8 text-xs text-slate-400 font-medium tracking-wide">
+ Terima kasih atas kunjungan Anda • Layar akan kembali dalam beberapa detik
+ </p>
+ </motion.div>
+ </motion.div>
+ )}
  </AnimatePresence>
 
  {/* Topup Success Global Notification Overlay */}
