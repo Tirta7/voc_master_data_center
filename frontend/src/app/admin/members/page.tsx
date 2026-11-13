@@ -51,7 +51,7 @@ import { useAlert } from '@/components/ui/AlertProvider';
 import { getFullImageUrl } from '@/utils/urlUtils';
 
 
-const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmt = (n: number | string) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
 
 interface Tier {
@@ -1079,11 +1079,11 @@ export default function MembershipPage() {
                                 <div className="grid grid-cols-2 gap-3 bg-white/[0.04] border border-white/10 rounded-2xl p-4 text-left shadow-inner">
                                     <div>
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Saldo Saat Ini</span>
-                                        <span className="text-sm sm:text-base font-black text-slate-200">{fmt(selectedMember.balance || 0)}</span>
+                                        <span className="text-sm sm:text-base font-black text-slate-200">{fmt(Number(selectedMember.balance || 0))}</span>
                                     </div>
                                     <div className="text-right">
                                         <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Saldo Akhir</span>
-                                        <span className="text-sm sm:text-base font-black text-emerald-400">{fmt((selectedMember.balance || 0) + (topupAmount || 0))}</span>
+                                        <span className="text-sm sm:text-base font-black text-emerald-400">{fmt(Number(selectedMember.balance || 0) + Number(topupAmount || 0))}</span>
                                     </div>
                                 </div>
 
