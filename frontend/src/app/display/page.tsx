@@ -2996,7 +2996,7 @@ function SmartDisplayContent() {
  Silakan beri tahu kasir: QRIS • Tunai • EDC
  </p>
  </div>
- ) : (
+ ) : paymentState.paymentMethod !== 'QRIS' ? (
  <div className="mt-2 sm:mt-4 grid grid-cols-2 gap-4">
  <div>
  <p className="text-[7px] font-black uppercase opacity-60 mb-1">Amount Paid</p>
@@ -3021,27 +3021,28 @@ function SmartDisplayContent() {
  </motion.p>
  </div>
  </div>
- )}
+ ) : null}
 
  {paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString && (
- <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-3 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
- {/* Status bar diatas QRIS */}
- <div className="w-full max-w-[380px] px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-[10px]">
- <div className="flex items-center gap-2">
- <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
- <span className="font-black text-emerald-300 uppercase tracking-widest text-[9px]">SIAP DI-SCAN</span>
+ <div className="flex-1 overflow-y-auto noscrollbar flex flex-col gap-3.5 items-center justify-center p-1 sm:p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
+ {/* Status bar diatas QRIS - Jauh Lebih Besar & Mencolok */}
+ <div className="w-full max-w-[500px] lg:max-w-[540px] px-4 py-2.5 rounded-2xl bg-emerald-500/15 border-2 border-emerald-400/40 flex items-center justify-between text-xs shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+ <div className="flex items-center gap-2.5">
+ <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_12px_#34d399]" />
+ <span className="font-black text-emerald-300 uppercase tracking-widest text-xs sm:text-sm">SIAP DI-SCAN</span>
  </div>
- <span className="text-slate-400 font-mono text-[9px]">OTOMATIS TERVERIFIKASI</span>
+ <span className="text-emerald-200/90 font-mono text-[10px] sm:text-xs font-bold uppercase tracking-wider">VERIFIKASI OTOMATIS</span>
  </div>
 
+ {/* Frame QRIS Template Mandiri / Cosmo Pool - Jauh Lebih Besar (500px - 540px) */}
  <div style={{
  position: 'relative',
  width: '100%',
- maxWidth: '380px',
+ maxWidth: '520px',
  margin: '0 auto',
  borderRadius: '0',
  overflow: 'hidden',
- boxShadow: 'none',
+ boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
  }}>
  {/* eslint-disable-next-line @next/next/no-img-element */}
  <img
@@ -3059,7 +3060,7 @@ function SmartDisplayContent() {
  width: '90%',
  textAlign: 'center',
  color: '#000',
- fontSize: '16px',
+ fontSize: '20px',
  fontWeight: '900',
  letterSpacing: '0.5px',
  textShadow: '0px 0px 1px rgba(0,0,0,0.5)',
@@ -3089,7 +3090,7 @@ function SmartDisplayContent() {
  }}>
  <QRCodeCanvas
  value={paymentState.dynamicQrisString}
- size={400} 
+ size={600} 
  level={"H"}
  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
  />
@@ -3102,35 +3103,36 @@ function SmartDisplayContent() {
  transform: 'translate(-50%, -50%)',
  background: '#ef4444', 
  color: '#fff',
- padding: '3px 12px',
+ padding: '4px 16px',
  borderRadius: '9999px',
- fontSize: '11px',
+ fontSize: '13px',
  fontWeight: '900',
  whiteSpace: 'nowrap',
- boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
- border: '1.5px solid rgba(255,255,255,0.8)'
+ boxShadow: '0 4px 14px rgba(239,68,68,0.5)',
+ border: '2px solid rgba(255,255,255,0.9)'
  }}>
  Rp {Number(paymentState.paymentAmount || paymentState.remaining || 0).toLocaleString('id-ID')}
  </div>
  </div>
 
- <div className="w-full max-w-[380px] mx-auto flex flex-col items-center gap-2 bg-white/5 p-3 rounded-2xl border border-white/10 shadow-2xl">
- <div className="flex items-center justify-center gap-3 text-[9px] text-slate-300 font-bold uppercase tracking-wider">
+ {/* Baris Panduan 3 Langkah & Logo Bank/E-Wallet */}
+ <div className="w-full max-w-[500px] lg:max-w-[540px] mx-auto flex flex-col items-center gap-2.5 bg-white/5 p-3 sm:p-3.5 rounded-2xl border border-white/10 shadow-2xl">
+ <div className="flex items-center justify-center gap-3 text-[10px] sm:text-xs text-slate-200 font-extrabold uppercase tracking-wider">
  <span>1. Buka M-Banking/E-Wallet</span>
- <span className="text-white/20">•</span>
+ <span className="text-white/30">•</span>
  <span>2. Scan QR</span>
- <span className="text-white/20">•</span>
- <span>3. Bayar</span>
+ <span className="text-white/30">•</span>
+ <span>3. Konfirmasi Bayar</span>
  </div>
- <div className="flex flex-wrap justify-center gap-1.5">
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] shadow-sm">Mandiri</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#0066AE] shadow-sm">BCA</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00529C] shadow-sm">BRI</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#F36F21] shadow-sm">BNI</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">DANA</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#4C2A86] shadow-sm">OVO</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">gopay</span>
- <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
+ <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#005E6A] shadow-sm">Mandiri</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#0066AE] shadow-sm">BCA</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#00529C] shadow-sm">BRI</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#F36F21] shadow-sm">BNI</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#00AED6] shadow-sm">DANA</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#4C2A86] shadow-sm">OVO</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#00AED6] shadow-sm">gopay</span>
+ <span className="px-2.5 py-1 bg-white rounded text-[10px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
  </div>
  </div>
  </div>
