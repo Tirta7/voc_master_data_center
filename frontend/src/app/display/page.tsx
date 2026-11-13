@@ -2836,7 +2836,7 @@ function SmartDisplayContent() {
  {/* Right side: Summary & Dynamic */}
  <div className="w-full md:w-[42%] h-auto md:h-full bg-[#030712]/40 flex flex-col p-4 md:p-6 lg:p-10 gap-4 md:gap-8 relative overflow-y-auto noscrollbar">
  {/* Summary Card */}
- {!(paymentState && (paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId?.toString() === table?.id?.toString() && paymentState.tableId !== null)) && paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString) && (
+ {!(paymentState && paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString) && (
  <div className="glass-card rounded-[2rem] lg:rounded-[2.5rem] p-5 md:p-6 lg:p-8 space-y-4 lg:space-y-6 relative z-10 overflow-hidden shrink-0">
  {tx?.isPaid && (
  <div className="absolute top-4 right-4 z-20">
@@ -2871,7 +2871,7 @@ function SmartDisplayContent() {
  <motion.div key="split" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="h-full">
  {renderSplitSection()}
  </motion.div>
- ) : (paymentState && (paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId?.toString() === table?.id?.toString() && paymentState.tableId !== null))) ? (
+ ) : (paymentState && (!paymentState.terminalId || paymentState.terminalId === terminalId || paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId && table?.id && paymentState.tableId.toString() === table.id.toString()))) ? (
  <motion.div key="payment" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="h-full">
  <div className="p-6 sm:p-8 bg-[#0A84FF] rounded-[2rem] text-white shadow-2xl h-full flex flex-col">
  <div className="flex items-center gap-3 mb-4">
@@ -2910,7 +2910,7 @@ function SmartDisplayContent() {
  </div>
 
  {paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString && (
- <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-6 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
+ <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-4 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
  <div style={{
  position: 'relative',
  width: '100%',
@@ -2927,7 +2927,7 @@ function SmartDisplayContent() {
  style={{ width: '100%', display: 'block', height: 'auto' }}
  />
 
- {settings?.qrisMerchantName && (
+ {(paymentState?.qrisMerchantName || settings?.qrisMerchantName) && (
  <div style={{
  position: 'absolute',
  top: '18%', 
@@ -2945,7 +2945,7 @@ function SmartDisplayContent() {
  overflow: 'hidden',
  textOverflow: 'ellipsis'
  }}>
- {settings.qrisMerchantName}
+ {paymentState?.qrisMerchantName || settings?.qrisMerchantName}
  </div>
  )}
  
@@ -2979,15 +2979,15 @@ function SmartDisplayContent() {
  transform: 'translate(-50%, -50%)',
  background: '#ef4444', 
  color: '#fff',
- padding: '2px 8px',
- borderRadius: '0',
- fontSize: '10px',
- fontWeight: 'bold',
+ padding: '3px 12px',
+ borderRadius: '9999px',
+ fontSize: '11px',
+ fontWeight: '900',
  whiteSpace: 'nowrap',
- boxShadow: 'none',
- border: 'none'
+ boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
+ border: '1.5px solid rgba(255,255,255,0.8)'
  }}>
- Rp {(paymentState.paymentAmount || paymentState.remaining || 0).toLocaleString()}
+ Rp {Number(paymentState.paymentAmount || paymentState.remaining || 0).toLocaleString('id-ID')}
  </div>
  </div>
 

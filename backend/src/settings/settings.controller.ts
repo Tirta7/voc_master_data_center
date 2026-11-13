@@ -7,6 +7,7 @@ import {
   UseGuards,
   Query,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import * as os from 'os';
@@ -49,20 +50,24 @@ export class SettingsController {
   @Get('qris/dynamic')
   async getDynamicQris(@Query('amount') amount: string) {
     const settings = await this.settingsService.getSettings();
-    if (!settings.clientQrisString) {
-      throw new Error('Client QRIS string not configured');
+    const staticQris = settings.clientQrisString?.trim();
+    if (!staticQris) {
+      throw new BadRequestException('QRIS Merchant belum dikonfigurasi di Pengaturan Kasir.');
     }
 
-    const amt = parseInt(amount, 10);
+    const amt = Math.round(Number(amount));
     if (isNaN(amt) || amt <= 0) {
-      throw new Error('Invalid amount');
+      throw new BadRequestException('Nominal pembayaran QRIS tidak valid.');
     }
 
-    const dynamicQris = QrisUtil.generateDynamicQris(settings.clientQrisString, amt);
+    const dynamicQris = QrisUtil.generateDynamicQris(staticQris, amt);
+    const merchantName = settings.qrisMerchantName?.trim() || QrisUtil.getMerchantName(staticQris) || 'MERCHANT';
     
     return {
       qrisString: dynamicQris,
-      amount: amt
+      amount: amt,
+      merchantName: merchantName,
+      templatePath: settings.qrisTemplatePath || null,
     };
   }
 

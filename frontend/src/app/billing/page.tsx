@@ -7,7 +7,7 @@ import {
     ArrowLeft, ChevronRight, Wallet, Timer, CheckCircle2, 
     QrCode, Receipt as ReceiptIcon, Receipt, Calculator, 
     Coffee, Check, ShieldCheck, Zap, Printer, CreditCard,
-    Coins, Monitor, Minus, MousePointer2, Sparkles, Activity, X, RefreshCw
+    Coins, Monitor, Minus, MousePointer2, Sparkles, Activity, X, RefreshCw, Loader2
 } from 'lucide-react';
 import axios from 'axios';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -69,16 +69,66 @@ function BillingContent() {
         }
     }, []);
 
-    const fetchDynamicQris = async (amount: number) => {
+    const getRemainingBalance = useCallback(() => {
+        if (!transaction) return 0;
+        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+        return rem <= 1 ? 0 : rem;
+    }, [transaction]);
+
+    const fetchDynamicQris = useCallback(async (amount: number) => {
+        if (!amount || amount <= 0) return;
         setQrisLoading(true);
         try {
             const res = await axios.get(`/settings/qris/dynamic?amount=${amount}`);
-            setDynamicQrisString(res.data.qrisString);
-        } catch (error) {
+            if (res.data?.qrisString) {
+                setDynamicQrisString(res.data.qrisString);
+                // Langsung emit ke socket CFD agar QR seketika tampil di layar customer
+                if (transaction) {
+                    const currentTableId = tableId || transaction.tableId || transaction.table?.id || transaction.cafeTable?.id;
+                    const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+                    const payload = {
+                        tableId: currentTableId ? Number(currentTableId) : null,
+                        transactionId: transaction.id,
+                        tableName: transaction.table?.tableName || transaction.cafeTable?.tableName || 'Order Cabinet',
+                        grandTotal: Number(transaction.grandTotal),
+                        paidAmount: Number(transaction.paidAmount),
+                        remaining: rem,
+                        paymentAmount: amount,
+                        paymentMethod: 'QRIS',
+                        change: 0,
+                        changeAmount: 0, 
+                        customerName: transaction.customerName || (transaction.member ? transaction.member.name : ''),
+                        cashierName: user?.name || '',
+                        status: 'BILLING_IN_PROGRESS',
+                        terminalId: terminalId,
+                        lastUpdate: new Date().toISOString(),
+                        dynamicQrisString: res.data.qrisString,
+                        qrisMerchantName: res.data.merchantName || settings?.qrisMerchantName
+                    };
+                    publish(currentTableId ? `cfd/table/${currentTableId}` : `cfd/tx/${transaction.id}`, payload);
+                    socket.emit('billing_payment_state', payload);
+                }
+            }
+        } catch (error: any) {
             console.error('Failed to generate dynamic QRIS:', error);
-            showAlert('Gagal', 'Gagal memuat QRIS dinamis. Pastikan QRIS Merchant sudah dikonfigurasi di Settings.', { variant: 'error' });
+            showAlert('QRIS Belum Tersedia', error.response?.data?.message || 'Gagal memuat QRIS dinamis. Pastikan QRIS Merchant String sudah disimpan di Pengaturan Kasir.', { variant: 'error' });
         } finally {
             setQrisLoading(false);
+        }
+    }, [transaction, tableId, terminalId, user?.name, settings?.qrisMerchantName, publish, showAlert]);
+
+    const handleSelectPaymentMethod = (method: string) => {
+        const upper = method.toUpperCase();
+        setPaymentMethod(upper);
+        if (upper === 'QRIS') {
+            const rem = getRemainingBalance();
+            const targetAmount = rem > 0 ? rem : (Number(paymentAmount) || 0);
+            if (targetAmount > 0) {
+                setPaymentAmount(targetAmount.toString());
+                fetchDynamicQris(targetAmount);
+            }
+        } else {
+            setDynamicQrisString('');
         }
     };
 
@@ -218,7 +268,8 @@ function BillingContent() {
                 status: 'BILLING_IN_PROGRESS',
                 terminalId: terminalId, // Route specifically to terminal display if linked
                 lastUpdate: new Date().toISOString(),
-                dynamicQrisString: paymentMethod === 'QRIS' ? dynamicQrisString : undefined
+                dynamicQrisString: paymentMethod === 'QRIS' ? dynamicQrisString : undefined,
+                qrisMerchantName: settings?.qrisMerchantName
             };
             
             // Sync via MQTT
@@ -227,13 +278,7 @@ function BillingContent() {
             // Sync via Socket.io for CFD Display
             socket.emit('billing_payment_state', payload);
         }
-    }, [transaction, paymentAmount, paymentMethod, publish, tableId, terminalId, dynamicQrisString]);
-
-    const getRemainingBalance = useCallback(() => {
-        if (!transaction) return 0;
-        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
-        return rem <= 1 ? 0 : rem;
-    }, [transaction]);
+    }, [transaction, paymentAmount, paymentMethod, publish, tableId, terminalId, dynamicQrisString, settings?.qrisMerchantName]);
 
     const getOriginalGrandTotalBeforeVoucher = useCallback(() => {
         if (!transaction) return 0;
@@ -895,15 +940,22 @@ function BillingContent() {
                                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
                                     {Array.from(new Set([...(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY']), 'MEMBERSHIP'])).map((m: string) => {
                                         const isSelected = paymentMethod === m.toUpperCase();
+                                        const isQrisLoading = isSelected && m.toUpperCase() === 'QRIS' && qrisLoading;
                                         return (
-                                            <button key={m} onClick={() => {
-                                                setPaymentMethod(m.toUpperCase());
-                                                if (m.toUpperCase() === 'QRIS' && settings?.clientQrisString && remainingBalance > 0) {
-                                                    fetchDynamicQris(Number(paymentAmount) || remainingBalance);
-                                                }
-                                            }} className={`group relative h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-[1.02] z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}>
+                                            <button 
+                                                key={m} 
+                                                onClick={() => handleSelectPaymentMethod(m)} 
+                                                className={`group relative h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-[1.02] z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}
+                                            >
                                                 {isSelected && <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-lg"><div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse"></div></div>}
-                                                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{m}</span>
+                                                {isQrisLoading ? (
+                                                    <div className="flex items-center gap-1.5 text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-indigo-200">
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                        <span>LOAD QR...</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{m}</span>
+                                                )}
                                             </button>
                                         );
                                     })}
