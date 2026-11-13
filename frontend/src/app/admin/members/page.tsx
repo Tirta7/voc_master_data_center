@@ -1025,107 +1025,190 @@ export default function MembershipPage() {
 
             {showTopupModal && (topupStep !== 'IDLE') && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
-                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
-                        <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-600"></div>
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
+                    <div className="relative bg-[#18191E]/95 border-2 border-white/10 rounded-[2.5rem] sm:rounded-[3rem] w-full max-w-lg p-6 sm:p-8 lg:p-10 shadow-[0_25px_70px_-15px_rgba(0,0,0,0.9)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh] text-white backdrop-blur-2xl">
+                        {/* Decorative Top Gradient Line */}
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600"></div>
+
                         {topupStep === 'SCAN_VALIDATION' && (
                             <div className="space-y-6">
-                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><QrCode className="w-8 h-8" /></div>
-                                <h2 className="text-2xl font-black text-slate-900">Validasi Member</h2>
-                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR Code member untuk memulai Top-up</p>
-                                <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} /></div>
-                                <button type="button" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">BATALKAN</button>
+                                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                                    <QrCode className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Validasi Member</h2>
+                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR Code member untuk memulai Top-up</p>
+                                </div>
+                                <div className="h-64 rounded-2xl overflow-hidden border-2 border-white/10 bg-black/40 relative shadow-inner">
+                                    <QRScanner onScanSuccess={handleQrScanTopup} onClose={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
+                                </div>
+                                <button type="button" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} className="w-full py-4 text-xs font-black text-slate-400 hover:text-white uppercase tracking-widest border border-white/10 bg-white/5 hover:bg-white/10 rounded-2xl transition-all">
+                                    BATALKAN
+                                </button>
                             </div>
                         )}
+
                         {topupStep === 'INPUT_AMOUNT' && selectedMember && (
-                            <div className="space-y-6">
-                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><Wallet className="w-8 h-8" /></div>
-                                <h2 className="text-2xl font-black text-slate-900">Input Nominal</h2>
-                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Member: {selectedMember.name}</p>
+                            <div className="space-y-5">
+                                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                                    <Wallet className="w-8 h-8" />
+                                </div>
+                                
+                                <div>
+                                    <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Top Up Saldo</h2>
+                                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-black text-xs uppercase tracking-wider mt-2">
+                                        <span>MEMBER</span>
+                                        <span className="text-white/40">•</span>
+                                        <span className="text-white">{selectedMember.name}</span>
+                                        {selectedMember.memberCode && <span className="text-slate-400 font-mono text-[10px]">({selectedMember.memberCode})</span>}
+                                    </div>
+                                </div>
 
                                 {/* Inactive Member Warning */}
                                 {!selectedMember.isActive && (
-                                    <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-start gap-3 text-left">
-                                        <ShieldOff className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                                    <div className="bg-rose-500/15 border-2 border-rose-500/30 rounded-2xl p-4 flex items-start gap-3 text-left">
+                                        <ShieldOff className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
                                         <div>
-                                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Member Tidak Aktif</p>
-                                            <p className="text-[10px] font-bold text-rose-500 mt-1">Member ini sudah tidak aktif. Top-up tidak akan diproses oleh sistem.</p>
+                                            <p className="text-xs font-black text-rose-400 uppercase tracking-wider">Member Tidak Aktif</p>
+                                            <p className="text-[11px] font-medium text-rose-300 mt-1">Member ini sudah tidak aktif. Top-up tidak dapat diproses oleh sistem.</p>
                                         </div>
                                     </div>
                                 )}
 
+                                {/* Balance Simulation Grid */}
+                                <div className="grid grid-cols-2 gap-3 bg-white/[0.04] border border-white/10 rounded-2xl p-4 text-left shadow-inner">
+                                    <div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Saldo Saat Ini</span>
+                                        <span className="text-sm sm:text-base font-black text-slate-200">{fmt(selectedMember.balance || 0)}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Saldo Akhir</span>
+                                        <span className="text-sm sm:text-base font-black text-emerald-400">{fmt((selectedMember.balance || 0) + (topupAmount || 0))}</span>
+                                    </div>
+                                </div>
+
                                 <form onSubmit={(e) => {
                                     e.preventDefault();
                                     if (topupAmount < 1000) {
-                                        alert('Nominal top-up minimum Rp 1.000');
+                                        showAlert('Perhatian', 'Nominal top-up minimum Rp 1.000', { variant: 'warning' });
                                         return;
                                     }
                                     if (topupAmount > 5_000_000) {
-                                        alert('Nominal top-up maksimum Rp 5.000.000 per transaksi');
+                                        showAlert('Perhatian', 'Nominal top-up maksimum Rp 5.000.000 per transaksi', { variant: 'warning' });
                                         return;
                                     }
-                                    setTopupStep('SCAN_COMMIT');
+                                    // Process Topup Directly (Fast & Seamless for Cashier)
+                                    handleTopup();
+                                }} className="space-y-5 text-left">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Jumlah Topup *</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400 font-black text-xl">Rp</span>
+                                            <input
+                                                type="number"
+                                                value={topupAmount === 0 ? '' : topupAmount}
+                                                onChange={e => setTopupAmount(Number(e.target.value))}
+                                                placeholder="0"
+                                                className="w-full bg-black/40 border-2 border-white/15 focus:border-emerald-500 focus:outline-none rounded-2xl py-4 pl-14 pr-4 text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight text-center transition-all placeholder:text-slate-600 shadow-inner"
+                                                autoFocus
+                                                required
+                                            />
+                                        </div>
+                                    </div>
 
-                                    // Trigger scan on display again for commitment
-                                    const uuid = Math.random().toString(36).substring(7);
-                                    setDisplayScanUuid(uuid);
-                                    socket.emit('request_display_scan', { uuid, type: 'TOPUP_COMMITMENT' });
-                                }} className="space-y-6 mt-4 text-left">
-                                    <InputField label="Jumlah Topup" type="number" value={topupAmount === 0 ? '' : topupAmount} onChange={v => setTopupAmount(Number(v))} className="!text-3xl !font-black !text-emerald-600 !text-center !py-6 font-sans" required autoFocus />
-                                    {topupAmount > 0 && (
-                                        <p className="text-center text-[10px] font-black text-slate-400 -mt-4">
-                                            = <span className="text-slate-700">Rp {topupAmount.toLocaleString('id-ID')}</span>
-                                        </p>
-                                    )}
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-3 gap-2">
                                         {[20000, 50000, 100000, 200000, 500000, 1000000].map(amt => (
-                                            <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${topupAmount === amt ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 hover:bg-indigo-600 hover:text-white border-slate-100'}`}>
-                                                {`Rp ${Math.round(amt).toLocaleString('id-ID')}`}
+                                            <button 
+                                                key={amt} 
+                                                type="button" 
+                                                onClick={() => setTopupAmount(amt)} 
+                                                className={`py-3 rounded-xl text-xs font-black transition-all border active:scale-95 ${
+                                                    topupAmount === amt 
+                                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
+                                                        : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border-white/10'
+                                                }`}
+                                            >
+                                                Rp {Math.round(amt).toLocaleString('id-ID')}
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="space-y-2 mt-4">
+
+                                    <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Metode Pembayaran</label>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                             {(settings?.availablePaymentMethods || ['CASH', 'DEBIT', 'TRANSFER', 'QRIS']).map((m: string) => (
-                                                <button key={m} type="button" onClick={() => setTopupPaymentMethod(m)} className={`p-3 rounded-xl text-[10px] font-black transition-all border ${topupPaymentMethod === m ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-600'}`}>{m}</button>
+                                                <button 
+                                                    key={m} 
+                                                    type="button" 
+                                                    onClick={() => setTopupPaymentMethod(m)} 
+                                                    className={`py-3 px-2 rounded-xl text-xs font-black transition-all border active:scale-95 ${
+                                                        topupPaymentMethod === m 
+                                                            ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.5)]' 
+                                                            : 'bg-white/[0.04] text-slate-400 border-white/10 hover:border-indigo-500/50 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {m}
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="flex gap-3 pt-4">
-                                        <button type="button" onClick={() => { setTopupStep('SCAN_VALIDATION'); setSelectedMember(null); }} className="flex-1 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">KEMBALI</button>
-                                        <button type="submit" disabled={!selectedMember.isActive} className="flex-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] shadow-lg shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed">LANJUTKAN SCAN</button>
+
+                                    <div className="flex items-center gap-3 pt-3">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => { setTopupStep('SCAN_VALIDATION'); setSelectedMember(null); }} 
+                                            className="w-1/3 py-4 rounded-2xl text-xs font-black text-slate-400 hover:text-white uppercase tracking-wider bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
+                                        >
+                                            KEMBALI
+                                        </button>
+                                        <button 
+                                            type="submit" 
+                                            disabled={!selectedMember.isActive || topupAmount < 1000} 
+                                            className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-white py-4 rounded-2xl font-black text-xs sm:text-sm shadow-[0_0_25px_rgba(16,185,129,0.35)] active:scale-95 transition-all uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            PROSES TOP UP
+                                        </button>
                                     </div>
                                 </form>
                             </div>
                         )}
+
                         {topupStep === 'SCAN_COMMIT' && selectedMember && (
                             <div className="space-y-6">
-                                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-100"><RefreshCw className="w-8 h-8" /></div>
-                                <h2 className="text-2xl font-black text-slate-900">Konfirmasi Sinkron</h2>
-                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR member sekali lagi untuk sinkronisasi saldo</p>
-                                <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => setTopupStep('INPUT_AMOUNT')} /></div>
-                                <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-100 space-y-2">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ringkasan Top-up</p>
-                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Member</span><span className="font-black text-slate-900">{selectedMember.name}</span></div>
-                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Metode</span><span className="font-black text-indigo-600 uppercase">{topupPaymentMethod}</span></div>
-                                    <div className="h-px bg-slate-200" />
-                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Nominal</span><span className="font-black text-emerald-600 text-lg">Rp {topupAmount.toLocaleString('id-ID')}</span></div>
+                                <div className="w-16 h-16 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                                    <RefreshCw className="w-8 h-8" />
                                 </div>
-                                <button type="button" onClick={() => setTopupStep('INPUT_AMOUNT')} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">KEMBALI</button>
+                                <div>
+                                    <h2 className="text-2xl font-black text-white tracking-tight">Konfirmasi Sinkron</h2>
+                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR member sekali lagi untuk sinkronisasi saldo</p>
+                                </div>
+                                <div className="h-64 rounded-2xl overflow-hidden border-2 border-white/10 bg-black/40 relative shadow-inner">
+                                    <QRScanner onScanSuccess={handleQrScanTopup} onClose={() => setTopupStep('INPUT_AMOUNT')} />
+                                </div>
+                                <div className="p-4 bg-white/[0.04] rounded-2xl text-left border border-white/10 space-y-2">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ringkasan Top-up</p>
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400">Member</span><span className="font-black text-white">{selectedMember.name}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400">Metode</span><span className="font-black text-indigo-400 uppercase">{topupPaymentMethod}</span></div>
+                                    <div className="h-px bg-white/10" />
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-400">Nominal</span><span className="font-black text-emerald-400 text-lg">Rp {topupAmount.toLocaleString('id-ID')}</span></div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => setTopupStep('INPUT_AMOUNT')} className="w-1/3 py-4 text-xs font-black text-slate-400 hover:text-white uppercase tracking-widest border border-white/10 bg-white/5 hover:bg-white/10 rounded-2xl transition-all">KEMBALI</button>
+                                    <button type="button" onClick={() => handleTopup()} className="flex-1 py-4 text-xs font-black text-white uppercase tracking-widest bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl shadow-lg active:scale-95 transition-all">SELESAIKAN TOP UP</button>
+                                </div>
                              </div>
                          )}
 
                         {/* Safety overlay for Topup process */}
                         {isSubmitting && (
-                            <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center z-[200]">
-                                <div className="bg-slate-900/90 text-white px-8 py-6 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-3xl animate-in zoom-in-95 duration-300">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200]">
+                                <div className="bg-[#18191E] border-2 border-indigo-500/40 text-white px-8 py-6 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-3xl animate-in zoom-in-95 duration-300">
                                     <div className="relative">
                                         <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                                        <Wallet className="w-5 h-5 text-white absolute inset-0 m-auto" />
+                                        <Wallet className="w-5 h-5 text-indigo-400 absolute inset-0 m-auto" />
                                     </div>
                                     <div className="text-center">
-                                        <p className="text-sm font-black uppercase tracking-[0.2em]">Sinkronisasi Saldo</p>
+                                        <p className="text-sm font-black uppercase tracking-[0.2em] text-white">Sinkronisasi Saldo</p>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Harap Tunggu Sebentar...</p>
                                     </div>
                                 </div>
@@ -1138,24 +1221,24 @@ export default function MembershipPage() {
             {/* ── Global Modals (Moved to root for full-screen coverage and stacking) ── */}
             {showReceiptModal && lastTransaction && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
-                    <div className="absolute inset-0 bg-slate-900/80 " onClick={() => setShowReceiptModal(false)} />
-                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowReceiptModal(false)} />
+                    <div className="relative bg-[#18191E]/95 border-2 border-white/10 rounded-[2.5rem] sm:rounded-[3rem] w-full max-w-lg shadow-[0_25px_70px_-15px_rgba(0,0,0,0.9)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-white backdrop-blur-2xl">
                         <div className="absolute top-0 right-0 p-6 z-10">
                             <button 
                                 onClick={() => setShowReceiptModal(false)}
-                                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all font-black"
+                                className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-rose-500 transition-all font-black"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-8 pb-10">
+                        <div className="p-6 sm:p-8 flex justify-center max-h-[70vh] overflow-y-auto custom-scrollbar">
                             <ThermalReceipt tx={lastTransaction} settings={settings} />
                         </div>
-                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-                            <button onClick={() => window.print()} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <div className="p-6 bg-black/40 border-t border-white/10 flex gap-3">
+                            <button onClick={() => window.print()} className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 text-white rounded-2xl font-black uppercase tracking-wider text-xs shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2">
                                 <Printer className="w-4 h-4" /> CETAK STRUK
                             </button>
-                            <button onClick={() => setShowReceiptModal(false)} className="px-8 py-4 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:border-slate-300 transition-all">TUTUP</button>
+                            <button onClick={() => setShowReceiptModal(false)} className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-2xl font-black uppercase tracking-wider text-xs transition-all active:scale-95">TUTUP</button>
                         </div>
                     </div>
                 </div>
