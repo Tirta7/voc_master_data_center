@@ -54,12 +54,24 @@ export function BroadcastToast() {
   const renewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const showRenewedPopup = useCallback((detail?: any) => {
+    // Validasi ketat: Jangan pernah tampilkan popup perpanjangan jika lisensi terkunci / expired / sisa hari <= 0
+    const daysLeft = typeof detail?.daysLeft === 'number' ? detail.daysLeft : undefined;
+    const isExpiredOrBlocked = detail?.status === 'EXPIRED' || detail?.status === 'BLOCKED' || (daysLeft !== undefined && daysLeft <= 0);
+    if (isExpiredOrBlocked) {
+      setRenewedPopup(null);
+      return;
+    }
+    if (detail?.expiredAt && new Date(detail.expiredAt).getTime() < Date.now()) {
+      setRenewedPopup(null);
+      return;
+    }
+
     const now = Date.now();
     if (now - lastRenewPopupAtRef.current < 5000) return;
     lastRenewPopupAtRef.current = now;
     setRenewedPopup({
       expiredAt: detail?.expiredAt || null,
-      daysLeft: typeof detail?.daysLeft === 'number' ? detail.daysLeft : undefined,
+      daysLeft: daysLeft,
     });
     if (renewTimerRef.current) clearTimeout(renewTimerRef.current);
     renewTimerRef.current = setTimeout(() => {
@@ -224,12 +236,12 @@ export function BroadcastToast() {
             <p style={{ margin: 0, color: '#fff', fontSize: '14px', fontWeight: 800 }}>
               Lisensi anda berhasil diperpanjang
             </p>
-            {(renewedPopup.expiredAt || typeof renewedPopup.daysLeft === 'number') && (
+            {(renewedPopup.expiredAt || (typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0)) && (
               <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
                 {renewedPopup.expiredAt
                   ? `Berlaku s/d ${new Date(renewedPopup.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
                   : ''}
-                {typeof renewedPopup.daysLeft === 'number'
+                {typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0
                   ? `${renewedPopup.expiredAt ? ' • ' : ''}Sisa ${renewedPopup.daysLeft} Hari`
                   : ''}
               </p>

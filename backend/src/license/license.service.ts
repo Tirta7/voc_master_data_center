@@ -245,7 +245,11 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
               }
               void (async () => {
                 await this.checkLicense(true, true);
-                if (isRenew) {
+                if (
+                  isRenew &&
+                  (this.state.status === 'ACTIVE' || this.state.status === 'GRACE') &&
+                  this.state.daysLeft > 0
+                ) {
                   this.licenseRenewed$.next(this.state);
                   this.eventEmitter.emit('license.renewed', this.state);
                 }
@@ -460,11 +464,17 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
       const newExpiredAt = this.state.expiredAt ? new Date(this.state.expiredAt).getTime() : 0;
       const newLicenseKey = this.state.licenseKey || '';
+      const isCurrentlyActive =
+        (mappedStatus === 'ACTIVE' || mappedStatus === 'GRACE') &&
+        daysLeft > 0 &&
+        (newExpiredAt === 0 || newExpiredAt > Date.now());
+
       const wasRenewed =
-        (prevExpiredAt > 0 && newExpiredAt > prevExpiredAt) ||
-        (!!prevLicenseKey && !!newLicenseKey && newLicenseKey !== prevLicenseKey) ||
-        ((prevStatus === 'BLOCKED' || prevStatus === 'EXPIRED') &&
-          (mappedStatus === 'ACTIVE' || mappedStatus === 'GRACE'));
+        isCurrentlyActive &&
+        ((prevExpiredAt > 0 && newExpiredAt > prevExpiredAt) ||
+          (!!prevLicenseKey && !!newLicenseKey && newLicenseKey !== prevLicenseKey) ||
+          ((prevStatus === 'BLOCKED' || prevStatus === 'EXPIRED') &&
+            (mappedStatus === 'ACTIVE' || mappedStatus === 'GRACE')));
 
       const emitKey = JSON.stringify([
         this.state.status,
