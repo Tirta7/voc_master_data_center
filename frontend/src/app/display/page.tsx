@@ -2119,12 +2119,9 @@ function SmartDisplayContent() {
  transition={{ delay: 0.4 }}
  className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm"
  >
+ {cfdPaymentSuccess.tableName && (
  <span className="px-5 py-2 rounded-full bg-white/10 text-white font-bold border border-white/10 flex items-center gap-2">
  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
- Metode: {cfdPaymentSuccess.source_name}
- </span>
- {cfdPaymentSuccess.tableName && (
- <span className="px-4 py-2 rounded-full bg-white/5 text-slate-300 font-medium border border-white/10">
  {cfdPaymentSuccess.tableName}
  </span>
  )}
