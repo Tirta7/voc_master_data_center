@@ -34,6 +34,13 @@ export class EventsGateway
   private idleTracking = new Map<number, number>(); // userId -> startTime (ms)
   private userConnections = new Map<number, Set<string>>(); // userId -> Set of socketIds
   private settingsUpdateSubject = new Subject<any>();
+  public activeBillingTx: {
+    transactionId?: number;
+    tableId?: number;
+    amount?: number;
+    updatedAt: number;
+  } | null = null;
+
   private currentDisplayFocus: {
     tableId: number;
     type: string;
@@ -430,6 +437,14 @@ export class EventsGateway
 
   @SubscribeMessage('billing_payment_state')
   handlePaymentState(@MessageBody() data: any) {
+    if (data?.transactionId || data?.tableId) {
+      this.activeBillingTx = {
+        transactionId: data.transactionId ? Number(data.transactionId) : undefined,
+        tableId: data.tableId ? Number(data.tableId) : undefined,
+        amount: data.remaining !== undefined ? Number(data.remaining) : (data.grandTotal !== undefined ? Number(data.grandTotal) : undefined),
+        updatedAt: Date.now(),
+      };
+    }
     // Broadcast the payment state to all connected displays or a specific terminal room
     if (data?.terminalId) {
       this.server

@@ -178,8 +178,21 @@ export class WebhookService {
     }
 
     if (matchingList.length > 0) {
-      // Prioritaskan meja dengan status WAITING_PAYMENT terlebih dahulu, lalu yang paling baru
+      const activeTx = (this.eventsGateway as any)?.activeBillingTx;
+      const isFreshActive = activeTx && (Date.now() - activeTx.updatedAt < 300_000); // 5 menit terakhir
+
+      // Prioritaskan meja yang sedang aktif dibuka di kasir/CFD, lalu status WAITING_PAYMENT, lalu yang paling baru
       matchingList.sort((a, b) => {
+        if (isFreshActive && activeTx) {
+          const aIsActive =
+            (activeTx.transactionId && a.tx.id === activeTx.transactionId) ||
+            (activeTx.tableId && a.tx.tableId === activeTx.tableId);
+          const bIsActive =
+            (activeTx.transactionId && b.tx.id === activeTx.transactionId) ||
+            (activeTx.tableId && b.tx.tableId === activeTx.tableId);
+          if (aIsActive && !bIsActive) return -1;
+          if (!aIsActive && bIsActive) return 1;
+        }
         if (a.isWaiting && !b.isWaiting) return -1;
         if (!a.isWaiting && b.isWaiting) return 1;
         return (
