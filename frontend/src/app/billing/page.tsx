@@ -58,6 +58,21 @@ function BillingContent() {
     const [customerMessage, setCustomerMessage] = useState<string>('');
     const [webhookToast, setWebhookToast] = useState<{ amount: number; source: string; invoiceNumber?: string } | null>(null);
     const [paymentSuccessModal, setPaymentSuccessModal] = useState<{ amount: number; source: string; invoiceNumber?: string } | null>(null);
+    const [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
+
+    useEffect(() => {
+        const onConnect = () => setIsSocketConnected(true);
+        const onDisconnect = () => setIsSocketConnected(false);
+        socket.on('connect', onConnect);
+        socket.on('disconnect', onDisconnect);
+        setIsSocketConnected(socket.connected);
+        return () => {
+            socket.off('connect', onConnect);
+            socket.off('disconnect', onDisconnect);
+        };
+    }, []);
+
+    const isDisplaySync = isConnected || isSocketConnected;
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -632,15 +647,15 @@ function BillingContent() {
                 </div>
 
                 <div className="flex items-center gap-3 sm:gap-6">
-                    <div className={`group flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border transition-all duration-500 overflow-hidden relative cursor-default ${isConnected ? 'bg-white border-slate-200/50 shadow-sm' : 'bg-rose-50 border-rose-100'}`}>
-                        {isConnected && <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent"></div>}
+                    <div className={`group flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border transition-all duration-500 overflow-hidden relative cursor-default ${isDisplaySync ? 'bg-white border-slate-200/50 shadow-sm' : 'bg-rose-50 border-rose-100'}`}>
+                        {isDisplaySync && <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent"></div>}
                         <div className="relative flex items-center gap-1.5 sm:gap-2">
-                            <div className={`w-1.5 h-1.5 rounded-full relative ${isConnected ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}>
-                                {isConnected && <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-40"></div>}
+                            <div className={`w-1.5 h-1.5 rounded-full relative ${isDisplaySync ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}>
+                                {isDisplaySync && <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-40"></div>}
                             </div>
-                            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest ${isConnected ? 'text-slate-500' : 'text-rose-600'}`}>
-                                <span className="inline sm:hidden">{isConnected ? 'Sync' : 'Offline'}</span>
-                                <span className="hidden sm:inline">{isConnected ? 'Display Synchronized' : 'Display Offline'}</span>
+                            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest ${isDisplaySync ? 'text-slate-500' : 'text-rose-600'}`}>
+                                <span className="inline sm:hidden">{isDisplaySync ? 'Sync' : 'Offline'}</span>
+                                <span className="hidden sm:inline">{isDisplaySync ? 'Display Synchronized' : 'Display Offline'}</span>
                             </span>
                         </div>
                     </div>
