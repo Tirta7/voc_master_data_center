@@ -734,8 +734,9 @@ export default function ActivatePage() {
                     <img
                       ref={qrImgRef}
                       id="billing-qris-image"
-                      src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
+                      src={selectedPackage?.qris_image_url || billing.qris_image_url || `${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
                       alt={`QRIS ${billing.merchant_name} ${currentAmountText}`}
+                      loading="eager"
                       width={180}
                       height={180}
                       onLoad={() => setQrLoaded(true)}

@@ -29,6 +29,7 @@ interface LicenseBilling {
   note?: string;
   packages?: BillingPackage[];
   unique_code?: number | null;
+  qris_image_url?: string;
 }
 
 interface TrialExhaustedModalProps {
@@ -550,47 +551,27 @@ export default function TrialExhaustedModal({
               }}
             >
               <div style={{ width: '100%' }}>
+                {/* Badge Status */}
                 <div style={{
                   background: 'rgba(34,197,94,0.12)', color: '#4ade80',
-                  padding: '3px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800',
+                  padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800',
                   display: 'inline-flex', alignItems: 'center', gap: '5px', marginBottom: '12px',
                 }}>
-                  {!qrLoaded && currentAmount > 0 && (
-                    <RefreshCw size={22} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
-                  )}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {currentAmount > 0 ? (
-                    <img
-                      ref={qrImgRef}
-                      src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${qrRefreshNonce}`}
-                      alt={`QRIS ${currentAmountText}`}
-                      width={164}
-                      height={164}
-                      onLoad={() => setQrLoaded(true)}
-                      onError={() => setQrFailed(true)}
-                      style={{
-                        width: '164px', height: '164px', display: 'block',
-                        objectFit: 'contain', imageRendering: 'pixelated',
-                        background: '#ffffff', opacity: qrLoaded ? 1 : 0,
-                      }}
-                    />
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                      <RefreshCw size={24} color="#6366f1" style={{ animation: 'spin 1.5s linear infinite' }} />
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Memuat QRIS...</span>
-                    </div>
-                  )}
+                  <QrCode size={13} /> QRIS Pembayaran Otomatis
                 </div>
 
-                {/* QR Image Box */}
+                {/* QR Image Box Tunggal */}
                 {!qrFailed ? (
-                  <div style={{
-                    background: '#ffffff', padding: '8px', borderRadius: '12px',
-                    width: '180px', height: '180px', boxSizing: 'border-box',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    margin: '0 auto', position: 'relative',
-                    boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-                  }}>
+                  <div
+                    className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-inner"
+                    style={{
+                      background: '#ffffff', padding: '10px', borderRadius: '14px',
+                      width: '180px', height: '180px', boxSizing: 'border-box',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      margin: '0 auto', position: 'relative',
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+                    }}
+                  >
                     {!qrLoaded && currentAmount > 0 && (
                       <RefreshCw size={22} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
                     )}
@@ -598,16 +579,19 @@ export default function TrialExhaustedModal({
                     {currentAmount > 0 ? (
                       <img
                         ref={qrImgRef}
-                        src={`${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
-                        alt={`QRIS ${currentAmountText}`}
-                        width={164}
-                        height={164}
+                        src={selectedPackage?.qris_image_url || billing?.qris_image_url || `${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${qrRefreshNonce}`}
+                        alt="QRIS Pembayaran Dinamis"
+                        className="w-48 h-48 object-contain"
+                        loading="eager"
+                        width={160}
+                        height={160}
                         onLoad={() => setQrLoaded(true)}
                         onError={() => setQrFailed(true)}
                         style={{
-                          width: '164px', height: '164px', display: 'block',
+                          width: '160px', height: '160px', display: 'block',
                           objectFit: 'contain', imageRendering: 'pixelated',
                           background: '#ffffff', opacity: qrLoaded ? 1 : 0,
+                          transition: 'opacity 0.2s ease',
                         }}
                       />
                     ) : (
@@ -626,7 +610,8 @@ export default function TrialExhaustedModal({
                     <WifiOff size={22} />
                     <div style={{ fontSize: '11px', fontWeight: 600 }}>Koneksi terputus</div>
                     <button
-                      onClick={() => { setQrFailed(false); setQrLoaded(false); }}
+                      type="button"
+                      onClick={() => { setQrFailed(false); setQrLoaded(false); setQrRefreshNonce(Date.now()); }}
                       style={{ background: 'rgba(255,255,255,0.08)', color: '#fca5a5', border: 'none', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
                     >
                       Coba lagi
@@ -648,8 +633,29 @@ export default function TrialExhaustedModal({
                 </div>
               </div>
 
-              {/* WA button */}
-              <div style={{ width: '100%', marginTop: '12px' }}>
+              {/* WA button & Tombol Konfirmasi Bayar di bawah QRIS */}
+              <div style={{ width: '100%', marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleCheckPaymentNow}
+                  disabled={checkingPayment}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '9px 12px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    borderRadius: '8px', border: 'none', color: 'white',
+                    fontSize: '11px', fontWeight: '800', cursor: checkingPayment ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                  }}
+                >
+                  {checkingPayment ? (
+                    <><RefreshCw size={13} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa...</>
+                  ) : (
+                    <><CheckCircle size={14} /> ✅ Saya Sudah Bayar</>
+                  )}
+                </button>
+
                 {billing?.contact && (
                   <a
                     href={`https://wa.me/${toWaNumber(billing.contact)}?text=${encodeURIComponent(
@@ -660,11 +666,11 @@ export default function TrialExhaustedModal({
                     style={{
                       width: '100%', boxSizing: 'border-box',
                       padding: '8px 12px',
-                      background: 'linear-gradient(135deg, #16a34a, #22c55e)',
-                      borderRadius: '8px', color: 'white', textDecoration: 'none',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '8px', color: '#e2e8f0', textDecoration: 'none',
                       fontSize: '11px', fontWeight: '700',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                      boxShadow: '0 4px 12px rgba(34,197,94,0.3)',
                     }}
                   >
                     <MessageCircle size={14} /> Hubungi Admin / Kirim Bukti
@@ -718,6 +724,9 @@ export default function TrialExhaustedModal({
                           onClick={() => {
                             setSelectedPackage(pkg);
                             selectedPackageRef.current = pkg;
+                            setQrLoaded(false);
+                            setQrFailed(false);
+                            setQrRefreshNonce(Date.now());
                             try {
                               sessionStorage.setItem('last_selected_package', JSON.stringify(pkg));
                             } catch {}
