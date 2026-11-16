@@ -281,8 +281,9 @@ export default function TrialExhaustedModal({
 
       if (onVoucherClaimed) onVoucherClaimed();
       window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: successPayload }));
+      fetchFreshBilling();
     },
-    [currentPackageName, currentAmountText, selectedPackage, onVoucherClaimed]
+    [currentPackageName, currentAmountText, selectedPackage, onVoucherClaimed, fetchFreshBilling]
   );
 
   // PILAR 4: Dual-Engine Realtime (SSE Stream + Fast Polling 1.5 Detik)
@@ -512,12 +513,26 @@ export default function TrialExhaustedModal({
               </div>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full max-w-md rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-xs font-extrabold text-white shadow-lg shadow-emerald-500/30 hover:opacity-95 transition-all"
-            >
-              Selesai & Lanjutkan Operasional Meja
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2.5 w-full max-w-md">
+              <button
+                onClick={() => {
+                  setPaymentSuccess(null);
+                  fetchFreshBilling();
+                }}
+                className="flex-1 rounded-xl border border-indigo-400/30 bg-indigo-500/20 px-4 py-3 text-xs font-black text-indigo-200 hover:bg-indigo-500/30 transition-all"
+              >
+                + Beli / Top-Up Kuota Lagi
+              </button>
+              <button
+                onClick={() => {
+                  onClose();
+                  fetchFreshBilling();
+                }}
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-emerald-500/30 hover:opacity-95 transition-all"
+              >
+                Selesai & Lanjutkan
+              </button>
+            </div>
           </div>
         ) : (
           /* Tampilan Dua Kolom: Kiri Single QRIS Dinamis & Kanan Pilihan Paket Tab */
