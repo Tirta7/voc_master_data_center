@@ -481,7 +481,7 @@ export default function TrialExhaustedModal({
                   <span className="font-extrabold text-emerald-400 text-sm">{paymentSuccess.amountText}</span>
                 </div>
               )}
-              {paymentSuccess.addedQuota > 0 && (
+              {(paymentSuccess.addedQuota ?? 0) > 0 && (
                 <div className="flex justify-between items-center border-b border-white/5 pb-2">
                   <span className="text-slate-400 font-medium">Tambahan Kuota</span>
                   <span className="font-extrabold text-indigo-400">+{paymentSuccess.addedQuota} Sesi Meja</span>
