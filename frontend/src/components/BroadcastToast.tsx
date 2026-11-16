@@ -48,6 +48,9 @@ export function BroadcastToast() {
   const [renewedPopup, setRenewedPopup] = useState<{
     expiredAt?: string | null;
     daysLeft?: number;
+    isQuota?: boolean;
+    addedQuota?: number;
+    totalRemaining?: number;
   } | null>(null);
 
   const lastRenewPopupAtRef = useRef<number>(0);
@@ -69,9 +72,16 @@ export function BroadcastToast() {
     const now = Date.now();
     if (now - lastRenewPopupAtRef.current < 5000) return;
     lastRenewPopupAtRef.current = now;
+    const isQuota = detail?.isQuota || detail?.type === 'quota' || !!detail?.addedQuota || String(detail?.package_name || detail?.packageName || '').toLowerCase().includes('sesi');
+    const addedQuota = detail?.addedQuota || detail?.added_quota || detail?.quota || 0;
+    const totalRemaining = detail?.totalRemaining || detail?.trial?.remaining;
+
     setRenewedPopup({
       expiredAt: detail?.expiredAt || null,
       daysLeft: daysLeft,
+      isQuota,
+      addedQuota,
+      totalRemaining,
     });
     if (renewTimerRef.current) clearTimeout(renewTimerRef.current);
     renewTimerRef.current = setTimeout(() => {
@@ -234,17 +244,23 @@ export function BroadcastToast() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ margin: 0, color: '#fff', fontSize: '14px', fontWeight: 800 }}>
-              Lisensi anda berhasil diperpanjang
+              {renewedPopup.isQuota ? 'Kuota Sesi Rental Berhasil Ditambahkan' : 'Lisensi anda berhasil diperpanjang'}
             </p>
-            {(renewedPopup.expiredAt || (typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0)) && (
+            {renewedPopup.isQuota ? (
               <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
-                {renewedPopup.expiredAt
-                  ? `Berlaku s/d ${new Date(renewedPopup.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                  : ''}
-                {typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0
-                  ? `${renewedPopup.expiredAt ? ' • ' : ''}Sisa ${renewedPopup.daysLeft} Hari`
-                  : ''}
+                {renewedPopup.addedQuota ? `+${renewedPopup.addedQuota} Sesi Meja` : 'Kuota Sesi Aktif'} • Bebas Kedaluwarsa
               </p>
+            ) : (
+              (renewedPopup.expiredAt || (typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0)) && (
+                <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
+                  {renewedPopup.expiredAt
+                    ? `Berlaku s/d ${new Date(renewedPopup.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                    : ''}
+                  {typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0
+                    ? `${renewedPopup.expiredAt ? ' • ' : ''}Sisa ${renewedPopup.daysLeft} Hari`
+                    : ''}
+                </p>
+              )
             )}
           </div>
           <button

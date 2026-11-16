@@ -8,7 +8,9 @@ import WaitingCat from '@/components/WaitingCat';
 /** Varian paket perpanjangan dari VOCML. */
 interface BillingPackage {
   id?: string;
+  type?: string;
   days?: number;
+  quota?: number;
   label?: string;
   name?: string;
   basePrice?: number;
@@ -64,6 +66,9 @@ export default function ActivatePage() {
     amountPaid?: number;
     expiredAt?: string;
     daysLeft?: number;
+    isQuota?: boolean;
+    addedQuota?: number;
+    totalRemainingQuota?: number;
   } | null>(null);
 
   const handleClaimVoucher = async (e: React.FormEvent) => {
@@ -147,11 +152,18 @@ export default function ActivatePage() {
           resolvedAmount = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || 0));
         }
 
+        const isQuotaPkg = pkg?.type === 'quota' || (pkg?.quota && pkg.quota > 0) || resolvedPkgName.toLowerCase().includes('sesi');
+        const addedQuota = pkg?.quota || (isQuotaPkg ? 100 : 0);
+        const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || 100) : undefined);
+
         setPaymentSuccess({
           packageName: resolvedPkgName,
           amountPaid: resolvedAmount,
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
+          isQuota: isQuotaPkg,
+          addedQuota,
+          totalRemainingQuota,
         });
       } else {
         alert("Pembayaran belum terdeteksi, mohon tunggu beberapa detik lalu coba lagi");
@@ -353,11 +365,18 @@ export default function ActivatePage() {
           resolvedAmount = pkg?.amount ?? pkg?.final_amount ?? (currentAmountRef.current > 0 ? currentAmountRef.current : (pkg?.basePrice || 0));
         }
 
+        const isQuotaPkg = pkg?.type === 'quota' || (pkg?.quota && pkg.quota > 0) || resolvedPkgName.toLowerCase().includes('sesi');
+        const addedQuota = pkg?.quota || (isQuotaPkg ? 100 : 0);
+        const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || 100) : undefined);
+
         setPaymentSuccess({
           packageName: resolvedPkgName,
           amountPaid: resolvedAmount,
           expiredAt: data.expiredAt || "",
           daysLeft: typeof data.daysLeft === "number" ? data.daysLeft : 1,
+          isQuota: isQuotaPkg,
+          addedQuota,
+          totalRemainingQuota,
         });
         return;
       }
@@ -618,10 +637,12 @@ export default function ActivatePage() {
             </div>
 
             <h2 style={{ color: '#ffffff', fontSize: '26px', fontWeight: '900', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-              Aplikasi Berhasil Diaktifkan Kembali!
+              {paymentSuccess.isQuota ? 'Kuota Sesi Rental Berhasil Ditambahkan!' : 'Aplikasi Berhasil Diaktifkan Kembali!'}
             </h2>
             <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 26px', maxWidth: '480px', lineHeight: '1.5' }}>
-              Terima kasih! Pembayaran QRIS Anda telah diterima dan masa aktif lisensi aplikasi Anda langsung diperpanjang secara otomatis.
+              {paymentSuccess.isQuota
+                ? 'Terima kasih! Pembayaran QRIS Anda telah diterima dan kuota sesi sewa meja billiard Anda langsung ditambahkan secara otomatis.'
+                : 'Terima kasih! Pembayaran QRIS Anda telah diterima dan masa aktif lisensi aplikasi Anda langsung diperpanjang secara otomatis.'}
             </p>
 
             <div style={{
@@ -634,7 +655,14 @@ export default function ActivatePage() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Paket Lisensi</span>
-                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>{paymentSuccess.packageName}</span>
+                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {paymentSuccess.packageName}
+                  {paymentSuccess.isQuota && (
+                    <span style={{ background: 'rgba(99,102,241,0.25)', color: '#c7d2fe', border: '1px solid rgba(99,102,241,0.4)', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
+                      KUOTA
+                    </span>
+                  )}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
                 <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Nominal</span>
@@ -642,20 +670,50 @@ export default function ActivatePage() {
                   Rp{paymentSuccess.amountPaid?.toLocaleString('id-ID')}
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Berlaku Sampai</span>
-                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>
-                  {paymentSuccess.expiredAt
-                    ? new Date(paymentSuccess.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-                    : 'Aktif'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Sisa Waktu</span>
-                <span style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '800' }}>
-                  {paymentSuccess.daysLeft} Hari Lagi
-                </span>
-              </div>
+
+              {paymentSuccess.isQuota ? (
+                <>
+                  {(paymentSuccess.addedQuota ?? 0) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Tambahan Kuota</span>
+                      <span style={{ color: '#818cf8', fontSize: '14px', fontWeight: '800' }}>
+                        +{paymentSuccess.addedQuota} Sesi Meja
+                      </span>
+                    </div>
+                  )}
+                  {paymentSuccess.totalRemainingQuota !== undefined && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Sisa Kuota</span>
+                      <span style={{ color: '#34d399', fontSize: '14px', fontWeight: '800' }}>
+                        {paymentSuccess.totalRemainingQuota} Sesi Aktif
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Masa Berlaku Kuota</span>
+                    <span style={{ color: '#38bdf8', fontSize: '12px', fontWeight: '800' }}>
+                      Selamanya (Tanpa Kedaluwarsa)
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Berlaku Sampai</span>
+                    <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>
+                      {paymentSuccess.expiredAt
+                        ? new Date(paymentSuccess.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : 'Aktif'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Sisa Waktu</span>
+                    <span style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '800' }}>
+                      {paymentSuccess.daysLeft} Hari Lagi
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <button
