@@ -119,6 +119,7 @@ export default function TrialExhaustedModal({
   const [packageTab, setPackageTab] = useState<'quota' | 'days'>('quota');
   const [remainingDays, setRemainingDays] = useState<number>(0);
 
+  const qrImgRef = useRef<HTMLImageElement | null>(null);
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrFailed, setQrFailed] = useState(false);
 
@@ -208,18 +209,6 @@ export default function TrialExhaustedModal({
     }
   }, [isOpen, fetchFreshBilling, quotaPackages.length, daysPackages.length]);
 
-  // Handler pergantian tab
-  const handleSelectTab = (tab: 'quota' | 'days') => {
-    setPackageTab(tab);
-    if (tab === 'quota' && quotaPackages.length > 0) {
-      setSelectedPackage(quotaPackages[0]);
-    } else if (tab === 'days' && daysPackages.length > 0) {
-      setSelectedPackage(daysPackages[0]);
-    }
-    setQrLoaded(false);
-    setQrFailed(false);
-  };
-
   // URL QRIS Dinamis tunggal (Pilar 3)
   const currentQrisUrl = useMemo(() => {
     if (selectedPackage?.qris_image_url) return selectedPackage.qris_image_url;
@@ -228,6 +217,28 @@ export default function TrialExhaustedModal({
     }
     return billing?.qris_image_url || '';
   }, [selectedPackage, billing, activeMachineId]);
+
+  // Handler pergantian tab
+  const handleSelectTab = (tab: 'quota' | 'days') => {
+    setPackageTab(tab);
+    const targetPkg = tab === 'quota' ? (quotaPackages[0] || null) : (daysPackages[0] || null);
+    if (targetPkg) {
+      setSelectedPackage(targetPkg);
+      const nextUrl = targetPkg.qris_image_url || `${VOCML_BASE}/api/v1/billing/qris.png?machine_id=${activeMachineId}&product=${PRODUCT}&amount=${targetPkg.amount}`;
+      if (nextUrl !== currentQrisUrl) {
+        setQrLoaded(false);
+      }
+    }
+    setQrFailed(false);
+  };
+
+  // Cek apakah gambar QRIS di-cache oleh browser dan siap ditampilkan
+  useEffect(() => {
+    if (qrImgRef.current && qrImgRef.current.complete && qrImgRef.current.naturalWidth > 0) {
+      setQrLoaded(true);
+      setQrFailed(false);
+    }
+  }, [currentQrisUrl, selectedPackage]);
 
   const currentAmount = selectedPackage
     ? selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0
@@ -525,10 +536,15 @@ export default function TrialExhaustedModal({
                 <div className="relative flex h-60 w-60 items-center justify-center rounded-2xl border border-white/10 bg-white p-3 shadow-xl shadow-black/40">
                   {!qrFailed && currentQrisUrl ? (
                     <img
+                      key={currentQrisUrl}
+                      ref={qrImgRef}
                       src={currentQrisUrl}
                       alt="QRIS VOC ML"
-                      className={`h-56 w-56 object-contain transition-opacity duration-300 ${qrLoaded ? 'opacity-100' : 'opacity-0'}`}
-                      onLoad={() => setQrLoaded(true)}
+                      className={`h-56 w-56 object-contain transition-opacity duration-200 ${qrLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => {
+                        setQrLoaded(true);
+                        setQrFailed(false);
+                      }}
                       onError={() => {
                         setQrFailed(true);
                         setQrLoaded(false);
@@ -681,8 +697,11 @@ export default function TrialExhaustedModal({
                         key={pkg.id || `pkg-${idx}`}
                         type="button"
                         onClick={() => {
+                          const nextUrl = pkg.qris_image_url || `${VOCML_BASE}/api/v1/billing/qris.png?machine_id=${activeMachineId}&product=${PRODUCT}&amount=${pkg.amount}`;
+                          if (nextUrl !== currentQrisUrl) {
+                            setQrLoaded(false);
+                          }
                           setSelectedPackage(pkg);
-                          setQrLoaded(false);
                           setQrFailed(false);
                         }}
                         className={`relative flex flex-col justify-between p-3 rounded-xl border text-left transition-all ${
