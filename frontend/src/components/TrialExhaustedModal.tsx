@@ -257,22 +257,28 @@ export default function TrialExhaustedModal({
     (payload: any = {}) => {
       playDingSound();
 
-      const addedQuota = payload.added_quota || payload.quota_added || selectedPackage?.quota || 0;
+      const isQuotaPkg = selectedPackage?.type === 'quota' || (selectedPackage?.quota && selectedPackage.quota > 0) || String(payload.package_name || payload.package || currentPackageName).toLowerCase().includes('sesi');
+      const addedQuota = payload.added_quota || payload.quota_added || selectedPackage?.quota || (isQuotaPkg ? 100 : 0);
       const totalRemaining =
         payload.trial?.remaining ??
         (payload.trial_remaining !== undefined ? payload.trial_remaining : undefined);
 
-      setPaymentSuccess({
+      const successPayload = {
+        ...payload,
         packageName: payload.package_name || payload.package || currentPackageName,
         amountText: payload.amount_text || currentAmountText,
         addedQuota,
         totalRemaining: totalRemaining !== undefined ? totalRemaining : (selectedPackage?.quota || 0),
         expiredAt: payload.expires_at || null,
         daysLeft: payload.days_left ?? payload.remaining_days,
-      });
+        isQuota: isQuotaPkg,
+        type: isQuotaPkg ? 'quota' : 'days',
+      };
+
+      setPaymentSuccess(successPayload);
 
       if (onVoucherClaimed) onVoucherClaimed();
-      window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: payload }));
+      window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: successPayload }));
     },
     [currentPackageName, currentAmountText, selectedPackage, onVoucherClaimed]
   );

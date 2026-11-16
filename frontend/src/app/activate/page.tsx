@@ -156,7 +156,7 @@ export default function ActivatePage() {
         const addedQuota = pkg?.quota || (isQuotaPkg ? 100 : 0);
         const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || 100) : undefined);
 
-        setPaymentSuccess({
+        const successPayload = {
           packageName: resolvedPkgName,
           amountPaid: resolvedAmount,
           expiredAt: data.expiredAt || "",
@@ -164,7 +164,23 @@ export default function ActivatePage() {
           isQuota: isQuotaPkg,
           addedQuota,
           totalRemainingQuota,
-        });
+        };
+
+        setPaymentSuccess(successPayload);
+
+        // Pancarkan event agar Dynamic Island / BroadcastToast sinkron seketika dengan info paket yang dibeli!
+        try {
+          window.dispatchEvent(
+            new CustomEvent('vocml:license_renewed', {
+              detail: {
+                ...successPayload,
+                type: isQuotaPkg ? 'quota' : 'days',
+                totalRemaining: totalRemainingQuota,
+                status: data.status,
+              },
+            })
+          );
+        } catch {}
       } else {
         alert("Pembayaran belum terdeteksi, mohon tunggu beberapa detik lalu coba lagi");
       }
@@ -394,7 +410,7 @@ export default function ActivatePage() {
         const addedQuota = pkg?.quota || (isQuotaPkg ? 100 : 0);
         const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || 100) : undefined);
 
-        setPaymentSuccess({
+        const successPayload = {
           packageName: resolvedPkgName,
           amountPaid: resolvedAmount,
           expiredAt: data.expiredAt || "",
@@ -402,7 +418,23 @@ export default function ActivatePage() {
           isQuota: isQuotaPkg,
           addedQuota,
           totalRemainingQuota,
-        });
+        };
+
+        setPaymentSuccess(successPayload);
+
+        // Pancarkan event agar Dynamic Island / BroadcastToast sinkron seketika dengan info paket yang dibeli!
+        try {
+          window.dispatchEvent(
+            new CustomEvent('vocml:license_renewed', {
+              detail: {
+                ...successPayload,
+                type: isQuotaPkg ? 'quota' : 'days',
+                totalRemaining: totalRemainingQuota,
+                status: data.status,
+              },
+            })
+          );
+        } catch {}
         return;
       }
     };

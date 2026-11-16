@@ -51,43 +51,86 @@ export function BroadcastToast() {
     isQuota?: boolean;
     addedQuota?: number;
     totalRemaining?: number;
+    packageName?: string;
   } | null>(null);
 
   const lastRenewPopupAtRef = useRef<number>(0);
   const renewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const showRenewedPopup = useCallback((detail?: any) => {
-    // Validasi ketat: Jangan pernah tampilkan popup perpanjangan jika lisensi terkunci / expired / sisa hari <= 0
-    const daysLeft = typeof detail?.daysLeft === 'number' ? detail.daysLeft : undefined;
-    const isExpiredOrBlocked = detail?.status === 'EXPIRED' || detail?.status === 'BLOCKED' || (daysLeft !== undefined && daysLeft <= 0);
-    if (isExpiredOrBlocked) {
-      setRenewedPopup(null);
-      return;
+    // Ambil info paket terakhir yang dipilih dari sessionStorage jika detail event tidak menyertakan metadata lengkap
+    let cachedPkg: any = null;
+    try {
+      const saved = sessionStorage.getItem('last_selected_package');
+      if (saved) cachedPkg = JSON.parse(saved);
+    } catch {}
+
+    // Cek apakah transaksi adalah Paket Kuota Sesi
+    const detailIsQuota = detail?.isQuota === true ||
+      detail?.type === 'quota' ||
+      (typeof detail?.addedQuota === 'number' && detail.addedQuota > 0) ||
+      (typeof detail?.added_quota === 'number' && detail.added_quota > 0);
+
+    const nameText = String(
+      detail?.packageName ||
+      detail?.package_name ||
+      detail?.package ||
+      detail?.lastPayment?.package_name ||
+      detail?.lastPayment?.action ||
+      detail?.action ||
+      ''
+    ).toLowerCase();
+
+    const isQuotaByName = nameText.includes('sesi') || nameText.includes('kuota');
+    const isCachedQuota = cachedPkg && (cachedPkg.type === 'quota' || (Number(cachedPkg.quota) > 0 && !cachedPkg.days) || String(cachedPkg.name || '').toLowerCase().includes('sesi'));
+
+    // Tentukan apakah transaksi yang terjadi adalah tipe Kuota
+    let isQuota = detailIsQuota || isQuotaByName || (!detail?.days && isCachedQuota);
+
+    // Jika detail secara eksplisit menyatakan tipe days/waktu, jangan override jadi kuota
+    if (detail?.type === 'days' || (detail?.days && !detail?.quota && !isQuotaByName)) {
+      isQuota = false;
     }
-    if (detail?.expiredAt && new Date(detail.expiredAt).getTime() < Date.now()) {
-      setRenewedPopup(null);
-      return;
+
+    const addedQuota = detail?.addedQuota || detail?.added_quota || detail?.quota || (isQuota && cachedPkg?.quota ? Number(cachedPkg.quota) : (isQuota ? 100 : 0));
+    const totalRemaining = detail?.totalRemaining || detail?.trial?.remaining;
+    const packageName = detail?.packageName || detail?.package_name || detail?.package || (isQuota ? (cachedPkg?.name || `Paket ${addedQuota} Sesi`) : (cachedPkg?.name || (detail?.days ? `Paket ${detail.days} Hari` : '')));
+
+    const daysLeft = typeof detail?.daysLeft === 'number' ? detail.daysLeft : (typeof detail?.days_left === 'number' ? detail.days_left : undefined);
+
+    // Validasi ketat: Jika bukan paket kuota, jangan tampilkan jika status expired/blocked dan tidak ada hari tersisa
+    if (!isQuota) {
+      const isExpiredOrBlocked = detail?.status === 'EXPIRED' || detail?.status === 'BLOCKED' || (daysLeft !== undefined && daysLeft <= 0);
+      if (isExpiredOrBlocked) {
+        setRenewedPopup(null);
+        return;
+      }
+      if (detail?.expiredAt && new Date(detail.expiredAt).getTime() < Date.now()) {
+        setRenewedPopup(null);
+        return;
+      }
     }
 
     const now = Date.now();
-    if (now - lastRenewPopupAtRef.current < 5000) return;
+    // Jika event baru membawa info kuota yang lebih akurat dibanding popup waktu sebelumnya, izinkan langsung menimpa
+    const isUpgradeToQuota = isQuota && (!renewedPopup?.isQuota);
+    if (!isUpgradeToQuota && now - lastRenewPopupAtRef.current < 2500) return;
     lastRenewPopupAtRef.current = now;
-    const isQuota = detail?.isQuota || detail?.type === 'quota' || !!detail?.addedQuota || String(detail?.package_name || detail?.packageName || '').toLowerCase().includes('sesi');
-    const addedQuota = detail?.addedQuota || detail?.added_quota || detail?.quota || 0;
-    const totalRemaining = detail?.totalRemaining || detail?.trial?.remaining;
 
     setRenewedPopup({
-      expiredAt: detail?.expiredAt || null,
+      expiredAt: detail?.expiredAt || detail?.expires_at || null,
       daysLeft: daysLeft,
       isQuota,
       addedQuota,
       totalRemaining,
+      packageName,
     });
+
     if (renewTimerRef.current) clearTimeout(renewTimerRef.current);
     renewTimerRef.current = setTimeout(() => {
       setRenewedPopup(null);
     }, 10000);
-  }, []);
+  }, [renewedPopup]);
 
   const messagesRef = useRef<BroadcastMessage[]>([]);
   const visibleRef = useRef<Set<string>>(new Set());
@@ -243,16 +286,35 @@ export function BroadcastToast() {
             <ShieldCheck size={20} color="#fff" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, color: '#fff', fontSize: '14px', fontWeight: 800 }}>
-              {renewedPopup.isQuota ? 'Kuota Sesi Rental Berhasil Ditambahkan' : 'Lisensi anda berhasil diperpanjang'}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <p style={{ margin: 0, color: '#fff', fontSize: '14px', fontWeight: 800 }}>
+                {renewedPopup.isQuota ? 'Kuota Sesi Rental Berhasil Ditambahkan' : 'Lisensi anda berhasil diperpanjang'}
+              </p>
+              {renewedPopup.isQuota && (
+                <span style={{
+                  fontSize: '9px',
+                  fontWeight: 900,
+                  letterSpacing: '0.05em',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  padding: '2px 6px',
+                  borderRadius: '6px',
+                  textTransform: 'uppercase',
+                }}>
+                  KUOTA
+                </span>
+              )}
+            </div>
             {renewedPopup.isQuota ? (
               <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
-                {renewedPopup.addedQuota ? `+${renewedPopup.addedQuota} Sesi Meja` : 'Kuota Sesi Aktif'} • Bebas Kedaluwarsa
+                {renewedPopup.packageName ? `${renewedPopup.packageName} • ` : ''}
+                {renewedPopup.addedQuota ? `+${renewedPopup.addedQuota} Sesi Meja` : 'Kuota Sesi Aktif'}
+                {typeof renewedPopup.totalRemaining === 'number' ? ` • Total Sisa ${renewedPopup.totalRemaining} Sesi Aktif` : ' • Bebas Kedaluwarsa'}
               </p>
             ) : (
               (renewedPopup.expiredAt || (typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0)) && (
                 <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
+                  {renewedPopup.packageName ? `${renewedPopup.packageName} • ` : ''}
                   {renewedPopup.expiredAt
                     ? `Berlaku s/d ${new Date(renewedPopup.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
                     : ''}
