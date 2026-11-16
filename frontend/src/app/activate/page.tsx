@@ -153,8 +153,10 @@ export default function ActivatePage() {
         }
 
         const isQuotaPkg = pkg?.type === 'quota' || (pkg?.quota && pkg.quota > 0) || resolvedPkgName.toLowerCase().includes('sesi');
-        const addedQuota = pkg?.quota || (isQuotaPkg ? 100 : 0);
-        const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || 100) : undefined);
+        const numMatch = resolvedPkgName.match(/(\d+)\s*sesi/) || resolvedPkgName.match(/\d+/);
+        const extractedQuota = numMatch ? parseInt(numMatch[1] || numMatch[0], 10) : 0;
+        const addedQuota = pkg?.quota || (extractedQuota > 0 ? extractedQuota : 0);
+        const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || addedQuota) : undefined);
 
         const successPayload = {
           packageName: resolvedPkgName,
@@ -407,8 +409,10 @@ export default function ActivatePage() {
         }
 
         const isQuotaPkg = pkg?.type === 'quota' || (pkg?.quota && pkg.quota > 0) || resolvedPkgName.toLowerCase().includes('sesi');
-        const addedQuota = pkg?.quota || (isQuotaPkg ? 100 : 0);
-        const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || 100) : undefined);
+        const numMatch = resolvedPkgName.match(/(\d+)\s*sesi/) || resolvedPkgName.match(/\d+/);
+        const extractedQuota = numMatch ? parseInt(numMatch[1] || numMatch[0], 10) : 0;
+        const addedQuota = pkg?.quota || (extractedQuota > 0 ? extractedQuota : 0);
+        const totalRemainingQuota = data.trial?.remaining ?? (isQuotaPkg ? (data.trial?.quota || addedQuota) : undefined);
 
         const successPayload = {
           packageName: resolvedPkgName,

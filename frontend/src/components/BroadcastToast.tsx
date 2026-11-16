@@ -92,9 +92,21 @@ export function BroadcastToast() {
       isQuota = false;
     }
 
-    const addedQuota = detail?.addedQuota || detail?.added_quota || detail?.quota || (isQuota && cachedPkg?.quota ? Number(cachedPkg.quota) : (isQuota ? 100 : 0));
+    // Ekstrak addedQuota secara akurat dari detail event, cache, atau teks nama paket
+    let addedQuota = detail?.addedQuota || detail?.added_quota || detail?.quota;
+    if (!addedQuota && isQuota) {
+      if (cachedPkg?.quota) {
+        addedQuota = Number(cachedPkg.quota);
+      } else {
+        const numMatch = nameText.match(/(\d+)\s*sesi/) || nameText.match(/\d+/);
+        if (numMatch) {
+          addedQuota = parseInt(numMatch[1] || numMatch[0], 10);
+        }
+      }
+    }
+
     const totalRemaining = detail?.totalRemaining || detail?.trial?.remaining;
-    const packageName = detail?.packageName || detail?.package_name || detail?.package || (isQuota ? (cachedPkg?.name || `Paket ${addedQuota} Sesi`) : (cachedPkg?.name || (detail?.days ? `Paket ${detail.days} Hari` : '')));
+    const packageName = detail?.packageName || detail?.package_name || detail?.package || (isQuota ? (cachedPkg?.name || (addedQuota ? `Paket ${addedQuota} Sesi` : '')) : (cachedPkg?.name || (detail?.days ? `Paket ${detail.days} Hari` : '')));
 
     const daysLeft = typeof detail?.daysLeft === 'number' ? detail.daysLeft : (typeof detail?.days_left === 'number' ? detail.days_left : undefined);
 
@@ -307,9 +319,12 @@ export function BroadcastToast() {
             </div>
             {renewedPopup.isQuota ? (
               <p style={{ margin: '2px 0 0', color: '#d1fae5', fontSize: '12px', fontWeight: 600 }}>
-                {renewedPopup.packageName ? `${renewedPopup.packageName} • ` : ''}
-                {renewedPopup.addedQuota ? `+${renewedPopup.addedQuota} Sesi Meja` : 'Kuota Sesi Aktif'}
-                {typeof renewedPopup.totalRemaining === 'number' ? ` • Total Sisa ${renewedPopup.totalRemaining} Sesi Aktif` : ' • Bebas Kedaluwarsa'}
+                {renewedPopup.addedQuota
+                  ? `+${renewedPopup.addedQuota} Sesi Meja Ditambahkan`
+                  : (renewedPopup.packageName || 'Kuota Sesi Aktif')}
+                {typeof renewedPopup.totalRemaining === 'number'
+                  ? ` • Total Sisa ${renewedPopup.totalRemaining} Sesi Aktif`
+                  : ' • Bebas Kedaluwarsa'}
               </p>
             ) : (
               (renewedPopup.expiredAt || (typeof renewedPopup.daysLeft === 'number' && renewedPopup.daysLeft > 0)) && (

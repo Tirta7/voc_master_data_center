@@ -258,7 +258,9 @@ export default function TrialExhaustedModal({
       playDingSound();
 
       const isQuotaPkg = selectedPackage?.type === 'quota' || (selectedPackage?.quota && selectedPackage.quota > 0) || String(payload.package_name || payload.package || currentPackageName).toLowerCase().includes('sesi');
-      const addedQuota = payload.added_quota || payload.quota_added || selectedPackage?.quota || (isQuotaPkg ? 100 : 0);
+      const numMatch = String(payload.package_name || payload.package || currentPackageName).match(/(\d+)\s*sesi/) || String(payload.package_name || payload.package || currentPackageName).match(/\d+/);
+      const extractedQuota = numMatch ? parseInt(numMatch[0], 10) : 0;
+      const addedQuota = payload.added_quota || payload.quota_added || selectedPackage?.quota || (extractedQuota > 0 ? extractedQuota : 0);
       const totalRemaining =
         payload.trial?.remaining ??
         (payload.trial_remaining !== undefined ? payload.trial_remaining : undefined);

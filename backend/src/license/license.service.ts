@@ -251,13 +251,15 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
                 ) {
                   const lpName = String(this.state.lastPayment?.package_name || this.state.lastPayment?.action || '').toLowerCase();
                   const isQuota = lpName.includes('sesi') || lpName.includes('kuota');
+                  const numMatch = lpName.match(/(\d+)\s*sesi/) || lpName.match(/\d+/);
+                  const extractedQuota = numMatch ? parseInt(numMatch[0], 10) : 0;
                   const renewPayload = {
                     ...this.state,
                     isQuota,
                     type: isQuota ? 'quota' : 'days',
-                    addedQuota: isQuota ? 100 : undefined,
+                    addedQuota: extractedQuota > 0 ? extractedQuota : undefined,
                     totalRemaining: this.state.trial?.remaining,
-                    packageName: this.state.lastPayment?.package_name || (isQuota ? 'Paket 100 Sesi' : undefined),
+                    packageName: this.state.lastPayment?.package_name || (extractedQuota > 0 ? `Paket ${extractedQuota} Sesi` : undefined),
                   };
                   this.licenseRenewed$.next(renewPayload);
                   this.eventEmitter.emit('license.renewed', renewPayload);
@@ -487,9 +489,11 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
       const lpName = String(lic.lastPayment?.package_name || lic.lastPayment?.action || lic.last_payment?.package_name || '').toLowerCase();
       const isQuotaPayment = isQuotaIncreased || lpName.includes('sesi') || lpName.includes('kuota');
+      const numMatch = lpName.match(/(\d+)\s*sesi/) || lpName.match(/\d+/);
+      const lpQuotaNum = numMatch ? parseInt(numMatch[0], 10) : 0;
       const addedQuota = isQuotaIncreased
         ? Math.max(newTrialRemaining - prevTrialRemaining, newTrialQuota - prevTrialQuota)
-        : (isQuotaPayment ? 100 : 0);
+        : (lpQuotaNum > 0 ? lpQuotaNum : (isQuotaPayment ? undefined : 0));
 
       const wasRenewed =
         (isCurrentlyActive || (lic.trial && lic.trial.enabled)) &&
@@ -527,9 +531,9 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
             ...this.state,
             isQuota: isQuotaPayment,
             type: isQuotaPayment ? 'quota' : 'days',
-            addedQuota: addedQuota > 0 ? addedQuota : undefined,
+            addedQuota: (typeof addedQuota === 'number' && addedQuota > 0) ? addedQuota : undefined,
             totalRemaining: this.state.trial?.remaining,
-            packageName: lic.lastPayment?.package_name || (isQuotaPayment ? `Paket ${addedQuota || 100} Sesi` : undefined),
+            packageName: lic.lastPayment?.package_name || (typeof addedQuota === 'number' && addedQuota > 0 ? `Paket ${addedQuota} Sesi` : undefined),
           };
           this.licenseRenewed$.next(renewPayload);
           this.eventEmitter.emit('license.renewed', renewPayload);
