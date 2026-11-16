@@ -452,6 +452,16 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
 
       // License key & expiry SELALU mengikuti hasil terakhir (server / snapshot), tanpa
       // mempertahankan key lama — agar koreksi pengurangan masa aktif langsung berlaku.
+      let trial = lic.trial || this.state.trial || null;
+      if (trial && this.state.trial && trial.quota === this.state.trial.quota) {
+        // Pertahankan sesi yang sudah dipakai lokal jika server VOCML belum menguranginya
+        const localUsed = this.state.trial.used || 0;
+        const serverUsed = trial.used || 0;
+        const effectiveUsed = Math.max(localUsed, serverUsed);
+        trial.used = effectiveUsed;
+        trial.remaining = Math.max(0, trial.quota - effectiveUsed);
+      }
+
       this.state = {
         status: mappedStatus,
         expiredAt: lic.expiresAt || null,
@@ -467,7 +477,7 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         rawStatus: lic.status,
         lockReason: lic.lockReason || '',
         billing,
-        trial: lic.trial || null,
+        trial,
         uniqueCode: lic.uniqueCode || null,
         lastPayment: lic.lastPayment || lic.last_payment || null,
         plan: lic.plan || null,
@@ -768,19 +778,19 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
     }
     const hasTrial = !!(this.state.trial && this.state.trial.enabled);
 
-    // Hanya skip jika lisensi aktif/grace DAN memang TIDAK ada kuota trial yang diatur
+    // Hanya skip jika lisensi aktif/grace DAN memang TIDAK ada kuota trial/sesi yang diatur
     if (!hasTrial && (this.state.status === 'ACTIVE' || this.state.status === 'GRACE')) {
       return { allowed: true, trial: this.state.trial };
     }
 
     const prevRemaining = typeof this.state.trial?.remaining === 'number' ? this.state.trial.remaining : 0;
 
-    // Jika kuota trial SUDAH 0 sebelumnya (habis), tolak penyalaan meja baru dan minta bayar/klaim voucher
-    if (hasTrial && prevRemaining <= 0 && this.state.status !== 'ACTIVE' && this.state.status !== 'GRACE') {
+    // Jika kuota sesi SUDAH 0 sebelumnya (habis), tolak penyalaan meja baru dan minta bayar/top-up kuota
+    if (hasTrial && prevRemaining <= 0) {
       return {
         allowed: false,
         trialExhausted: true,
-        error: 'Kuota coba gratis Anda telah habis. Silakan pilih paket lisensi atau klaim kode voucher untuk menyalakan meja baru.',
+        error: 'Kuota sesi sewa meja Anda telah habis. Silakan pilih paket kuota lisensi atau klaim kode voucher untuk menyalakan meja baru.',
         billing: this.getBilling(),
         trial: this.state.trial,
       };
@@ -795,19 +805,38 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         apiKey,
       });
 
-      if (res.trial) {
-        if (!this.state.trial) this.state.trial = res.trial;
-        else Object.assign(this.state.trial, res.trial);
+      // Hitung pemotongan 1 kuota sesi
+      const newRemaining = Math.max(0, prevRemaining - 1);
+      const newUsed = (this.state.trial?.used || 0) + 1;
 
-        try {
-          const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');
-          if (fs.existsSync(cacheFile)) {
-            const raw = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-            raw.trial = this.state.trial;
-            fs.writeFileSync(cacheFile, JSON.stringify(raw));
-          }
-        } catch {}
+      if (res.trial && typeof res.trial.remaining === 'number' && res.trial.remaining < prevRemaining) {
+        // Server VOCML memotong kuota secara sukses
+        this.state.trial = res.trial;
+      } else {
+        // Server VOCML mengembalikan kuota yang sama (misal karena status active) -> kurangi di state lokal
+        if (this.state.trial) {
+          this.state.trial.remaining = newRemaining;
+          this.state.trial.used = newUsed;
+        } else {
+          this.state.trial = {
+            enabled: true,
+            quota: prevRemaining,
+            used: 1,
+            remaining: newRemaining,
+            is_trial: false,
+          };
+        }
       }
+
+      // Simpan perubahan kuota ke file cache lokal agar persisten saat restart
+      try {
+        const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');
+        if (fs.existsSync(cacheFile)) {
+          const raw = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          raw.trial = this.state.trial;
+          fs.writeFileSync(cacheFile, JSON.stringify(raw));
+        }
+      } catch {}
 
       // Jika kuota sebelum sewa >= 1, sesi ini adalah SESI TERAKHIR YANG BERHAK MENYALA.
       // Biarkan menyala normal, jangan langsung kunci aplikasi atau gagalkan meja!
@@ -818,13 +847,13 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
         return {
           allowed: false,
           trialExhausted: true,
-          error: res.error || 'Kuota coba gratis Anda telah habis.',
+          error: res.error || 'Kuota sesi sewa meja Anda telah habis.',
           billing: res.billing || this.state.billing || this.getBilling(),
           trial: this.state.trial,
         };
       }
 
-      // Status lokal tetap TRIAL agar aplikasi tidak terkunci ke /activate saat sesi terakhir ini sedang berjalan
+      // Status lokal tetap TRIAL jika belum berlangganan paket hari agar aplikasi tidak terkunci ke /activate saat sesi terakhir berjalan
       if (this.state.status !== 'ACTIVE' && this.state.status !== 'GRACE') {
         this.state.status = 'TRIAL';
       }
@@ -841,16 +870,45 @@ MCowBQYDK2VwAyEADenKScMcRxd/GFPnwHLgO26Y3mKwNmtyUR1KPQgLTFI=
       this.license$.next(this.state);
       this.eventEmitter.emit('license.updated', this.state);
 
-      this.logger.log(`Trial meja billiard digunakan. Sisa: ${this.state.trial?.remaining ?? 0}`);
+      this.logger.log(`[Kuota Sesi] 1 sesi sewa meja digunakan. Sisa kuota: ${this.state.trial?.remaining ?? 0}`);
       return { allowed: true, trial: this.state.trial };
     } catch (err: any) {
-      this.logger.error('Gagal panggil consumeTrial:', err);
-      // Fail-safe jika offline sementara tapi sebelumnya punya kuota
+      this.logger.error('Gagal panggil consumeTrial ke server VOCML:', err);
+      // Fail-safe jika offline sementara: tetap potong kuota lokal 1 sesi
       if (prevRemaining >= 1) {
-        if (this.state.trial) this.state.trial.remaining = Math.max(0, prevRemaining - 1);
+        const newRemaining = Math.max(0, prevRemaining - 1);
+        const newUsed = (this.state.trial?.used || 0) + 1;
+        if (this.state.trial) {
+          this.state.trial.remaining = newRemaining;
+          this.state.trial.used = newUsed;
+        }
+        try {
+          const cacheFile = path.join(process.cwd(), 'storage', 'vocml-cache.json');
+          if (fs.existsSync(cacheFile)) {
+            const raw = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+            raw.trial = this.state.trial;
+            fs.writeFileSync(cacheFile, JSON.stringify(raw));
+          }
+        } catch {}
+        this.statusChange$.next({
+          status: this.state.status,
+          daysLeft: this.state.daysLeft,
+          expiredAt: this.state.expiredAt,
+          message: this.state.message,
+          billing: this.state.billing || this.getBilling(),
+          trial: this.state.trial,
+        });
+        this.license$.next(this.state);
+        this.eventEmitter.emit('license.updated', this.state);
         return { allowed: true, trial: this.state.trial };
       }
-      return { allowed: true };
+      return {
+        allowed: false,
+        trialExhausted: true,
+        error: 'Kuota sesi sewa meja Anda telah habis. Silakan pilih paket lisensi untuk menyalakan meja baru.',
+        billing: this.getBilling(),
+        trial: this.state.trial,
+      };
     }
   }
 
