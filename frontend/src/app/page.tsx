@@ -13,6 +13,7 @@ import WaitingListSidebar from '@/components/WaitingListSidebar';
 import { generateIdempotencyKey } from '@/utils/transactionUtils';
 import { useAlert } from '@/components/ui/AlertProvider';
 import NetworkMonitor from '@/components/NetworkMonitor';
+import LicenseHeaderBadge from '@/components/LicenseHeaderBadge';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useMqtt } from '@/context/MqttContext';
@@ -567,7 +568,8 @@ export default function Dashboard() {
                 <p className="text-[10px] text-indigo-200/80 font-bold uppercase tracking-widest">Hybrid IoT Management</p>
               </div>
             </div>
-            <div className="flex gap-6 items-center">
+            <div className="flex gap-4 items-center">
+              <LicenseHeaderBadge />
               <NetworkMonitor />
             </div>
           </div>
@@ -583,7 +585,7 @@ export default function Dashboard() {
         
         <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
           {/* MOBILE ONLY: Search/Profile Bar */}
-          <div className="flex md:hidden items-center justify-between gap-3 mb-5">
+          <div className="flex md:hidden items-center justify-between gap-3 mb-3">
             <button
                 onClick={() => setIsOpen(true)}
                 className="w-11 h-11 rounded-full flex items-center justify-center bg-white/10 text-white border border-white/20 shrink-0 shadow-md active:scale-95 transition-all"
@@ -612,6 +614,10 @@ export default function Dashboard() {
                     <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-300 rounded-full border border-rose-500" />
                 )}
             </button>
+          </div>
+          <div className="flex md:hidden items-center justify-between mb-4">
+            <LicenseHeaderBadge />
+            <NetworkMonitor />
           </div>
 
           {/* AI Battle Plan */}

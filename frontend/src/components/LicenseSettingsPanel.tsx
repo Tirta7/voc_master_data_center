@@ -202,14 +202,22 @@ export function LicenseSettingsPanel() {
         </div>
 
         {/* Stats */}
-        <div className="relative z-10 mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className={`relative z-10 mt-6 grid grid-cols-2 gap-3 ${state?.trial?.enabled ? 'sm:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-4'}`}>
           <Stat icon={<CalendarClock size={12} />} label="Berlaku Sampai" value={fmtDate(state?.expiredAt)} />
           <Stat
             icon={<Clock size={12} />}
-            label={status === 'TRIAL' ? 'Sisa Kuota' : 'Sisa Waktu'}
-            value={status === 'TRIAL' && state?.trial ? `${state.trial.remaining} Sesi` : (hasExpiry ? `${daysLeft} Hari` : '—')}
+            label="Sisa Waktu"
+            value={hasExpiry ? `${daysLeft} Hari` : '—'}
             valueColor={cfg.color}
           />
+          {state?.trial?.enabled && (
+            <Stat
+              icon={<Zap size={12} />}
+              label="Sisa Kuota"
+              value={`${state.trial.remaining} Sesi`}
+              valueColor="#0284c7"
+            />
+          )}
           <Stat
             icon={online ? <Wifi size={12} /> : <WifiOff size={12} />}
             label="Server VOCML"
@@ -219,63 +227,77 @@ export function LicenseSettingsPanel() {
           <Stat icon={<RefreshCw size={12} />} label="Sinkron Terakhir" value={fmtAgo(state?.lastChecked)} />
         </div>
 
-        {/* Trial Quota Card */}
-        {state?.trial && state.trial.enabled && (
-          <div className="relative z-10 mt-5 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 md:p-5 backdrop-blur shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3.5">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-200">
-                  <Sparkles size={22} />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-black tracking-tight text-slate-800">
-                      Kuota Coba Gratis (Trial)
-                    </span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                      state.trial.remaining > 0 ? 'bg-sky-100 text-sky-700 border border-sky-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
-                    }`}>
-                      {state.trial.remaining > 0 ? `Sisa ${state.trial.remaining}x` : 'Habis'}
-                    </span>
+        {/* Quota Card */}
+        {state?.trial && state.trial.enabled && (() => {
+          const isTrial = status === 'TRIAL' || state.trial.is_trial === true;
+          return (
+            <div className="relative z-10 mt-5 rounded-2xl border border-sky-200 bg-sky-50/90 p-4 md:p-5 backdrop-blur shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-200">
+                    <Sparkles size={22} />
                   </div>
-                  <p className="mt-1 text-xs font-medium text-slate-600 leading-relaxed">
-                    <strong className="text-slate-900 font-bold">{state.trial.used} / {state.trial.quota} terpakai</strong> (Sisa {state.trial.remaining}x). Kuota otomatis terpotong 1x setiap kali sesi sewa meja baru dimulai di kasir.
-                  </p>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-black tracking-tight text-slate-800">
+                        {isTrial ? 'Kuota Coba Gratis (Trial)' : 'Kuota Sesi Rental Meja'}
+                      </span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        state.trial.remaining > 0
+                          ? (isTrial ? 'bg-sky-100 text-sky-700 border border-sky-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200')
+                          : 'bg-rose-100 text-rose-700 border border-rose-200'
+                      }`}>
+                        {state.trial.remaining > 0
+                          ? (isTrial ? `Sisa ${state.trial.remaining}x` : `Sisa ${state.trial.remaining} Sesi`)
+                          : 'Habis'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-slate-600 leading-relaxed">
+                      <strong className="text-slate-900 font-bold">{state.trial.used} / {state.trial.quota} terpakai</strong> (Sisa {state.trial.remaining} Sesi). Kuota otomatis terpotong 1x setiap kali sesi sewa meja baru dimulai di kasir.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center justify-between sm:flex-col sm:items-end gap-0.5 border-t sm:border-t-0 pt-2 sm:pt-0 border-sky-200/60">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kuota Terpakai</span>
+                  <span className="text-base font-black text-sky-800">
+                    {state.trial.used} / {state.trial.quota} Terpakai
+                  </span>
+                  <span className="text-[11px] font-bold text-sky-600">
+                    (Sisa {state.trial.remaining} Sesi)
+                  </span>
                 </div>
               </div>
 
-              <div className="shrink-0 flex items-center justify-between sm:flex-col sm:items-end gap-0.5 border-t sm:border-t-0 pt-2 sm:pt-0 border-sky-200/60">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Kuota Terpakai</span>
-                <span className="text-base font-black text-sky-800">
-                  {state.trial.used} / {state.trial.quota} Terpakai
-                </span>
-                <span className="text-[11px] font-bold text-sky-600">
-                  (Sisa {state.trial.remaining}x)
-                </span>
-              </div>
+              {/* Quota Progress Bar */}
+              {state.trial.quota > 0 && (
+                <div className="mt-3.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
+                    <span>Progres Pemakaian: {state.trial.used} dari {state.trial.quota} sesi</span>
+                    <span>{Math.round((state.trial.used / state.trial.quota) * 100)}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-sky-200/60">
+                    <div
+                      className="h-full rounded-full transition-all duration-500 bg-sky-500"
+                      style={{ width: `${Math.min(100, Math.round((state.trial.used / state.trial.quota) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Trial Progress Bar */}
-            {state.trial.quota > 0 && (
-              <div className="mt-3.5">
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-1">
-                  <span>Progres Pemakaian: {state.trial.used} dari {state.trial.quota} sesi</span>
-                  <span>{Math.round((state.trial.used / state.trial.quota) * 100)}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-sky-200/60">
-                  <div
-                    className="h-full rounded-full transition-all duration-500 bg-sky-500"
-                    style={{ width: `${Math.min(100, Math.round((state.trial.used / state.trial.quota) * 100))}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {hasExpiry && (
-          <div className="relative z-10 mt-4">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/80 ring-1 ring-slate-200/60">
+          <div className="relative z-10 mt-4 rounded-xl border border-slate-200/80 bg-white/70 p-3 shadow-xs">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Clock size={12} className="text-slate-400" />
+                Masa Aktif Lisensi: <strong className="text-slate-700 font-black">{daysLeft} Hari Tersisa</strong> (Berlaku s/d {fmtDate(state?.expiredAt)})
+              </span>
+              <span className="font-black text-slate-600">{pct}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/60">
               <div
                 className="h-full rounded-full transition-all duration-700"
                 style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}aa)` }}
