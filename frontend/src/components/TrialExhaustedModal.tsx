@@ -1,19 +1,46 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Lock, QrCode, MessageCircle, RefreshCw, CheckCircle, Tag, ArrowRight, X, Sparkles, WifiOff, Calendar, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import {
+  Lock,
+  QrCode,
+  MessageCircle,
+  RefreshCw,
+  CheckCircle,
+  Tag,
+  ArrowRight,
+  X,
+  Sparkles,
+  WifiOff,
+  Calendar,
+  Layers,
+  Clock,
+  AlertTriangle,
+  Flame,
+  Check,
+} from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import { socket } from '@/lib/socket';
 
-interface BillingPackage {
+const VOCML_BASE = 'https://vocml.vocpos.id';
+const DEFAULT_MID = 'VOC-2177-C6EC-13BF';
+const PRODUCT = 'billiard';
+
+export interface BillingPackage {
   id?: string;
+  type?: 'quota' | 'days' | string;
   days?: number;
+  quota?: number;
   label?: string;
   name?: string;
   basePrice?: number;
   promoPrice?: number;
+  original_price?: number;
+  promo_price?: number;
   is_promo?: boolean;
   promo_badge?: string;
+  promoBadge?: string;
+  unique_code?: number | null;
   final_amount?: number;
   amount?: number;
   amount_text?: string;
@@ -21,15 +48,18 @@ interface BillingPackage {
   qris?: string;
 }
 
-interface LicenseBilling {
+export interface LicenseBilling {
   amount: number;
   amount_text: string;
   merchant_name: string;
+  merchant_city?: string;
   contact: string;
   note?: string;
   packages?: BillingPackage[];
   unique_code?: number | null;
   qris_image_url?: string;
+  qris?: string;
+  reason?: string;
 }
 
 interface TrialExhaustedModalProps {
@@ -48,899 +78,691 @@ const toWaNumber = (contact: string) => {
   return d.startsWith('0') ? `62${d.slice(1)}` : d;
 };
 
+// Audio Ding Lonceng Kasir Realtime
+function playDingSound() {
+  try {
+    const audio = new Audio('/sounds/payment-success.mp3');
+    audio.play().catch(() => {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now); // A5
+        osc.frequency.exponentialRampToValueAtTime(1760, now + 0.3); // A6
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.8);
+      } catch {}
+    });
+  } catch {}
+}
+
 export default function TrialExhaustedModal({
   isOpen,
   onClose,
   billingData,
-  machineId = 'VOC-2177-C6EC-13BF',
+  machineId = DEFAULT_MID,
   onVoucherClaimed,
   title,
   subtitle,
   badgeText,
 }: TrialExhaustedModalProps) {
-  const qrImgRef = useRef<HTMLImageElement | null>(null);
   const [billing, setBilling] = useState<LicenseBilling | null>(billingData || null);
   const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
+  const [packageTab, setPackageTab] = useState<'quota' | 'days'>('quota');
+  const [remainingDays, setRemainingDays] = useState<number>(0);
+
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrFailed, setQrFailed] = useState(false);
+
+  // Voucher state
   const [voucherCode, setVoucherCode] = useState('');
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [voucherMsg, setVoucherMsg] = useState<{ text: string; error?: boolean } | null>(null);
+
+  // Payment check states
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState<{
     packageName?: string;
-    amountPaid?: number;
-    expiredAt?: string;
+    amountText?: string;
+    addedQuota?: number;
+    totalRemaining?: number;
+    expiredAt?: string | null;
     daysLeft?: number;
   } | null>(null);
-  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
-  const [qrRefreshNonce, setQrRefreshNonce] = useState<number>(() => Date.now());
 
-  const refreshFreshBilling = React.useCallback(async () => {
+  const activeMachineId = machineId || DEFAULT_MID;
+
+  // 1. Fetch fresh check data langsung dari server VOC ML / backend
+  const fetchFreshBilling = useCallback(async () => {
     try {
-      const bRes = await fetch(`${getApiUrl()}/api/license/billing?fresh=true&_t=${Date.now()}`, {
-        cache: 'no-store',
-      });
-      if (bRes.ok) {
-        const bData = await bRes.json();
-        if (bData?.billing) {
-          setBilling(bData.billing);
-          setQrFailed(false);
-          setQrRefreshNonce(Date.now());
+      let data: any = null;
+      try {
+        const res = await fetch(
+          `${VOCML_BASE}/api/v1/check?machine_id=${activeMachineId}&product=${PRODUCT}&_t=${Date.now()}`,
+          { cache: 'no-store', signal: AbortSignal.timeout(4000) }
+        );
+        if (res.ok) data = await res.json();
+      } catch {}
+
+      if (!data) {
+        const bRes = await fetch(`${getApiUrl()}/api/license/billing?fresh=true&_t=${Date.now()}`, {
+          cache: 'no-store',
+        });
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          data = bData;
         }
       }
+
+      if (data) {
+        if (data.billing) setBilling(data.billing);
+        if (typeof data.remaining_days === 'number') setRemainingDays(data.remaining_days);
+        else if (typeof data.days_left === 'number') setRemainingDays(data.days_left);
+        setQrFailed(false);
+      }
     } catch {}
-  }, []);
+  }, [activeMachineId]);
 
-  const currentAmount = selectedPackage
-    ? (selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0)
-    : (billing?.amount ?? 0);
-  const currentAmountText = selectedPackage
-    ? (selectedPackage.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`)
-    : (billing?.amount_text ?? '');
-  const currentPackageName = selectedPackage
-    ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
-    : 'Perpanjangan Lisensi';
-
-  const selectedPackageRef = useRef<BillingPackage | null>(null);
-  selectedPackageRef.current = selectedPackage;
-  const currentAmountRef = useRef<number>(currentAmount);
-  currentAmountRef.current = currentAmount;
-
-  const initialLicenseRef = useRef<{
-    expiredAt?: string;
-    licenseKey?: string;
-    daysLeft?: number;
-    status?: string;
-  } | null>(null);
-
-  // Sinkronisasi billing realtime saat modal dibuka
   useEffect(() => {
-    if (billingData && billingData.packages && billingData.packages.length > 0) {
+    if (billingData) {
       setBilling(billingData);
     }
   }, [billingData]);
 
+  // Pisahkan paket menjadi Tab Kuota Sesi dan Tab Waktu Hari
+  const allPackages: BillingPackage[] = useMemo(() => {
+    return Array.isArray(billing?.packages) ? billing.packages : [];
+  }, [billing?.packages]);
+
+  const quotaPackages = useMemo(() => {
+    return allPackages.filter((p) => p.type === 'quota' || (Number(p.quota) > 0 && !p.days));
+  }, [allPackages]);
+
+  const daysPackages = useMemo(() => {
+    return allPackages.filter((p) => p.type === 'days' || (!p.type && Number(p.days) > 0) || (Number(p.days) > 0 && !p.quota));
+  }, [allPackages]);
+
+  // Set default tab dan package saat modal dibuka / data masuk
+  useEffect(() => {
+    if (!isOpen) return;
+
+    fetchFreshBilling();
+
+    // Utamakan tab kuota jika ada paket kuota, fallback ke tab days
+    if (quotaPackages.length > 0) {
+      setPackageTab('quota');
+      setSelectedPackage(quotaPackages[0]);
+    } else if (daysPackages.length > 0) {
+      setPackageTab('days');
+      setSelectedPackage(daysPackages[0]);
+    } else if (allPackages.length > 0) {
+      setSelectedPackage(allPackages[0]);
+    }
+  }, [isOpen, fetchFreshBilling, quotaPackages.length, daysPackages.length]);
+
+  // Handler pergantian tab
+  const handleSelectTab = (tab: 'quota' | 'days') => {
+    setPackageTab(tab);
+    if (tab === 'quota' && quotaPackages.length > 0) {
+      setSelectedPackage(quotaPackages[0]);
+    } else if (tab === 'days' && daysPackages.length > 0) {
+      setSelectedPackage(daysPackages[0]);
+    }
+    setQrLoaded(false);
+    setQrFailed(false);
+  };
+
+  // URL QRIS Dinamis tunggal (Pilar 3)
+  const currentQrisUrl = useMemo(() => {
+    if (selectedPackage?.qris_image_url) return selectedPackage.qris_image_url;
+    if (selectedPackage?.amount) {
+      return `${VOCML_BASE}/api/v1/billing/qris.png?machine_id=${activeMachineId}&product=${PRODUCT}&amount=${selectedPackage.amount}`;
+    }
+    return billing?.qris_image_url || '';
+  }, [selectedPackage, billing, activeMachineId]);
+
+  const currentAmount = selectedPackage
+    ? selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0
+    : billing?.amount ?? 0;
+
+  const currentAmountText = selectedPackage
+    ? selectedPackage.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`
+    : billing?.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`;
+
+  const currentPackageName = selectedPackage
+    ? selectedPackage.name || selectedPackage.label || (selectedPackage.quota ? `Paket ${selectedPackage.quota} Sesi` : selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Lisensi VOC')
+    : 'Lisensi VOC';
+
+  // PILAR 4: Trigger Sukses & Unlock Seketika (< 2 detik)
+  const triggerSuccessUnlock = useCallback(
+    (payload: any = {}) => {
+      playDingSound();
+
+      const addedQuota = payload.added_quota || payload.quota_added || selectedPackage?.quota || 0;
+      const totalRemaining =
+        payload.trial?.remaining ??
+        (payload.trial_remaining !== undefined ? payload.trial_remaining : undefined);
+
+      setPaymentSuccess({
+        packageName: payload.package_name || payload.package || currentPackageName,
+        amountText: payload.amount_text || currentAmountText,
+        addedQuota,
+        totalRemaining: totalRemaining !== undefined ? totalRemaining : (selectedPackage?.quota || 0),
+        expiredAt: payload.expires_at || null,
+        daysLeft: payload.days_left ?? payload.remaining_days,
+      });
+
+      if (onVoucherClaimed) onVoucherClaimed();
+      window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: payload }));
+    },
+    [currentPackageName, currentAmountText, selectedPackage, onVoucherClaimed]
+  );
+
+  // PILAR 4: Dual-Engine Realtime (SSE Stream + Fast Polling 1.5 Detik)
   useEffect(() => {
     if (!isOpen) {
-      initialLicenseRef.current = null;
       setPaymentSuccess(null);
-      setPaymentNotice(null);
+      setVoucherMsg(null);
       return;
     }
 
-    let cancelled = false;
-    let fastPollInterval: NodeJS.Timeout | null = null;
+    let isDone = false;
 
-    // 1. Selalu ambil data terbaru dari /api/v1/billing (tanpa cache) saat modal dibuka
-    refreshFreshBilling();
+    // Engine 1: SSE Stream Langsung ke VOCML (< 2 detik)
+    let sseVocml: EventSource | null = null;
+    try {
+      sseVocml = new EventSource(`${VOCML_BASE}/api/v1/stream?machine_id=${activeMachineId}&product=${PRODUCT}`);
 
-    // 2. Simpan baseline expires_at / license_key / status sebelum modal dibuka
-    fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled && !initialLicenseRef.current && d) {
-          initialLicenseRef.current = {
-            expiredAt: d.expiredAt || '',
-            licenseKey: d.licenseKey || '',
-            daysLeft: typeof d.daysLeft === 'number' ? d.daysLeft : 0,
-            status: d.status,
-          };
+      sseVocml.addEventListener('renew', (e: any) => {
+        if (isDone) return;
+        isDone = true;
+        try {
+          triggerSuccessUnlock(JSON.parse(e.data));
+        } catch {
+          triggerSuccessUnlock();
         }
-      })
-      .catch(() => { });
+      });
 
-    const finishRenewal = (newData: any) => {
-      if (cancelled) return;
-      if (fastPollInterval) {
-        clearInterval(fastPollInterval);
-        fastPollInterval = null;
-      }
-      initialLicenseRef.current = {
-        expiredAt: newData?.expiredAt || '',
-        licenseKey: newData?.licenseKey || '',
-        daysLeft: newData?.daysLeft,
-        status: newData?.status,
-      };
-      if (onVoucherClaimed) onVoucherClaimed();
-      window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: newData }));
-      onClose();
-    };
-
-    const detectPaymentSuccess = (newData: any) => {
-      const init = initialLicenseRef.current;
-      if (!init || !newData) return false;
-
-      const initExp = init.expiredAt ? new Date(init.expiredAt).getTime() : 0;
-      const newExp = newData.expiredAt ? new Date(newData.expiredAt).getTime() : 0;
-      const expiredExtended = newExp > initExp && (initExp > 0 || newExp > Date.now());
-      const keyChanged = !!(init.licenseKey && newData.licenseKey && newData.licenseKey !== init.licenseKey);
-      const unblocked = (init.status === 'EXPIRED' || init.status === 'BLOCKED') &&
-                        (newData.status === 'ACTIVE' || newData.status === 'GRACE') &&
-                        (newExp === 0 || newExp >= Date.now());
-
-      if (expiredExtended || keyChanged || unblocked) {
-        finishRenewal(newData);
-        return true;
-      }
-      return false;
-    };
-
-    // 3. Polling cepat setiap 3 detik ke GET /api/v1/check (via /api/license/status?force=true) sebagai cadangan jika SSE terputus
-    const fastCheckStatus = async () => {
-      try {
-        const res = await fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, {
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const d = await res.json();
-          detectPaymentSuccess(d);
+      sseVocml.addEventListener('unlock', (e: any) => {
+        if (isDone) return;
+        isDone = true;
+        try {
+          triggerSuccessUnlock(JSON.parse(e.data));
+        } catch {
+          triggerSuccessUnlock();
         }
-      } catch { }
-    };
+      });
 
-    fastPollInterval = setInterval(fastCheckStatus, 3000);
+      sseVocml.addEventListener('billing', () => {
+        fetchFreshBilling();
+      });
+    } catch (e) {
+      console.warn('[VOCML] SSE init error', e);
+    }
 
-    const onLicenseUpdated = (data: any) => {
-      if (data) {
-        detectPaymentSuccess(data);
-      }
-    };
+    // Listener socket internal backend
     const onLicenseRenewed = (data: any) => {
-      finishRenewal(data);
+      if (isDone) return;
+      isDone = true;
+      triggerSuccessUnlock(data);
     };
-    socket.on('license_updated', onLicenseUpdated);
     socket.on('license_renewed', onLicenseRenewed);
 
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource(`${getSocketUrl()}/api/license/stream`);
-      es.addEventListener('license', (ev) => {
-        try {
-          const state = JSON.parse((ev as MessageEvent).data);
-          if (state) {
-            detectPaymentSuccess(state);
+    // Engine 2: Fast Polling Fallback (Interval 1.5 Detik) HANYA saat modal terbuka
+    const pollInterval = setInterval(async () => {
+      if (isDone) return;
+      try {
+        const res = await fetch(
+          `${VOCML_BASE}/api/v1/check?machine_id=${activeMachineId}&product=${PRODUCT}&_t=${Date.now()}`,
+          { cache: 'no-store', signal: AbortSignal.timeout(1800) }
+        );
+        if (res.ok) {
+          const d = await res.json();
+          // Cek apakah sudah active atau ada penambahan quota/hari
+          if (d.allowed && (d.status === 'active' || d.status === 'trial')) {
+            // Jika ada event pembayaran baru yang berhasil
+            if (d.trial?.remaining > 0 || d.days_left > 0) {
+              // Verifikasi apakah ini hasil aktivasi baru
+              if (d.last_payment && new Date().getTime() - new Date(d.last_payment.created_at).getTime() < 120000) {
+                isDone = true;
+                clearInterval(pollInterval);
+                triggerSuccessUnlock(d);
+              }
+            }
           }
-        } catch { }
-      });
-      es.addEventListener('renew', (ev) => {
-        try {
-          const state = JSON.parse((ev as MessageEvent).data);
-          finishRenewal(state);
-        } catch {
-          finishRenewal({});
         }
-      });
-    } catch { }
+      } catch {}
+    }, 1500);
 
     return () => {
-      cancelled = true;
-      if (fastPollInterval) clearInterval(fastPollInterval);
-      socket.off('license_updated', onLicenseUpdated);
+      isDone = true;
+      clearInterval(pollInterval);
+      sseVocml?.close();
       socket.off('license_renewed', onLicenseRenewed);
-      es?.close();
     };
-  }, [isOpen, refreshFreshBilling, onClose, onVoucherClaimed]);
+  }, [isOpen, activeMachineId, triggerSuccessUnlock, fetchFreshBilling]);
 
-  // Pilih paket default
-  useEffect(() => {
-    if (billing?.packages && billing.packages.length > 0) {
-      setSelectedPackage((prev) => {
-        if (prev) {
-          const match = billing.packages!.find(
-            (p) => (p.id && prev.id && p.id === prev.id) || (p.days && prev.days && p.days === prev.days)
-          );
-          if (match) return match;
-        }
-        const initial = billing.packages!.find(
-          (p) => p.amount === billing.amount || p.final_amount === billing.amount
-        );
-        return initial || billing.packages![0];
-      });
-    } else {
-      setSelectedPackage(null);
-    }
-  }, [billing]);
-
-  useEffect(() => {
-    setQrFailed(false);
-    if (qrImgRef.current && qrImgRef.current.complete && qrImgRef.current.naturalWidth > 0) {
-      setQrLoaded(true);
-    } else {
-      setQrLoaded(false);
-    }
-  }, [currentAmount]);
-
-  const handleClaimVoucher = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!voucherCode.trim()) return;
-    setVoucherLoading(true);
-    setVoucherMsg(null);
+  // PILAR 5: Tombol "✅ Saya Sudah Bayar" Langsung Check Seketika (0 milidetik)
+  const handleCheckPaymentNow = async () => {
+    if (checkingPayment) return;
+    setCheckingPayment(true);
     try {
-      const res = await fetch(`${getApiUrl()}/api/license/voucher/claim`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: voucherCode.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setVoucherMsg({ text: data.message || 'Voucher berhasil digunakan! Kuota trial telah ditambahkan.' });
-        if (onVoucherClaimed) onVoucherClaimed();
-        setTimeout(() => {
-          onClose();
-        }, 1500);
-      } else {
-        setVoucherMsg({ text: data.message || 'Kode voucher tidak valid', error: true });
+      const res = await fetch(
+        `${VOCML_BASE}/api/v1/check?machine_id=${activeMachineId}&product=${PRODUCT}&_t=${Date.now()}`,
+        { cache: 'no-store' }
+      );
+      if (res.ok) {
+        const d = await res.json();
+        if (d.allowed) {
+          triggerSuccessUnlock(d);
+          return;
+        }
       }
-    } catch (err: any) {
-      setVoucherMsg({ text: err?.message || 'Gagal klaim voucher', error: true });
+      // Jika belum terdeteksi, berikan feedback ramah
+      setVoucherMsg({
+        text: 'Sistem sedang menunggu konfirmasi mutasi bank. Mohon tunggu beberapa detik lagi...',
+        error: false,
+      });
+      setTimeout(() => setVoucherMsg(null), 3500);
+    } catch {
+      setVoucherMsg({ text: 'Gagal menghubungi server VOCML. Periksa koneksi internet Anda.', error: true });
     } finally {
-      setVoucherLoading(false);
+      setCheckingPayment(false);
     }
   };
 
-  const handleCheckPaymentNow = async () => {
-    setCheckingPayment(true);
-    setPaymentNotice(null);
+  // PILAR 5: Form Klaim Voucher Promo
+  const handleClaimVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!voucherCode.trim() || voucherLoading) return;
+    setVoucherLoading(true);
+    setVoucherMsg(null);
     try {
-      const res = await fetch(`${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`, {
-        cache: 'no-store',
+      const res = await fetch(`${VOCML_BASE}/api/v1/voucher/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          machine_id: activeMachineId,
+          product: PRODUCT,
+          code: voucherCode.trim(),
+        }),
       });
       const data = await res.json();
-      const init = initialLicenseRef.current;
-
-      const initExp = init?.expiredAt ? new Date(init.expiredAt).getTime() : 0;
-      const newExp = data?.expiredAt ? new Date(data.expiredAt).getTime() : 0;
-      const expiredExtended = newExp > initExp && (initExp > 0 || newExp > Date.now());
-      const keyChanged = !!(init?.licenseKey && data?.licenseKey && data.licenseKey !== init.licenseKey);
-      const unblocked = (init?.status === 'EXPIRED' || init?.status === 'BLOCKED') &&
-                        (data.status === 'ACTIVE' || data.status === 'GRACE') &&
-                        (newExp === 0 || newExp >= Date.now());
-
-      if (expiredExtended || keyChanged || unblocked) {
-        if (onVoucherClaimed) onVoucherClaimed();
-        window.dispatchEvent(new CustomEvent('vocml:license_renewed', { detail: data }));
-        onClose();
+      if (res.ok && data.ok) {
+        setVoucherMsg({
+          text: data.message || 'Voucher berhasil diklaim! Kuota sesi rental telah ditambahkan.',
+          error: false,
+        });
+        triggerSuccessUnlock({
+          package_name: 'Klaim Kode Promo',
+          added_quota: data.added_quota || data.quota || 0,
+          trial: data.trial,
+        });
       } else {
-        setPaymentNotice('Pembayaran belum terdeteksi, mohon tunggu beberapa detik lalu coba lagi');
-        setTimeout(() => setPaymentNotice(null), 8000);
+        setVoucherMsg({ text: data.message || data.error || 'Kode voucher tidak valid atau sudah kadaluarsa.', error: true });
       }
-    } catch {
-      setPaymentNotice('Gagal menghubungkan ke server lisensi. Pastikan koneksi internet stabil.');
+    } catch (err: any) {
+      setVoucherMsg({ text: err?.message || 'Gagal klaim voucher.', error: true });
     } finally {
-      setCheckingPayment(false);
+      setVoucherLoading(false);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div
-      className="trial-modal-backdrop"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100%',
-        minHeight: '100dvh',
-        zIndex: 9999999,
-        background: 'rgba(2, 6, 23, 0.88)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        touchAction: 'pan-y',
-        overscrollBehaviorY: 'contain',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        paddingTop: 'max(20px, env(safe-area-inset-top, 20px))',
-        paddingBottom: 'max(36px, env(safe-area-inset-bottom, 36px))',
-        paddingLeft: 'max(14px, env(safe-area-inset-left, 14px))',
-        paddingRight: 'max(14px, env(safe-area-inset-right, 14px))',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        className="trial-modal-container"
-        style={{
-          width: '100%',
-          maxWidth: '860px',
-          background: 'linear-gradient(145deg, #0f172a 0%, #1e1b4b 100%)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '24px',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(99,102,241,0.2)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          margin: 'auto 0',
-          flexShrink: 0,
-          animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-      >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/10 bg-[#0f172a] text-slate-100 shadow-2xl shadow-indigo-950/50">
+        
         {/* Header Modal */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '18px 24px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(255, 255, 255, 0.02)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '40px', height: '40px',
-              background: title ? 'linear-gradient(135deg, #4f46e5, #6366f1)' : 'linear-gradient(135deg, #dc2626, #ef4444)',
-              borderRadius: '12px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: title ? '0 0 20px rgba(99,102,241,0.4)' : '0 0 20px rgba(239,68,68,0.4)',
-            }}>
-              <Sparkles size={20} color="white" />
+        <div className="flex items-center justify-between border-b border-white/10 bg-slate-900/90 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <Lock className="h-5 w-5" />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ color: 'white', fontSize: '17px', fontWeight: '800', margin: 0, letterSpacing: '-0.01em' }}>
-                  {title || 'Kuota Coba Gratis Telah Habis'}
-                </h2>
-                <span style={{
-                  fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px',
-                  background: title ? 'rgba(99,102,241,0.2)' : 'rgba(239,68,68,0.2)',
-                  color: title ? '#c7d2fe' : '#fca5a5',
-                  border: title ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(239,68,68,0.3)',
-                }}>
-                  {badgeText || (title ? 'DAFTAR PAKET' : 'TRIAL 0 SESI')}
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  {title || 'Daftar Paket Lisensi & Perpanjangan'}
+                </h3>
+                <span className="rounded-md border border-indigo-500/30 bg-indigo-500/20 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
+                  {badgeText || 'PILIHAN PAKET'}
                 </span>
               </div>
-              <p style={{ color: '#94a3b8', fontSize: '12px', margin: '2px 0 0' }}>
-                {subtitle || 'Untuk menyalakan meja baru, silakan lakukan perpanjangan lisensi atau masukkan kode voucher promo.'}
+              <p className="text-xs text-slate-400">
+                {subtitle || 'Pilih durasi paket lisensi untuk bayar otomatis dengan QRIS atau tukarkan kode voucher perpanjangan.'}
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: 'none', borderRadius: '50%',
-              width: '32px', height: '32px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#94a3b8', cursor: 'pointer', transition: 'all 0.15s ease',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-            onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+            className="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
             title="Tutup Modal"
           >
-            <X size={16} />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Body Modal: Layar Sukses Pembayaran vs Layar Dua Kolom (QRIS & Paket) */}
+        {/* Layar Sukses Pembayaran (Pilar 4) */}
         {paymentSuccess ? (
-          <div style={{
-            padding: '38px 24px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-            background: 'radial-gradient(circle at 50% 15%, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.98) 75%)',
-            animation: 'fadeIn 0.3s ease-out',
-          }}>
-            <div style={{
-              width: '78px', height: '78px', borderRadius: '50%',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 45px rgba(16, 185, 129, 0.55), 0 0 90px rgba(16, 185, 129, 0.25)',
-              marginBottom: '18px',
-              animation: 'bounceIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-            }}>
-              <CheckCircle size={46} color="#ffffff" strokeWidth={2.5} />
+          <div className="flex flex-col items-center justify-center px-8 py-12 text-center bg-radial from-emerald-500/10 via-slate-900 to-slate-900">
+            <div className="relative mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 shadow-xl shadow-emerald-500/30">
+              <CheckCircle className="h-10 w-10 text-white" strokeWidth={2.5} />
             </div>
 
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)',
-              borderRadius: '20px', padding: '5px 16px', marginBottom: '12px',
-            }}>
-              <Sparkles size={14} color="#34d399" />
-              <span style={{ fontSize: '11px', fontWeight: '800', color: '#6ee7b7', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Pembayaran Berhasil Diterima
-              </span>
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 mb-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+              <Sparkles className="h-3.5 w-3.5" /> Pembayaran Berhasil Diterima
             </div>
 
-            <h2 style={{
-              color: '#ffffff', fontSize: '23px', fontWeight: '900', margin: '0 0 8px',
-              letterSpacing: '-0.02em',
-            }}>
-              Lisensi Anda Berhasil Diperpanjang!
+            <h2 className="text-2xl font-black text-white tracking-tight mb-1">
+              Lisensi & Kuota Anda Berhasil Diperbarui!
             </h2>
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 24px', maxWidth: '460px', lineHeight: '1.5' }}>
-              Terima kasih! Pembayaran QRIS Anda telah terverifikasi secara otomatis. Masa aktif lisensi aplikasi Anda telah diperbarui.
+            <p className="text-xs text-slate-400 max-w-md mb-6">
+              Terima kasih! Pembayaran QRIS Anda telah diverifikasi secara otomatis oleh server VOC ML. Seluruh meja rental billiard kini dapat dinyalakan normal.
             </p>
 
-            {/* Rincian Transaksi */}
-            <div style={{
-              width: '100%', maxWidth: '440px',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '16px', padding: '16px 20px',
-              display: 'flex', flexDirection: 'column', gap: '12px',
-              boxSizing: 'border-box', marginBottom: '24px',
-              boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Paket Diperpanjang</span>
-                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>{paymentSuccess.packageName}</span>
+            <div className="w-full max-w-md rounded-xl border border-white/10 bg-white/5 p-4 mb-6 space-y-2.5 text-left text-xs">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-slate-400 font-medium">Paket Terpilih</span>
+                <span className="font-bold text-white">{paymentSuccess.packageName}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Nominal</span>
-                <span style={{ color: '#34d399', fontSize: '16px', fontWeight: '900' }}>
-                  Rp{paymentSuccess.amountPaid?.toLocaleString('id-ID')}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
-                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Berlaku Sampai</span>
-                <span style={{ color: '#ffffff', fontSize: '13px', fontWeight: '800' }}>
-                  {paymentSuccess.expiredAt
-                    ? new Date(paymentSuccess.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-                    : 'Aktif'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Total Sisa Waktu</span>
-                <span style={{ color: '#38bdf8', fontSize: '13px', fontWeight: '800' }}>
-                  {paymentSuccess.daysLeft} Hari Lagi
+              {paymentSuccess.amountText && (
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-slate-400 font-medium">Nominal Pembayaran</span>
+                  <span className="font-extrabold text-emerald-400 text-sm">{paymentSuccess.amountText}</span>
+                </div>
+              )}
+              {paymentSuccess.addedQuota > 0 && (
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-slate-400 font-medium">Tambahan Kuota</span>
+                  <span className="font-extrabold text-indigo-400">+{paymentSuccess.addedQuota} Sesi Meja</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-medium">Total Kuota / Sisa Sesi</span>
+                <span className="font-extrabold text-emerald-400">
+                  {paymentSuccess.totalRemaining} Sesi Aktif
                 </span>
               </div>
             </div>
 
-            {/* Tombol Selesai */}
             <button
-              type="button"
               onClick={onClose}
-              style={{
-                width: '100%', maxWidth: '440px', padding: '12px 24px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                borderRadius: '12px', border: 'none', color: '#ffffff',
-                fontSize: '13px', fontWeight: '800', cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                transition: 'transform 0.15s ease',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
-              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+              className="w-full max-w-md rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-xs font-extrabold text-white shadow-lg shadow-emerald-500/30 hover:opacity-95 transition-all"
             >
-              <CheckCircle size={16} /> Selesai & Lanjutkan
+              Selesai & Lanjutkan Operasional Meja
             </button>
           </div>
         ) : (
-          /* Body Modal: Dua Kolom (Kiri QRIS & Kanan Pilihan Paket + Voucher) */
-          <div
-            className="trial-modal-columns"
-            style={{
-              display: 'flex', flexDirection: 'row', alignItems: 'stretch',
-              flexWrap: 'wrap', width: '100%',
-            }}
-          >
-            {/* Kolom Kiri: QRIS & Nominal */}
-            <div
-              className="trial-modal-qris-col"
-              style={{
-                flex: '0 0 320px',
-                background: 'rgba(0, 0, 0, 0.25)',
-                borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-                padding: '20px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-                textAlign: 'center', boxSizing: 'border-box',
-              }}
-            >
-              <div style={{ width: '100%' }}>
-                {/* Badge Status */}
-                <div style={{
-                  background: 'rgba(34,197,94,0.12)', color: '#4ade80',
-                  padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800',
-                  display: 'inline-flex', alignItems: 'center', gap: '5px', marginBottom: '12px',
-                }}>
-                  <QrCode size={13} /> QRIS Pembayaran Otomatis
+          /* Tampilan Dua Kolom: Kiri Single QRIS Dinamis & Kanan Pilihan Paket Tab */
+          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[460px]">
+            
+            {/* ============================================================== */}
+            {/* PILAR 3: KOLOM KIRI SINGLE QRIS IMAGE (Bebas Canvas Ganda)    */}
+            {/* ============================================================== */}
+            <div className="md:col-span-5 flex flex-col items-center justify-between border-b md:border-b-0 md:border-r border-white/10 bg-slate-950/60 p-6 text-center">
+              <div className="w-full flex flex-col items-center">
+                
+                {/* Badge Status Siap Scan */}
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 mb-4 text-[10px] font-bold text-emerald-400">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  QRIS Pembayaran Otomatis
                 </div>
 
-                {/* QR Image Box Tunggal */}
-                {!qrFailed ? (
-                  <div
-                    className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow-inner"
-                    style={{
-                      background: '#ffffff', padding: '10px', borderRadius: '14px',
-                      width: '180px', height: '180px', boxSizing: 'border-box',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      margin: '0 auto', position: 'relative',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-                    }}
-                  >
-                    {!qrLoaded && currentAmount > 0 && (
-                      <RefreshCw size={22} color="#94a3b8" style={{ position: 'absolute', animation: 'spin 1.5s linear infinite' }} />
-                    )}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {currentAmount > 0 ? (
-                      <img
-                        ref={qrImgRef}
-                        src={selectedPackage?.qris_image_url || billing?.qris_image_url || `${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${qrRefreshNonce}`}
-                        alt="QRIS Pembayaran Dinamis"
-                        className="w-48 h-48 object-contain"
-                        loading="eager"
-                        width={160}
-                        height={160}
-                        onLoad={() => setQrLoaded(true)}
-                        onError={() => setQrFailed(true)}
-                        style={{
-                          width: '160px', height: '160px', display: 'block',
-                          objectFit: 'contain', imageRendering: 'pixelated',
-                          background: '#ffffff', opacity: qrLoaded ? 1 : 0,
-                          transition: 'opacity 0.2s ease',
+                {/* Box QRIS Tunggal Murni (PILAR 3) */}
+                <div className="relative flex h-60 w-60 items-center justify-center rounded-2xl border border-white/10 bg-white p-3 shadow-xl shadow-black/40">
+                  {!qrFailed && currentQrisUrl ? (
+                    <img
+                      src={currentQrisUrl}
+                      alt="QRIS VOC ML"
+                      className={`h-56 w-56 object-contain transition-opacity duration-300 ${qrLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => setQrLoaded(true)}
+                      onError={() => {
+                        setQrFailed(true);
+                        setQrLoaded(false);
+                      }}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-rose-500 gap-2 p-4 text-center">
+                      <WifiOff className="h-8 w-8" />
+                      <span className="text-xs font-semibold">Gagal memuat QRIS</span>
+                      <button
+                        onClick={() => {
+                          setQrFailed(false);
+                          fetchFreshBilling();
                         }}
-                      />
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                        <RefreshCw size={24} color="#6366f1" style={{ animation: 'spin 1.5s linear infinite' }} />
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Memuat QRIS...</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{
-                    width: '180px', height: '180px', boxSizing: 'border-box', margin: '0 auto',
-                    padding: '16px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                  }}>
-                    <WifiOff size={22} />
-                    <div style={{ fontSize: '11px', fontWeight: 600 }}>Koneksi terputus</div>
-                    <button
-                      type="button"
-                      onClick={() => { setQrFailed(false); setQrLoaded(false); setQrRefreshNonce(Date.now()); }}
-                      style={{ background: 'rgba(255,255,255,0.08)', color: '#fca5a5', border: 'none', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Coba lagi
-                    </button>
-                  </div>
-                )}
+                        className="text-[10px] bg-rose-500/10 border border-rose-500/20 px-2 py-1 rounded text-rose-300 hover:bg-rose-500/20"
+                      >
+                        Coba Lagi
+                      </button>
+                    </div>
+                  )}
 
-                {/* Total Tagihan */}
-                <div style={{ marginTop: '12px' }}>
-                  <div style={{ color: '#94a3b8', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    Total tagihan • {currentPackageName}
-                  </div>
-                  <div style={{ color: '#fff', fontSize: '26px', fontWeight: '800', letterSpacing: '-0.02em', lineHeight: 1.15, marginTop: '2px' }}>
+                  {!qrLoaded && !qrFailed && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/60 backdrop-blur-sm rounded-xl">
+                      <RefreshCw className="h-6 w-6 animate-spin text-indigo-400" />
+                      <span className="text-[10px] font-medium text-slate-300">Memuat QRIS...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Label Total Tagihan */}
+                <div className="mt-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Total Tagihan &bull; {currentPackageName}
+                  </p>
+                  <p className="text-2xl font-black text-white tracking-tight mt-0.5">
                     {currentAmountText}
-                  </div>
-                  <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px', fontWeight: 600 }}>
-                    QRIS · {billing?.merchant_name || 'VIRTUAL OPERATION CONTROL'}
-                  </div>
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                    QRIS &bull; {billing?.merchant_name || 'VIRTUAL OPERATION CONTROL'}
+                  </p>
                 </div>
               </div>
 
-              {/* WA button & Tombol Konfirmasi Bayar di bawah QRIS */}
-              <div style={{ width: '100%', marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Action Buttons Kolom Kiri */}
+              <div className="w-full space-y-2 mt-4">
+                {/* PILAR 5: Tombol "✅ Saya Sudah Bayar" */}
                 <button
                   type="button"
                   onClick={handleCheckPaymentNow}
                   disabled={checkingPayment}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    padding: '9px 12px',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    borderRadius: '8px', border: 'none', color: 'white',
-                    fontSize: '11px', fontWeight: '800', cursor: checkingPayment ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
                   {checkingPayment ? (
-                    <><RefreshCw size={13} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa...</>
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Memeriksa...
+                    </>
                   ) : (
-                    <><CheckCircle size={14} /> ✅ Saya Sudah Bayar</>
+                    <>
+                      <Check className="h-3.5 w-3.5 stroke-[3]" /> Saya Sudah Bayar
+                    </>
                   )}
                 </button>
 
                 {billing?.contact && (
                   <a
                     href={`https://wa.me/${toWaNumber(billing.contact)}?text=${encodeURIComponent(
-                      `Halo admin, saya ingin memperpanjang lisensi Billiard.\nPaket: ${currentPackageName}\nMachine ID: ${machineId}\nNominal: ${currentAmountText}`
+                      `Halo admin VOC Billiard, saya ingin konfirmasi pembayaran lisensi.\nPaket: ${currentPackageName}\nMachine ID: ${activeMachineId}\nNominal: ${currentAmountText}`
                     )}`}
                     target="_blank"
                     rel="noreferrer"
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      padding: '8px 12px',
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: '8px', color: '#e2e8f0', textDecoration: 'none',
-                      fontSize: '11px', fontWeight: '700',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                    }}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all"
                   >
-                    <MessageCircle size={14} /> Hubungi Admin / Kirim Bukti
+                    <MessageCircle className="h-3.5 w-3.5" /> Hubungi Admin / Kirim Bukti
                   </a>
                 )}
               </div>
             </div>
 
-            {/* Kolom Kanan: Pilihan Paket & Form Voucher */}
-            <div
-              className="trial-modal-content-col"
-              style={{
-                flex: '1 1 440px',
-                padding: '20px',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                boxSizing: 'border-box',
-              }}
-            >
+            {/* ============================================================== */}
+            {/* PILAR 2: KOLOM KANAN PILIHAN PAKET & KLAIM VOUCHER             */}
+            {/* ============================================================== */}
+            <div className="md:col-span-7 flex flex-col justify-between p-6 bg-slate-900/40">
               <div>
-                {/* Pilihan Paket */}
-                {billing?.packages && billing.packages.length > 0 && (
-                  <div style={{ marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#cbd5e1', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Tag size={12} color="#818cf8" /> Pilih Paket Lisensi
-                      </span>
-                      {billing.unique_code && (
-                        <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600' }}>
-                          Kode Unik: <strong style={{ color: '#38bdf8' }}>+{billing.unique_code}</strong>
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{
-                      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                      gap: '8px', width: '100%',
-                    }}>
-                      {billing.packages.map((pkg, idx) => {
-                        const isSelected = selectedPackage
-                          ? (selectedPackage.id ? selectedPackage.id === pkg.id : (selectedPackage.amount === pkg.amount && selectedPackage.days === pkg.days))
-                          : idx === 0;
-                        const pkgAmount = pkg.amount ?? pkg.final_amount ?? 0;
-                        const pkgText = pkg.amount_text || `Rp${pkgAmount.toLocaleString('id-ID')}`;
-                        const hasPromo = pkg.is_promo || (pkg.basePrice && pkg.promoPrice && pkg.basePrice > pkg.promoPrice);
-                        const badge = pkg.promo_badge || (hasPromo ? 'PROMO' : null);
-
-                      return (
-                        <button
-                          key={pkg.id || `pkg-${idx}`}
-                          type="button"
-                          onClick={() => {
-                            setSelectedPackage(pkg);
-                            selectedPackageRef.current = pkg;
-                            setQrLoaded(false);
-                            setQrFailed(false);
-                            setQrRefreshNonce(Date.now());
-                            try {
-                              sessionStorage.setItem('last_selected_package', JSON.stringify(pkg));
-                            } catch {}
-                            void refreshFreshBilling();
-                          }}
-                          style={{
-                            position: 'relative', textAlign: 'left', padding: '8px 10px',
-                            borderRadius: '10px',
-                            border: isSelected ? '1.5px solid #6366f1' : '1px solid rgba(255,255,255,0.06)',
-                            background: isSelected ? 'linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(79,70,229,0.12) 100%)' : 'rgba(255,255,255,0.02)',
-                            cursor: 'pointer', transition: 'all 0.15s ease',
-                          }}
-                        >
-                          {badge && (
-                            <span style={{
-                              position: 'absolute', top: '-5px', right: '8px',
-                              fontSize: '8px', fontWeight: '900', padding: '1px 5px', borderRadius: '4px',
-                              background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff',
-                            }}>
-                              {badge}
-                            </span>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '11px', fontWeight: isSelected ? '800' : '700', color: isSelected ? '#fff' : '#cbd5e1' }}>
-                              {pkg.label || pkg.name || `${pkg.days} Hari`}
-                            </span>
-                            <div style={{
-                              width: '12px', height: '12px', borderRadius: '50%',
-                              border: isSelected ? '3.5px solid #6366f1' : '1.5px solid rgba(255,255,255,0.2)',
-                              background: isSelected ? '#fff' : 'transparent',
-                            }} />
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '2px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: '900', color: isSelected ? '#38bdf8' : '#e2e8f0' }}>
-                              {pkgText}
-                            </span>
-                            {hasPromo && pkg.basePrice && (
-                              <span style={{ fontSize: '9px', color: '#64748b', textDecoration: 'line-through' }}>
-                                Rp{pkg.basePrice.toLocaleString('id-ID')}
-                              </span>
-                            )}
-                          </div>
-                          {pkg.days && (
-                            <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '500' }}>
-                              +{pkg.days} Hari aktif
-                            </span>
-                          )}
-                        </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Form Klaim Kode Voucher Promo */}
-                <div style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '12px', padding: '12px', marginBottom: '14px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#c7d2fe', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase' }}>
-                    <Tag size={13} /> Punya Kode Voucher Promo / Trial?
-                  </div>
-                  <form onSubmit={handleClaimVoucher} style={{ display: 'flex', gap: '6px' }}>
-                    <input
-                      type="text"
-                      value={voucherCode}
-                      onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                      placeholder="Masukkan kode voucher di sini"
-                      style={{
-                        flex: 1, background: 'rgba(0,0,0,0.3)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '8px', padding: '7px 10px',
-                        color: 'white', fontSize: '11px', fontFamily: 'monospace', outline: 'none',
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={voucherLoading || !voucherCode.trim()}
-                      style={{
-                        background: 'rgba(99,102,241,0.3)',
-                        border: '1px solid rgba(99,102,241,0.6)',
-                        borderRadius: '8px', padding: '7px 14px',
-                        color: '#c7d2fe', fontSize: '11px', fontWeight: '700',
-                        cursor: (voucherLoading || !voucherCode.trim()) ? 'not-allowed' : 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {voucherLoading ? '...' : <>Klaim <ArrowRight size={12} /></>}
-                    </button>
-                  </form>
-                  {voucherMsg && (
-                    <p style={{
-                      marginTop: '6px', marginBottom: 0, fontSize: '10px', fontWeight: '600',
-                      color: voucherMsg.error ? '#f87171' : '#4ade80'
-                    }}>
-                      {voucherMsg.text}
-                    </p>
+                
+                {/* Header Bagian Paket */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
+                    <Tag className="h-3.5 w-3.5 text-indigo-400" /> Pilih Paket Lisensi
+                  </span>
+                  {billing?.unique_code && (
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      Kode Unik Otomatis: <strong className="text-cyan-400">+{billing.unique_code}</strong>
+                    </span>
                   )}
                 </div>
-              </div>
 
-              {/* Bottom Actions */}
-              <div>
-                <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                {/* PILAR 2: Tab Navigasi "Paket Kuota Sesi" vs "Paket Durasi Waktu" */}
+                <div className="flex rounded-xl bg-slate-950/60 p-1 border border-white/5 mb-3">
                   <button
                     type="button"
-                    onClick={handleCheckPaymentNow}
-                    disabled={checkingPayment}
-                    style={{
-                      flex: 1, padding: '10px 14px',
-                      background: 'linear-gradient(135deg, #10b981, #059669)',
-                      borderRadius: '10px', border: 'none', color: 'white',
-                      fontSize: '12px', fontWeight: '800', cursor: checkingPayment ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                      boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                    }}
+                    onClick={() => handleSelectTab('quota')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                      packageTab === 'quota'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
-                    {checkingPayment ? (
-                      <><RefreshCw size={13} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa...</>
-                    ) : (
-                      <><CheckCircle size={14} /> Saya Sudah Bayar</>
-                    )}
+                    <Layers className="h-3.5 w-3.5" /> Paket Kuota Sesi
+                    <span className="rounded bg-indigo-400/20 px-1.5 py-0.2 text-[9px] font-extrabold text-indigo-200 uppercase">
+                      KUOTA
+                    </span>
                   </button>
+
                   <button
                     type="button"
-                    onClick={onClose}
-                    style={{
-                      padding: '10px 16px',
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '10px', color: '#94a3b8',
-                      fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                    }}
+                    onClick={() => handleSelectTab('days')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                      packageTab === 'days'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
-                    Tutup
+                    <Clock className="h-3.5 w-3.5" /> Paket Durasi Waktu
+                    <span className="rounded bg-indigo-400/20 px-1.5 py-0.2 text-[9px] font-extrabold text-indigo-200 uppercase">
+                      WAKTU
+                    </span>
                   </button>
                 </div>
 
-                {paymentNotice && (
-                  <div style={{
-                    marginTop: '10px', padding: '9px 12px', borderRadius: '8px',
-                    background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.25)',
-                    color: '#93c5fd', fontSize: '11px', lineHeight: '1.4', textAlign: 'left',
-                    display: 'flex', alignItems: 'flex-start', gap: '8px',
-                  }}>
-                    <RefreshCw size={14} style={{ flexShrink: 0, marginTop: '2px', animation: 'spin 2s linear infinite' }} />
-                    <span>{paymentNotice}</span>
+                {/* PILAR 2 Aturan Tunggakan: HANYA tampilkan peringatan potong hari jika user memilih tab 'days' */}
+                {packageTab === 'days' && remainingDays < 0 && (
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-amber-300">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                    <p className="text-[11px] leading-relaxed">
+                      <strong>Perhatian:</strong> Masa tenggang Anda menunggak {Math.abs(remainingDays)} hari. Jika memilih paket durasi waktu, perpanjangan akan otomatis dipotong hari tunggakan tersebut.
+                    </p>
+                  </div>
+                )}
+
+                {/* Grid Daftar Kartu Paket */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {(packageTab === 'quota' ? quotaPackages : daysPackages).map((pkg, idx) => {
+                    const isSelected = selectedPackage?.id === pkg.id || (!selectedPackage?.id && selectedPackage?.amount === pkg.amount);
+                    const pkgAmount = pkg.amount ?? pkg.final_amount ?? 0;
+                    const pkgText = pkg.amount_text || `Rp${pkgAmount.toLocaleString('id-ID')}`;
+                    const badge = pkg.promo_badge || pkg.promoBadge;
+
+                    return (
+                      <button
+                        key={pkg.id || `pkg-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPackage(pkg);
+                          setQrLoaded(false);
+                          setQrFailed(false);
+                        }}
+                        className={`relative flex flex-col justify-between p-3 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? 'border-indigo-500 bg-indigo-500/15 shadow-md shadow-indigo-500/20 ring-1 ring-indigo-500'
+                            : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/10'
+                        }`}
+                      >
+                        {badge && (
+                          <span className="absolute -top-2 right-2 rounded bg-gradient-to-r from-rose-500 to-red-600 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-white shadow">
+                            {badge}
+                          </span>
+                        )}
+
+                        <div>
+                          <p className="text-xs font-bold text-white leading-snug">
+                            {pkg.name || pkg.label}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {pkg.quota ? `${pkg.quota} Sesi Rental` : `${pkg.days} Hari Masa Aktif`}
+                          </p>
+                        </div>
+
+                        <div className="mt-3">
+                          <p className="text-sm font-black text-indigo-300">
+                            {pkgText}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Info edukasi kuota hemat */}
+                {packageTab === 'quota' && (
+                  <div className="mt-3 rounded-xl border border-white/5 bg-slate-950/40 p-2.5 text-[11px] text-slate-400 flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-[10px]">✓</span>
+                    <span><strong>Bebas Masa Kedaluwarsa:</strong> Kuota sesi tidak hangus di akhir bulan dan hanya berkurang saat mulai sewa meja baru.</span>
                   </div>
                 )}
               </div>
+
+              {/* PILAR 5: Form Input Voucher Promo */}
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Punya Kode Voucher Promo / Trial?
+                </p>
+                <form onSubmit={handleClaimVoucher} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    placeholder="Masukkan kode voucher..."
+                    className="flex-1 rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase tracking-wider"
+                  />
+                  <button
+                    type="submit"
+                    disabled={voucherLoading || !voucherCode.trim()}
+                    className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-500 active:scale-[0.98] transition-all disabled:opacity-50"
+                  >
+                    {voucherLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : 'Klaim'}
+                  </button>
+                </form>
+
+                {voucherMsg && (
+                  <p
+                    className={`mt-2 text-[11px] font-medium ${
+                      voucherMsg.error ? 'text-rose-400' : 'text-emerald-400'
+                    }`}
+                  >
+                    {voucherMsg.text}
+                  </p>
+                )}
+              </div>
+
             </div>
           </div>
         )}
+
       </div>
-
-      <style>{`
-        @keyframes modalSlideUp {
-          from { transform: translateY(20px) scale(0.96); opacity: 0; }
-          to { transform: translateY(0) scale(1); opacity: 1; }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bounceIn {
-          0% { transform: scale(0.3); opacity: 0; }
-          50% { transform: scale(1.08); }
-          70% { transform: scale(0.95); }
-          100% { transform: scale(1); opacity: 1; }
-        }
-
-        /* ─── iOS Safari & Dynamic Island Scroll Fix ─── */
-        .trial-modal-backdrop {
-          -webkit-overflow-scrolling: touch !important;
-          touch-action: pan-y !important;
-        }
-
-        @media (max-width: 768px) {
-          .trial-modal-backdrop {
-            padding-top: max(24px, env(safe-area-inset-top, 24px)) !important;
-            padding-bottom: max(40px, env(safe-area-inset-bottom, 40px)) !important;
-            padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
-            padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
-            display: block !important;
-          }
-          .trial-modal-container {
-            margin: 0 auto 20px auto !important;
-            border-radius: 20px !important;
-            max-width: 100% !important;
-          }
-          .trial-modal-columns {
-            flex-direction: column !important;
-          }
-          .trial-modal-qris-col {
-            flex: 1 1 auto !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            border-right: none !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-            padding: 20px 14px !important;
-          }
-          .trial-modal-content-col {
-            flex: 1 1 auto !important;
-            width: 100% !important;
-            padding: 20px 14px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
-

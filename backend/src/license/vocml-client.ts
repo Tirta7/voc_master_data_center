@@ -242,7 +242,7 @@ export async function checkLicense({ serverUrl, product, machineId, publicKeyPem
 }
 
 /** Konsumsi kuota trial 1x (misal saat mulai sewa meja). */
-export async function consumeTrial({ serverUrl, product, machineId, apiKey = '', timeoutMs = 8000 }) {
+export async function consumeTrial({ serverUrl, product, machineId, count = 1, apiKey = '', timeoutMs = 8000 }) {
   const base = serverUrl.replace(/\/$/, '');
   const headers = { 'Content-Type': 'application/json', ...(apiKey ? { 'X-VOCML-Key': apiKey } : {}) };
   try {
@@ -250,7 +250,7 @@ export async function consumeTrial({ serverUrl, product, machineId, apiKey = '',
       method: 'POST',
       headers,
       signal: AbortSignal.timeout(timeoutMs),
-      body: JSON.stringify({ machine_id: machineId, product }),
+      body: JSON.stringify({ machine_id: machineId, product, count: count || 1 }),
     });
     const data = await res.json();
     return { status: res.status, ok: res.ok, allowed: data.allowed !== false, ...data };
