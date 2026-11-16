@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag, ArrowRight, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Lock, Copy, CheckCircle, RefreshCw, QrCode, MessageCircle, WifiOff, Tag, ArrowRight, Sparkles, Layers, Clock, AlertTriangle, Check } from 'lucide-react';
 import { getApiUrl, getSocketUrl } from '@/utils/urlUtils';
 import WaitingCat from '@/components/WaitingCat';
 
@@ -200,40 +200,61 @@ export default function ActivatePage() {
     ? licenseState.billing
     : cachedBilling;
 
+  const [packageTab, setPackageTab] = useState<'quota' | 'days'>('quota');
   const [selectedPackage, setSelectedPackage] = useState<BillingPackage | null>(null);
+
+  const allPackages: BillingPackage[] = useMemo(() => {
+    return Array.isArray(billing?.packages) ? billing.packages : [];
+  }, [billing?.packages]);
+
+  const quotaPackages = useMemo(() => {
+    return allPackages.filter((p) => p.type === 'quota' || (Number(p.quota) > 0 && !p.days));
+  }, [allPackages]);
+
+  const daysPackages = useMemo(() => {
+    return allPackages.filter((p) => p.type === 'days' || (!p.type && Number(p.days) > 0) || (Number(p.days) > 0 && !p.quota));
+  }, [allPackages]);
 
   // Otomatis sinkronisasi paket pilihan saat data billing masuk/berubah
   useEffect(() => {
     if (billing?.packages && billing.packages.length > 0) {
-      setSelectedPackage((prev) => {
-        if (prev) {
-          const match = billing.packages!.find(
-            (p) => (p.id && p.id === prev.id) || (p.days === prev.days && (p.amount === prev.amount || p.final_amount === prev.final_amount))
-          );
-          if (match) return match;
-        }
-
-        // Coba baca paket tersimpan dari sessionStorage jika ada
-        try {
-          const saved = sessionStorage.getItem('last_selected_package');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            const matchSaved = billing.packages!.find(
-              (p) => (p.id && p.id === parsed.id) || (p.days === parsed.days && (p.amount === parsed.amount || p.final_amount === parsed.final_amount))
-            );
-            if (matchSaved) return matchSaved;
+      // Tentukan tab awal
+      if (quotaPackages.length > 0 && packageTab === 'quota') {
+        setSelectedPackage((prev) => {
+          if (prev && prev.type === 'quota') {
+            const m = quotaPackages.find((p) => p.id === prev.id || p.amount === prev.amount);
+            if (m) return m;
           }
-        } catch {}
-
-        const initial = billing.packages!.find(
-          (p) => p.amount === billing.amount || p.final_amount === billing.amount
-        );
-        return initial || billing.packages![0];
-      });
-    } else {
-      setSelectedPackage(null);
+          return quotaPackages[0];
+        });
+      } else if (daysPackages.length > 0) {
+        setSelectedPackage((prev) => {
+          if (prev && (prev.type === 'days' || prev.days)) {
+            const m = daysPackages.find((p) => p.id === prev.id || p.days === prev.days);
+            if (m) return m;
+          }
+          return daysPackages[0];
+        });
+      }
     }
-  }, [billing]);
+  }, [billing, quotaPackages.length, daysPackages.length]);
+
+  const handleSelectTab = (tab: 'quota' | 'days') => {
+    setPackageTab(tab);
+    const targetPkg = tab === 'quota' ? quotaPackages[0] : daysPackages[0];
+    if (targetPkg) {
+      setSelectedPackage(targetPkg);
+      selectedPackageRef.current = targetPkg;
+      try {
+        sessionStorage.setItem('last_selected_package', JSON.stringify(targetPkg));
+      } catch {}
+      const nextUrl = targetPkg.qris_image_url || `${getApiUrl()}/api/license/billing/qris.png?amount=${targetPkg.amount}`;
+      if (nextUrl !== currentQrisUrl) {
+        setQrLoaded(false);
+      }
+    }
+    setQrFailed(false);
+  };
 
   const currentAmount = selectedPackage
     ? (selectedPackage.amount ?? selectedPackage.final_amount ?? billing?.amount ?? 0)
@@ -242,8 +263,14 @@ export default function ActivatePage() {
     ? (selectedPackage.amount_text || `Rp${currentAmount.toLocaleString('id-ID')}`)
     : (billing?.amount_text ?? '');
   const currentPackageName = selectedPackage
-    ? (selectedPackage.label || selectedPackage.name || (selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Perpanjangan Lisensi'))
-    : 'Perpanjangan Lisensi';
+    ? (selectedPackage.name || selectedPackage.label || (selectedPackage.quota ? `Paket ${selectedPackage.quota} Sesi` : selectedPackage.days ? `Paket ${selectedPackage.days} Hari` : 'Lisensi VOC'))
+    : 'Lisensi VOC';
+
+  const currentQrisUrl = useMemo(() => {
+    if (selectedPackage?.qris_image_url) return selectedPackage.qris_image_url;
+    if (billing?.qris_image_url) return billing.qris_image_url;
+    return `${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`;
+  }, [selectedPackage, billing, currentAmount]);
 
   const selectedPackageRef = useRef<BillingPackage | null>(null);
   selectedPackageRef.current = selectedPackage;
@@ -261,15 +288,13 @@ export default function ActivatePage() {
     }
   }, [selectedPackage]);
 
-  // Reset status gambar saat nominal / QR berubah
+  // Cek jika QRIS sudah ter-cache di browser
   useEffect(() => {
-    setQrFailed(false);
     if (qrImgRef.current && qrImgRef.current.complete && qrImgRef.current.naturalWidth > 0) {
       setQrLoaded(true);
-    } else {
-      setQrLoaded(false);
+      setQrFailed(false);
     }
-  }, [currentAmount, billing?.qris]);
+  }, [currentQrisUrl, selectedPackage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -790,15 +815,22 @@ export default function ActivatePage() {
                     )}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
+                      key={currentQrisUrl}
                       ref={qrImgRef}
                       id="billing-qris-image"
-                      src={selectedPackage?.qris_image_url || billing.qris_image_url || `${getApiUrl()}/api/license/billing/qris.png?amount=${currentAmount}&t=${currentAmount}`}
+                      src={currentQrisUrl}
                       alt={`QRIS ${billing.merchant_name} ${currentAmountText}`}
                       loading="eager"
                       width={180}
                       height={180}
-                      onLoad={() => setQrLoaded(true)}
-                      onError={() => setQrFailed(true)}
+                      onLoad={() => {
+                        setQrLoaded(true);
+                        setQrFailed(false);
+                      }}
+                      onError={() => {
+                        setQrFailed(true);
+                        setQrLoaded(false);
+                      }}
                       style={{
                         width: '180px', height: '180px', display: 'block',
                         objectFit: 'contain', imageRendering: 'pixelated',
@@ -843,8 +875,30 @@ export default function ActivatePage() {
                 </div>
               </div>
 
-              {/* Tombol WhatsApp & Info Kontak */}
-              <div style={{ width: '100%', marginTop: '14px' }}>
+              {/* Tombol Action Kolom Kiri */}
+              <div style={{ width: '100%', marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleCheckPaymentNow}
+                  disabled={checkingPayment}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '10px 14px',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    borderRadius: '10px', border: 'none', color: 'white',
+                    fontSize: '12px', fontWeight: '800', cursor: checkingPayment ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {checkingPayment ? (
+                    <><RefreshCw size={14} style={{ animation: 'spin 1.5s linear infinite' }} /> Memeriksa...</>
+                  ) : (
+                    <><Check size={15} strokeWidth={3} /> Saya Sudah Bayar</>
+                  )}
+                </button>
+
                 {billing.contact.trim() !== '' && (
                   <a
                     id="billing-whatsapp"
@@ -858,11 +912,11 @@ export default function ActivatePage() {
                       width: '100%',
                       boxSizing: 'border-box',
                       padding: '9px 14px',
-                      background: 'linear-gradient(135deg, #16a34a, #22c55e)',
-                      borderRadius: '10px', color: 'white', textDecoration: 'none',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '10px', color: '#e2e8f0', textDecoration: 'none',
                       fontSize: '12px', fontWeight: '700',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                      boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
                       transition: 'all 0.15s ease',
                     }}
                   >
@@ -870,7 +924,7 @@ export default function ActivatePage() {
                   </a>
                 )}
                 {billing.contact && (
-                  <span style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', display: 'block' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', display: 'block' }}>
                     Nomor Admin: <strong style={{ color: '#cbd5e1' }}>{billing.contact}</strong>
                   </span>
                 )}
@@ -911,14 +965,79 @@ export default function ActivatePage() {
                     )}
                   </div>
 
-                  {/* Grid Paket 2 Kolom Rapi */}
+                  {/* Tab Switcher: Paket Kuota Sesi vs Paket Durasi Waktu */}
+                  <div style={{
+                    display: 'flex', gap: '6px', padding: '4px', borderRadius: '12px',
+                    background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.06)',
+                    marginBottom: '12px',
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTab('quota')}
+                      style={{
+                        flex: 1, padding: '7px 12px', borderRadius: '9px', border: 'none',
+                        background: packageTab === 'quota' ? '#4f46e5' : 'transparent',
+                        color: packageTab === 'quota' ? '#fff' : '#94a3b8',
+                        fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                        transition: 'all 0.15s ease',
+                        boxShadow: packageTab === 'quota' ? '0 2px 10px rgba(79,70,229,0.35)' : 'none',
+                      }}
+                    >
+                      <Layers size={13} /> Paket Kuota Sesi
+                      <span style={{
+                        fontSize: '8px', padding: '1px 5px', borderRadius: '4px',
+                        background: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: '900',
+                      }}>
+                        KUOTA
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTab('days')}
+                      style={{
+                        flex: 1, padding: '7px 12px', borderRadius: '9px', border: 'none',
+                        background: packageTab === 'days' ? '#4f46e5' : 'transparent',
+                        color: packageTab === 'days' ? '#fff' : '#94a3b8',
+                        fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                        transition: 'all 0.15s ease',
+                        boxShadow: packageTab === 'days' ? '0 2px 10px rgba(79,70,229,0.35)' : 'none',
+                      }}
+                    >
+                      <Clock size={13} /> Paket Durasi Waktu
+                      <span style={{
+                        fontSize: '8px', padding: '1px 5px', borderRadius: '4px',
+                        background: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: '900',
+                      }}>
+                        WAKTU
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Peringatan Tunggakan: HANYA jika tab 'days' dipilih dan ada minus hari */}
+                  {packageTab === 'days' && (licenseState?.remaining_days < 0 || licenseState?.days_left < 0) && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+                      borderRadius: '10px', padding: '8px 12px', marginBottom: '10px',
+                    }}>
+                      <AlertTriangle size={14} color="#fbbf24" style={{ flexShrink: 0 }} />
+                      <span style={{ color: '#fde68a', fontSize: '11px', lineHeight: 1.3 }}>
+                        Perpanjangan waktu akan otomatis dipotong hari tunggakan sebelumnya.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Grid Paket */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                     gap: '8px',
                     width: '100%',
                   }}>
-                    {billing.packages.map((pkg, idx) => {
+                    {(packageTab === 'quota' ? quotaPackages : daysPackages).map((pkg, idx) => {
                       const isSelected = selectedPackage
                         ? (selectedPackage.id ? selectedPackage.id === pkg.id : (selectedPackage.amount === pkg.amount && selectedPackage.days === pkg.days))
                         : idx === 0;
@@ -932,9 +1051,13 @@ export default function ActivatePage() {
                           key={pkg.id || `pkg-${idx}`}
                           type="button"
                           onClick={() => {
-                            if (isSelected) return;
+                            const nextUrl = pkg.qris_image_url || `${getApiUrl()}/api/license/billing/qris.png?amount=${pkg.amount}`;
+                            if (nextUrl !== currentQrisUrl) {
+                              setQrLoaded(false);
+                            }
                             setSelectedPackage(pkg);
                             selectedPackageRef.current = pkg;
+                            setQrFailed(false);
                             try {
                               sessionStorage.setItem('last_selected_package', JSON.stringify(pkg));
                             } catch {}
@@ -969,7 +1092,7 @@ export default function ActivatePage() {
                               fontSize: '12px', fontWeight: isSelected ? '800' : '700',
                               color: isSelected ? '#ffffff' : '#cbd5e1', lineHeight: 1.2,
                             }}>
-                              {pkg.label || pkg.name || `${pkg.days} Hari`}
+                              {pkg.name || pkg.label || (pkg.quota ? `${pkg.quota} Sesi` : `${pkg.days} Hari`)}
                             </span>
                             <div style={{
                               width: '14px', height: '14px', borderRadius: '50%',
@@ -993,15 +1116,25 @@ export default function ActivatePage() {
                             )}
                           </div>
 
-                          {pkg.days && (
-                            <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '500', marginTop: '1px', display: 'block' }}>
-                              +{pkg.days} Hari masa aktif
-                            </span>
-                          )}
+                          <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '500', marginTop: '2px', display: 'block' }}>
+                            {pkg.quota ? `${pkg.quota} Sesi Rental Meja` : `+${pkg.days} Hari masa aktif`}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
+
+                  {/* Edukasi Kuota Sesi */}
+                  {packageTab === 'quota' && (
+                    <div style={{
+                      marginTop: '10px', padding: '8px 12px', borderRadius: '10px',
+                      background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
+                      fontSize: '11px', color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '6px',
+                    }}>
+                      <Check size={14} color="#34d399" />
+                      <span><strong>Bebas Masa Kedaluwarsa:</strong> Kuota sesi tidak pernah hangus di akhir bulan dan hanya berkurang saat mulai sewa meja baru.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
