@@ -335,31 +335,27 @@ export default function TrialExhaustedModal({
     };
     socket.on('license_renewed', onLicenseRenewed);
 
-    // Engine 2: Fast Polling Fallback (Interval 1.5 Detik) HANYA saat modal terbuka
+    // Engine 2: Fast Polling Fallback (Interval 2 Detik) via backend lokal (Bebas CORS)
     const pollInterval = setInterval(async () => {
       if (isDone) return;
       try {
         const res = await fetch(
-          `${VOCML_BASE}/api/v1/check?machine_id=${activeMachineId}&product=${PRODUCT}&_t=${Date.now()}`,
-          { cache: 'no-store', signal: AbortSignal.timeout(1800) }
+          `${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`,
+          { cache: 'no-store', signal: AbortSignal.timeout(3000) }
         );
         if (res.ok) {
           const d = await res.json();
-          // Cek apakah sudah active atau ada penambahan quota/hari
-          if (d.allowed && (d.status === 'active' || d.status === 'trial')) {
-            // Jika ada event pembayaran baru yang berhasil
-            if (d.trial?.remaining > 0 || d.days_left > 0) {
-              // Verifikasi apakah ini hasil aktivasi baru
-              if (d.last_payment && new Date().getTime() - new Date(d.last_payment.created_at).getTime() < 120000) {
-                isDone = true;
-                clearInterval(pollInterval);
-                triggerSuccessUnlock(d);
-              }
-            }
+          const lastPayTime = d.lastPayment ? new Date(d.lastPayment.created_at || d.lastPayment.createdAt || 0).getTime() : 0;
+          const isFreshPayment = lastPayTime > 0 && (Date.now() - lastPayTime < 300000);
+          const hasRemainingQuota = d.trial && typeof d.trial.remaining === 'number' && d.trial.remaining > 0;
+          if (isFreshPayment && hasRemainingQuota) {
+            isDone = true;
+            clearInterval(pollInterval);
+            triggerSuccessUnlock(d);
           }
         }
       } catch {}
-    }, 1500);
+    }, 2000);
 
     return () => {
       isDone = true;
@@ -369,53 +365,55 @@ export default function TrialExhaustedModal({
     };
   }, [isOpen, activeMachineId, triggerSuccessUnlock, fetchFreshBilling]);
 
-  // PILAR 5: Tombol "✅ Saya Sudah Bayar" Langsung Check Seketika (0 milidetik)
+  // PILAR 5: Tombol "✅ Saya Sudah Bayar" Langsung Check Seketika via backend lokal
   const handleCheckPaymentNow = async () => {
     if (checkingPayment) return;
     setCheckingPayment(true);
     try {
       const res = await fetch(
-        `${VOCML_BASE}/api/v1/check?machine_id=${activeMachineId}&product=${PRODUCT}&_t=${Date.now()}`,
+        `${getApiUrl()}/api/license/status?force=true&_t=${Date.now()}`,
         { cache: 'no-store' }
       );
       if (res.ok) {
         const d = await res.json();
-        if (d.allowed) {
+        const lastPayTime = d.lastPayment ? new Date(d.lastPayment.created_at || d.lastPayment.createdAt || 0).getTime() : 0;
+        const isFreshPayment = lastPayTime > 0 && (Date.now() - lastPayTime < 300000);
+        const hasRemainingQuota = d.trial && typeof d.trial.remaining === 'number' && d.trial.remaining > 0;
+
+        if (isFreshPayment || (d.status === 'ACTIVE' && hasRemainingQuota)) {
           triggerSuccessUnlock(d);
           return;
         }
       }
-      // Jika belum terdeteksi, berikan feedback ramah
+      // Jika server VOC ML belum mencatat mutasi pembayaran
       setVoucherMsg({
-        text: 'Sistem sedang menunggu konfirmasi mutasi bank. Mohon tunggu beberapa detik lagi...',
+        text: 'Pembayaran sedang diverifikasi oleh mutasi server VOC ML. Mohon tunggu beberapa detik, atau klik Hubungi Admin di bawah.',
         error: false,
       });
-      setTimeout(() => setVoucherMsg(null), 3500);
+      setTimeout(() => setVoucherMsg(null), 5000);
     } catch {
-      setVoucherMsg({ text: 'Gagal menghubungi server VOCML. Periksa koneksi internet Anda.', error: true });
+      setVoucherMsg({ text: 'Gagal menghubungi server lokal. Silakan coba kembali.', error: true });
     } finally {
       setCheckingPayment(false);
     }
   };
 
-  // PILAR 5: Form Klaim Voucher Promo
+  // PILAR 5: Form Klaim Voucher Promo via backend lokal (Bebas CORS)
   const handleClaimVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!voucherCode.trim() || voucherLoading) return;
     setVoucherLoading(true);
     setVoucherMsg(null);
     try {
-      const res = await fetch(`${VOCML_BASE}/api/v1/voucher/claim`, {
+      const res = await fetch(`${getApiUrl()}/api/license/voucher/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          machine_id: activeMachineId,
-          product: PRODUCT,
           code: voucherCode.trim(),
         }),
       });
       const data = await res.json();
-      if (res.ok && data.ok) {
+      if (res.ok && (data.ok || data.success)) {
         setVoucherMsg({
           text: data.message || 'Voucher berhasil diklaim! Kuota sesi rental telah ditambahkan.',
           error: false,
